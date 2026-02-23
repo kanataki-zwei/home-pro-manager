@@ -1,0 +1,65 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.database import get_db
+from app.core.config import settings
+from app.models.user import User
+from app.schemas.user import UserResponse, UserCreate
+from supabase import create_client
+
+router = APIRouter()
+
+def get_supabase():
+    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
+
+
+@router.get("/", response_model=list[UserResponse])
+async def list_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).order_by(User.email))
+    return result.scalars().all()
+
+
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+    # Check if user already exists
+    result = await db.execute(select(User).where(User.email == payload.email))
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+
+    # Create user in Supabase Auth
+    supabase = get_supabase()
+    try:
+        auth_response = supabase.auth.admin.create_user({
+            "email": payload.email,
+            "password": payload.password,
+            "email_confirm": True,
+            "user_metadata": {"name": payload.name or payload.email.split("@")[0]}
+        })
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    auth_user = auth_response.user
+    if not auth_user:
+        raise HTTPException(status_code=400, detail="Failed to create user")
+
+    # Upsert into our users table (in case trigger already fired)
+    result = await db.execute(select(User).where(User.id == auth_user.id))
+    existing_by_id = result.scalar_one_or_none()
+
+    if existing_by_id:
+        # Trigger already created the record, just update name
+        existing_by_id.name = payload.name or payload.email.split("@")[0]
+        await db.commit()
+        await db.refresh(existing_by_id)
+        return existing_by_id
+
+    user = User(
+        id=auth_user.id,
+        email=payload.email,
+        name=payload.name or payload.email.split("@")[0]
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
