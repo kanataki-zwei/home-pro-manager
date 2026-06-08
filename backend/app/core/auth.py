@@ -1,7 +1,8 @@
+import asyncio
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt as pyjwt
-import base64
+from jwt import PyJWKClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.config import settings
@@ -10,6 +11,9 @@ from app.models.user import User
 
 bearer_scheme = HTTPBearer()
 
+_jwks_client = PyJWKClient(f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json", cache_keys=True)
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db)
@@ -17,25 +21,21 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        secret = base64.b64decode(settings.SUPABASE_JWT_SECRET + "==")
+        loop = asyncio.get_event_loop()
+        signing_key = await loop.run_in_executor(None, lambda: _jwks_client.get_signing_key_from_jwt(token))
         payload = pyjwt.decode(
             token,
-            secret,
-            algorithms=["HS256"],
-            options={
-                "verify_aud": False,
-                "verify_signature": True
-            },
+            signing_key.key,
+            algorithms=["ES256", "RS256", "HS256"],
+            options={"verify_aud": False},
             leeway=10
         )
         user_id: str = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     except pyjwt.PyJWTError as e:
-        print(f"JWT ERROR: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
     except Exception as e:
-        print(f"OTHER ERROR: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     result = await db.execute(select(User).where(User.id == user_id))

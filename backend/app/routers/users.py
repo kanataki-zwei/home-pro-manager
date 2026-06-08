@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,8 +10,13 @@ from supabase import create_client
 
 router = APIRouter()
 
+_supabase_client = None
+
 def get_supabase():
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
+    return _supabase_client
 
 
 @router.get("/", response_model=list[UserResponse])
@@ -27,15 +33,18 @@ async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
-    # Create user in Supabase Auth
+    # Create user in Supabase Auth (blocking HTTP — run off event loop)
     supabase = get_supabase()
     try:
-        auth_response = supabase.auth.admin.create_user({
-            "email": payload.email,
-            "password": payload.password,
-            "email_confirm": True,
-            "user_metadata": {"name": payload.name or payload.email.split("@")[0]}
-        })
+        auth_response = await asyncio.to_thread(
+            supabase.auth.admin.create_user,
+            {
+                "email": payload.email,
+                "password": payload.password,
+                "email_confirm": True,
+                "user_metadata": {"name": payload.name or payload.email.split("@")[0]}
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
