@@ -1,10 +1,9 @@
-import { createClient } from '@/lib/supabase'
+import { getSession } from '@/lib/auth'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8002'
 
 async function getAuthHeaders() {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSession()
     return {
         'Content-Type': 'application/json',
         ...(session?.access_token && {

@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from app.core.database import get_db
+from app.core.auth import get_current_user
+from app.models.user import User
 from app.models.household import Household, MemberType, HouseholdMember, Account
 from app.schemas.household import (
     HouseholdCreate, HouseholdResponse,
@@ -16,6 +18,33 @@ router = APIRouter()
 
 
 # ─── Households ─────────────────────────────────────────────────
+
+@router.get("/mine", response_model=HouseholdResponse)
+async def get_my_household(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Find the household this user belongs to via household_members
+    result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.user_id == current_user.id,
+            HouseholdMember.is_active == True
+        )
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="No household found for this user")
+
+    result = await db.execute(
+        select(Household)
+        .options(selectinload(Household.member_types))
+        .where(Household.id == member.household_id)
+    )
+    household = result.scalar_one_or_none()
+    if not household:
+        raise HTTPException(status_code=404, detail="Household not found")
+    return household
+
 
 @router.post("/", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
 async def create_household(payload: HouseholdCreate, db: AsyncSession = Depends(get_db)):

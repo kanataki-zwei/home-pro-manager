@@ -56,53 +56,60 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const id = localStorage.getItem('household_id')
-        if (id) loadAll(id)
-        else setLoading(false)
+        loadFromAPI()
     }, [])
 
-    const loadAll = async (id: string) => {
+    const loadFromAPI = async () => {
+        setLoading(true)
         try {
-            const [h, m, a] = await Promise.all([
-                apiGet<Household>(`/api/households/${id}`),
-                apiGet<Member[]>(`/api/households/${id}/members`),
-                apiGet<Account[]>(`/api/households/${id}/accounts`)
-            ])
+            // Fetch household by current user identity — no localStorage needed
+            const h = await apiGet<Household>('/api/households/mine')
             setHousehold(h)
+
+            const [m, a] = await Promise.all([
+                apiGet<Member[]>(`/api/households/${h.id}/members`),
+                apiGet<Account[]>(`/api/households/${h.id}/accounts`)
+            ])
             setMembers(m)
             setAccounts(a)
-        } catch (e) {
-            console.error('Failed to load household', e)
+        } catch {
+            // 404 means user has no household yet — that's fine
+            setHousehold(null)
+            setMembers([])
+            setAccounts([])
         } finally {
             setLoading(false)
         }
     }
 
+    const handleSetHousehold = (h: Household) => {
+        setHousehold(h)
+        // No longer storing in localStorage — source of truth is the API
+    }
+
     const refreshHousehold = async () => {
-        const id = localStorage.getItem('household_id')
-        if (!id) return
-        const h = await apiGet<Household>(`/api/households/${id}`)
+        if (!household) return
+        const h = await apiGet<Household>(`/api/households/${household.id}`)
         setHousehold(h)
     }
 
     const refreshMembers = async () => {
-        const id = localStorage.getItem('household_id')
-        if (!id) return
-        const m = await apiGet<Member[]>(`/api/households/${id}/members`)
+        if (!household) return
+        const m = await apiGet<Member[]>(`/api/households/${household.id}/members`)
         setMembers(m)
     }
 
     const refreshAccounts = async () => {
-        const id = localStorage.getItem('household_id')
-        if (!id) return
-        const a = await apiGet<Account[]>(`/api/households/${id}/accounts`)
+        if (!household) return
+        const a = await apiGet<Account[]>(`/api/households/${household.id}/accounts`)
         setAccounts(a)
     }
 
     return (
         <HouseholdContext.Provider value={{
             household, members, accounts, loading,
-            setHousehold, setMembers, setAccounts,
+            setHousehold: handleSetHousehold,
+            setMembers, setAccounts,
             refreshHousehold, refreshMembers, refreshAccounts
         }}>
             {children}

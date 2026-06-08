@@ -99,7 +99,6 @@ export default function HouseholdPage() {
         setCreating(true)
         try {
             const data = await apiPost<Household>('/api/households/', { name: householdName })
-            localStorage.setItem('household_id', data.id)
             setHousehold(data)
             toast.success('Household created!')
         } catch { toast.error('Failed to create household') }

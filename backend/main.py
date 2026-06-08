@@ -6,6 +6,7 @@ from sqlalchemy import text
 import app.models 
 from app.routers.users import router as users_router
 from app.routers.households import router as households_router
+from app.routers.budget import router as budget_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(households_router, prefix="/api/households", tags=["Households"])
+app.include_router(budget_router, prefix="/api")
 
 @app.get("/health")
 async def health():
