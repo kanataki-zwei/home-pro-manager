@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { signUp } from '@/lib/auth'
+import { apiPost } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Sparkles } from 'lucide-react'
 
 const schema = z.object({
+    name: z.string().min(1, 'Name is required'),
     email: z.string().email('Invalid email address'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string()
@@ -35,16 +36,15 @@ export default function SignupPage() {
 
     const onSubmit = async (data: FormData) => {
         setLoading(true)
-        const { error } = await signUp(data.email, data.password)
-        setLoading(false)
-
-        if (error) {
-            toast.error(error.message)
-            return
+        try {
+            await apiPost('/api/users/', { email: data.email, password: data.password, name: data.name })
+            toast.success('Account created! Please sign in.')
+            router.push('/auth/login')
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to create account')
+        } finally {
+            setLoading(false)
         }
-
-        toast.success('Account created! Please sign in.')
-        router.push('/auth/login')
     }
 
     return (
@@ -82,6 +82,17 @@ export default function SignupPage() {
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name" className="text-sm font-semibold text-slate-700">Name</Label>
+                                <Input
+                                    id="name"
+                                    type="text"
+                                    placeholder="Your name"
+                                    className="h-11 rounded-xl border-slate-200 focus:border-sky-400 focus:ring-sky-400"
+                                    {...register('name')}
+                                />
+                                {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-sm font-semibold text-slate-700">Email</Label>
                                 <Input
