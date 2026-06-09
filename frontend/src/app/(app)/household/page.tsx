@@ -51,8 +51,8 @@ function SaveButton({ onClick, loading, label = 'Save' }: { onClick: () => void;
 }
 
 export default function HouseholdPage() {
-    const { household, members, accounts, setHousehold, setMembers, setAccounts } = useHousehold()
-    const [loading, setLoading] = useState(!household)
+    const { household, members, accounts, loading: contextLoading, setHousehold, setMembers, setAccounts } = useHousehold()
+    const [loading, setLoading] = useState(true)
     const [systemUsers, setSystemUsers] = useState<SystemUser[]>([])
 
     const [householdName, setHouseholdName] = useState('')
@@ -84,8 +84,11 @@ export default function HouseholdPage() {
     const [savingAccount, setSavingAccount] = useState(false)
 
     useEffect(() => {
-        if (household) { setLoading(false); loadSystemUsers() }
-    }, [household])
+        if (!contextLoading) {
+            setLoading(false)
+            if (household) loadSystemUsers()
+        }
+    }, [contextLoading, household])
 
     const loadSystemUsers = async () => {
         try {

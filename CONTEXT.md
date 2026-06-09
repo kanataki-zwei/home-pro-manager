@@ -45,7 +45,10 @@ creates the Auth user first, then inserts the `users` row atomically.
 New Supabase projects may only expose a direct connection over IPv6
 (`db.<ref>.supabase.co`). The transaction pooler (`aws-0-eu-west-1.pooler.supabase.com`,
 port 6543) is always IPv4-reachable. The tradeoff: transaction pooler does not support
-prepared statements, so `prepared_statement_cache_size=0` is set on the asyncpg engine.
+prepared statements, so `prepared_statement_cache_size=0` is set on the asyncpg engine
+and `pool_pre_ping` is NOT used (its internal ping also uses a prepared statement that
+fails with PgBouncer transaction mode, causing `InvalidSQLStatementNameError` which
+propagates as a CORS error in the browser).
 
 ### Why asyncio.to_thread / run_in_executor?
 Both the Supabase Python client and PyJWKClient use synchronous HTTP (urllib / requests).

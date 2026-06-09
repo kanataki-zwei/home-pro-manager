@@ -24,21 +24,31 @@ async def get_my_household(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Find the household this user belongs to via household_members
-    result = await db.execute(
+    # Check via household_members first (user is an active member)
+    member_result = await db.execute(
         select(HouseholdMember).where(
             HouseholdMember.user_id == current_user.id,
             HouseholdMember.is_active == True
         )
     )
-    member = result.scalar_one_or_none()
-    if not member:
-        raise HTTPException(status_code=404, detail="No household found for this user")
+    member = member_result.scalar_one_or_none()
+
+    if member:
+        household_id = member.household_id
+    else:
+        # Fall back to households created by this user (before they added themselves as member)
+        created_result = await db.execute(
+            select(Household).where(Household.created_by == current_user.id)
+        )
+        household = created_result.scalar_one_or_none()
+        if not household:
+            raise HTTPException(status_code=404, detail="No household found for this user")
+        household_id = household.id
 
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
-        .where(Household.id == member.household_id)
+        .where(Household.id == household_id)
     )
     household = result.scalar_one_or_none()
     if not household:
@@ -47,11 +57,14 @@ async def get_my_household(
 
 
 @router.post("/", response_model=HouseholdResponse, status_code=status.HTTP_201_CREATED)
-async def create_household(payload: HouseholdCreate, db: AsyncSession = Depends(get_db)):
-    household = Household(name=payload.name)
+async def create_household(
+    payload: HouseholdCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    household = Household(name=payload.name, created_by=current_user.id)
     db.add(household)
     await db.flush()
-    await db.commit()
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
@@ -84,7 +97,7 @@ async def update_household(household_id: UUID, payload: HouseholdCreate, db: Asy
     if not household:
         raise HTTPException(status_code=404, detail="Household not found")
     household.name = payload.name
-    await db.commit()
+    await db.flush()
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
@@ -107,7 +120,7 @@ async def get_member_types(household_id: UUID, db: AsyncSession = Depends(get_db
 async def create_member_type(household_id: UUID, payload: MemberTypeCreate, db: AsyncSession = Depends(get_db)):
     member_type = MemberType(household_id=household_id, name=payload.name)
     db.add(member_type)
-    await db.commit()
+    await db.flush()
     await db.refresh(member_type)
     return member_type
 
@@ -121,7 +134,6 @@ async def delete_member_type(household_id: UUID, type_id: UUID, db: AsyncSession
     if not member_type:
         raise HTTPException(status_code=404, detail="Member type not found")
     await db.delete(member_type)
-    await db.commit()
 
 
 # ─── Household Members ──────────────────────────────────────────
@@ -143,7 +155,7 @@ async def get_members(household_id: UUID, db: AsyncSession = Depends(get_db)):
 async def create_member(household_id: UUID, payload: HouseholdMemberCreate, db: AsyncSession = Depends(get_db)):
     member = HouseholdMember(household_id=household_id, **payload.model_dump())
     db.add(member)
-    await db.commit()
+    await db.flush()
     result = await db.execute(
         select(HouseholdMember)
         .options(selectinload(HouseholdMember.member_type))
@@ -167,7 +179,7 @@ async def update_member(household_id: UUID, member_id: UUID, payload: HouseholdM
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(member, key, value)
 
-    await db.commit()
+    await db.flush()
     result = await db.execute(
         select(HouseholdMember)
         .options(selectinload(HouseholdMember.member_type))
@@ -188,7 +200,6 @@ async def delete_member(household_id: UUID, member_id: UUID, db: AsyncSession = 
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     member.is_active = False
-    await db.commit()
 
 
 # ─── Accounts ───────────────────────────────────────────────────
@@ -208,7 +219,7 @@ async def get_accounts(household_id: UUID, db: AsyncSession = Depends(get_db)):
 async def create_account(household_id: UUID, payload: AccountCreate, db: AsyncSession = Depends(get_db)):
     account = Account(household_id=household_id, **payload.model_dump())
     db.add(account)
-    await db.commit()
+    await db.flush()
     await db.refresh(account)
     return account
 
@@ -228,7 +239,7 @@ async def update_account(household_id: UUID, account_id: UUID, payload: AccountU
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(account, key, value)
 
-    await db.commit()
+    await db.flush()
     await db.refresh(account)
     return account
 
@@ -245,4 +256,3 @@ async def delete_account(household_id: UUID, account_id: UUID, db: AsyncSession 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     account.is_active = False
-    await db.commit()

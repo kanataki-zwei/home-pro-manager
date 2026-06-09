@@ -129,3 +129,5 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8002
 - Do not add `drop_constraint` calls in migrations for FK constraints that don't exist in the schema
 - Do not use the direct Supabase connection string (port 5432, `db.<ref>.supabase.co`) — it may be IPv6-only
 - Do not call synchronous I/O directly inside `async def` route handlers
+- Do not set `pool_pre_ping=True` on the asyncpg engine — the ping uses a prepared statement that PgBouncer transaction mode drops, causing `InvalidSQLStatementNameError` (surfaces as a CORS error in the browser)
+- Do not use `connect_args={"prepared_statement_cache_size": 0}` alone — the default `_default_name_func` returns `None`, which makes asyncpg generate named statements (`__asyncpg_stmt_N__`) that collide when PgBouncer reuses a backend connection for a new asyncpg connection. Always pair it with `"prepared_statement_name_func": lambda: ""` to use unnamed prepared statements (auto-discarded after each Execute)
