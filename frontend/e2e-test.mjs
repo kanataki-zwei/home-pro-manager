@@ -36,6 +36,13 @@ async function run() {
     page.on('console', msg => {
         if (msg.type() === 'error') console.log(`  [browser error] ${msg.text()}`)
     })
+    // Capture PATCH member responses
+    page.on('response', async res => {
+        if (res.url().includes('/members/') && res.request().method() === 'PATCH') {
+            const body = await res.text().catch(() => '?')
+            console.log(`  [network] PATCH member → ${res.status()}: ${body.slice(0, 800)}`)
+        }
+    })
 
     console.log(`Test email: ${TEST_EMAIL}`)
 
@@ -178,6 +185,33 @@ async function run() {
     const aliceVisible = await page.getByText('Alice Test').first().isVisible().catch(() => false)
     console.log(`  ${aliceVisible ? '✅' : '❌'} Member "Alice Test" added: ${aliceVisible}`)
 
+    // ── 6b. Member income ──────────────────────────────────────────────────
+    console.log('\n[6b] MEMBER INCOME')
+    // Click the income toggle on Alice's card (only one member exists)
+    const incomeToggle = page.locator('button').filter({ hasText: 'Contributes to income' }).first()
+    const toggleCount = await incomeToggle.count()
+    if (toggleCount > 0) {
+        await incomeToggle.click()
+        await wait(2000)
+        await shot('10b-debug-after-toggle')
+        // Log buttons visible to diagnose
+        const btns = await page.locator('button').allTextContents().catch(() => [])
+        console.log(`  Buttons on page: ${JSON.stringify(btns.filter(t => t.trim()).slice(0, 15))}`)
+        // Wait for the income form to appear (PATCH must complete first)
+        await page.waitForSelector('input[placeholder="Amount"]', { timeout: 10000 })
+        await page.locator('input[placeholder="Amount"]').first().fill('100000')
+        // Currency already defaults to KES — leave it
+        // Cadence already defaults to monthly — leave it
+        // Save
+        await page.locator('button').filter({ hasText: 'Save Income' }).first().click()
+        await wait(2000)
+        const incomeSaved = await page.getByText('KES 100,000.00 / monthly').first().isVisible().catch(() => false)
+        console.log(`  ${incomeSaved ? '✅' : '❌'} Alice income saved: ${incomeSaved}`)
+    } else {
+        console.log('  ⚠️  Income toggle not found')
+    }
+    await shot('10b-member-income')
+
     // ── 7. Accounts ────────────────────────────────────────────────────────
     console.log('\n[7] ACCOUNTS')
     await closedialog()
@@ -307,6 +341,19 @@ async function run() {
     const kesVisible = await page.getByText(/KES.*50,000|50,000.*KES/).first().isVisible().catch(() => false)
     console.log(`  ${rentVisible ? '✅' : '❌'} Expense "Rent" visible: ${rentVisible}`)
     console.log(`  ${kesVisible ? '✅' : '❌'} Monthly amount KES 50,000 visible: ${kesVisible}`)
+
+    // Personal tab — create a group (was failing with 422 before the fix)
+    await page.click('button:has-text("Personal")')
+    await wait(500)
+    await page.click('button:has-text("New Group")')
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { timeout: 5000 })
+    await page.locator('[role="dialog"] input').fill('Personal Transport')
+    await page.locator('[role="dialog"] [style*="linear-gradient"]').click()
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { state: 'hidden', timeout: 6000 }).catch(() => {})
+    await wait(500)
+    const personalGroupVisible = await page.getByText('Personal Transport').first().isVisible().catch(() => false)
+    console.log(`  ${personalGroupVisible ? '✅' : '❌'} Personal group "Personal Transport" created: ${personalGroupVisible}`)
+    await shot('19b-personal-group')
 
     // ── 10. Household rename ───────────────────────────────────────────────
     console.log('\n[10] HOUSEHOLD RENAME')
