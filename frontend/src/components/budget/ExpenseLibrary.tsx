@@ -397,7 +397,7 @@ export default function ExpenseLibrary() {
                     }
                     const currency = myMember.income_currency ?? 'KES'
                     const myIncome = toMonthly(Number(myMember.income_amount), myMember.income_cadence ?? 'monthly')
-                    const myBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === myMember.id).reduce((s, e) => s + Number(e.monthly_amount), 0)
+                    const myBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === myMember.user_id).reduce((s, e) => s + Number(e.monthly_amount), 0)
                     const myRemaining = myIncome - myBudgeted
                     const pct = myIncome > 0 ? Math.min((myBudgeted / myIncome) * 100, 100) : 0
                     const over = myRemaining < 0
@@ -438,7 +438,7 @@ export default function ExpenseLibrary() {
                 // Per-member data
                 const memberRows = incomeMembers.map(m => {
                     const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                    const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.id).reduce((s, e) => s + Number(e.monthly_amount), 0)
+                    const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.user_id).reduce((s, e) => s + Number(e.monthly_amount), 0)
                     return { member: m, income, personal, remaining: income - personal }
                 })
 
