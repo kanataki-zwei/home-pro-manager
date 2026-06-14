@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiGet, apiPost } from '@/lib/api'
+import { getSession } from '@/lib/auth'
 
 interface MemberType {
     id: string
@@ -43,6 +44,7 @@ interface HouseholdContextType {
     members: Member[]
     accounts: Account[]
     loading: boolean
+    currentUserId: string | null
     setHousehold: (h: Household) => void
     setMembers: (m: Member[]) => void
     setAccounts: (a: Account[]) => void
@@ -58,6 +60,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const [members, setMembers] = useState<Member[]>([])
     const [accounts, setAccounts] = useState<Account[]>([])
     const [loading, setLoading] = useState(true)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
     useEffect(() => {
         loadFromAPI()
@@ -66,6 +69,9 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const loadFromAPI = async () => {
         setLoading(true)
         try {
+            const session = await getSession()
+            setCurrentUserId(session?.user?.id ?? null)
+
             // Fetch household by current user identity — no localStorage needed
             const h = await apiGet<Household>('/api/households/mine')
             setHousehold(h)
@@ -111,7 +117,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
 
     return (
         <HouseholdContext.Provider value={{
-            household, members, accounts, loading,
+            household, members, accounts, loading, currentUserId,
             setHousehold: handleSetHousehold,
             setMembers, setAccounts,
             refreshHousehold, refreshMembers, refreshAccounts

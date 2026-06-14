@@ -32,6 +32,16 @@ const ACCOUNT_TYPE_ICONS: Record<string, string> = {
     checking: '🏦', savings: '💰', cash: '💵', investment: '📈', credit: '💳'
 }
 
+function toMonthly(amount: number, cadence: string): number {
+    if (cadence === 'weekly') return (amount * 52) / 12
+    if (cadence === 'annually') return amount / 12
+    return amount
+}
+
+function fmtMoney(amount: number, currency: string) {
+    return `${currency} ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 const GRADIENTS = [
     'linear-gradient(135deg, #0ea5e9, #6366f1)',
     'linear-gradient(135deg, #f43f5e, #f97316)',
@@ -497,6 +507,79 @@ export default function HouseholdPage() {
                     </div>
                 )}
             </div>
+
+            {/* Income Summary */}
+            {(() => {
+                const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
+                if (incomeMembers.length === 0) return null
+
+                // Group totals by currency
+                const totals: Record<string, number> = {}
+                for (const m of incomeMembers) {
+                    const currency = m.income_currency ?? 'KES'
+                    const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                    totals[currency] = (totals[currency] ?? 0) + monthly
+                }
+
+                return (
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-900">Household Income</h2>
+                                <p className="text-sm text-slate-400">Monthly income across all members</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            {/* Per-member rows */}
+                            <div className="divide-y divide-slate-50">
+                                {incomeMembers.map((member, i) => {
+                                    const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
+                                    const currency = member.income_currency ?? 'KES'
+                                    return (
+                                        <div key={member.id} className="flex items-center justify-between px-5 py-3.5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                    style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-slate-800 text-sm">{member.name}</p>
+                                                    <p className="text-xs text-slate-400 capitalize">{member.income_cadence}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-slate-900 text-sm">
+                                                    {fmtMoney(Number(member.income_amount), currency)}
+                                                    <span className="text-xs font-normal text-slate-400"> / {member.income_cadence}</span>
+                                                </p>
+                                                {member.income_cadence !== 'monthly' && (
+                                                    <p className="text-xs text-slate-400">{fmtMoney(monthly, currency)} / mo</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            {/* Total footer */}
+                            <div className="px-5 py-4 border-t border-slate-100"
+                                style={{ background: 'linear-gradient(135deg, #f0f9ff, #f5f3ff)' }}>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
+                                    <div className="text-right">
+                                        {Object.entries(totals).map(([currency, total]) => (
+                                            <p key={currency} className="font-black text-slate-900 text-base">
+                                                {fmtMoney(total, currency)}
+                                                <span className="text-xs font-normal text-slate-500 ml-1">/ mo</span>
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })()}
 
             {/* Accounts */}
             <div>
