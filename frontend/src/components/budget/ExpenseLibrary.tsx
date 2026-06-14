@@ -67,8 +67,8 @@ function SaveButton({ onClick, loading, label = 'Save' }: { onClick: () => void;
     )
 }
 
-function formatKES(amount: number) {
-    return `KES ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function formatKES(amount: number | string) {
+    return `KES ${Number(amount).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 // ─── Main Component ───────────────────────────────────────────────
@@ -146,6 +146,7 @@ export default function ExpenseLibrary() {
                 owner_id: activeTab === 'personal' ? 'me' : null  // backend uses current_user.id
             })
             setGroups(prev => [...prev, data])
+            setExpandedGroups(prev => new Set([...prev, data.id]))
             setGroupName(''); setGroupDialog(false)
             toast.success('Group created!')
         } catch { toast.error('Failed to create group') }

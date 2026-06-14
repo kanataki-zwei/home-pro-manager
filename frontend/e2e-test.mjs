@@ -241,6 +241,73 @@ async function run() {
     await page.click('button:has-text("Expense Library")')
     await wait(800)
 
+    // ── 9b. Expense Library ────────────────────────────────────────────
+    console.log('\n[9b] EXPENSE LIBRARY')
+
+    // Wait for library to load (spinner gone)
+    await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 10000 }).catch(() => {})
+    await wait(300)
+
+    // Create a tag
+    await page.click('button:has-text("Tags")')
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { timeout: 5000 })
+    await page.locator('[role="dialog"] input[placeholder="Tag name"]').fill('Essential')
+    await page.locator('[role="dialog"] [style*="linear-gradient"]').click()
+    // createTag closes the dialog on success — wait for it to disappear
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { state: 'hidden', timeout: 6000 }).catch(() => {})
+    await wait(400)
+    // Tag badge appears in the toolbar area after dialog closes
+    const tagVisible = await page.getByText('Essential').first().isVisible().catch(() => false)
+    console.log(`  ${tagVisible ? '✅' : '❌'} Tag "Essential" created: ${tagVisible}`)
+
+    // Create an expense group
+    await page.click('button:has-text("New Group")')
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { timeout: 5000 })
+    await page.locator('[role="dialog"] input').fill('Housing')
+    await page.locator('[role="dialog"] [style*="linear-gradient"]').click()
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { state: 'hidden', timeout: 6000 }).catch(() => {})
+    await wait(500)
+    const groupVisible = await page.getByText('Housing').first().isVisible().catch(() => false)
+    console.log(`  ${groupVisible ? '✅' : '❌'} Expense group "Housing" created: ${groupVisible}`)
+
+    // Add an expense to the group
+    await page.click('button:has-text("Add Expense")')
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { timeout: 5000 })
+    await shot('18-add-expense-dialog')
+
+    // Name
+    await page.locator('[role="dialog"] input[placeholder*="Rent"]').fill('Rent')
+    // Amount
+    await page.locator('[role="dialog"] input[type="number"]').first().fill('50000')
+    // Group — select Housing
+    const groupSelects = page.locator('[role="dialog"] [role="combobox"]')
+    const groupSelectCount = await groupSelects.count()
+    // Group select is the 3rd combobox (after Frequency, Ownership)
+    if (groupSelectCount >= 3) {
+        await groupSelects.nth(2).click()
+        await wait(300)
+        const housingOption = page.locator('[role="option"]').filter({ hasText: 'Housing' })
+        if (await housingOption.count() > 0) {
+            await housingOption.click()
+        } else {
+            await page.keyboard.press('Escape')
+        }
+        await wait(300)
+    }
+    // Tag — click "Essential" tag button (use first() in case form renders multiple instances)
+    const essentialTag = page.locator('[role="dialog"] button').filter({ hasText: 'Essential' }).first()
+    if (await essentialTag.count() > 0) await essentialTag.click()
+
+    await page.locator('[role="dialog"] [style*="linear-gradient"]').click()
+    await page.waitForSelector('[role="dialog"][data-state="open"]', { state: 'hidden', timeout: 8000 }).catch(() => {})
+    await wait(800)
+    await shot('19-expense-added')
+
+    const rentVisible = await page.getByText('Rent').first().isVisible().catch(() => false)
+    const kesVisible = await page.getByText(/KES.*50,000|50,000.*KES/).first().isVisible().catch(() => false)
+    console.log(`  ${rentVisible ? '✅' : '❌'} Expense "Rent" visible: ${rentVisible}`)
+    console.log(`  ${kesVisible ? '✅' : '❌'} Monthly amount KES 50,000 visible: ${kesVisible}`)
+
     // ── 10. Household rename ───────────────────────────────────────────────
     console.log('\n[10] HOUSEHOLD RENAME')
     await page.goto(`${BASE}/household`)
