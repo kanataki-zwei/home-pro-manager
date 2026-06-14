@@ -458,11 +458,19 @@ export default function ExpenseLibrary() {
                 const pct = totalIncome > 0 ? Math.min((totalBudgeted / totalIncome) * 100, 100) : 0
                 const over = netRemaining < 0
 
-                const ownershipRows = [
-                    { key: 'joint',   label: 'Joint',   emoji: '🤝', total: byOwnership.joint },
-                    { key: 'husband', label: 'Husband', emoji: '👨', total: byOwnership.husband },
-                    { key: 'wife',    label: 'Wife',    emoji: '👩', total: byOwnership.wife },
-                ].filter(r => r.total > 0)
+                // Waterfall: each row's remaining = income - cumulative expenses up to and including that row
+                const ownershipRows = (() => {
+                    const all = [
+                        { key: 'joint',   label: 'Joint',   emoji: '🤝', total: byOwnership.joint },
+                        { key: 'husband', label: 'Husband', emoji: '👨', total: byOwnership.husband },
+                        { key: 'wife',    label: 'Wife',    emoji: '👩', total: byOwnership.wife },
+                    ].filter(r => r.total > 0)
+                    let running = totalIncome
+                    return all.map(r => {
+                        running -= r.total
+                        return { ...r, remaining: running }
+                    })
+                })()
 
                 return (
                     <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
@@ -492,16 +500,27 @@ export default function ExpenseLibrary() {
 
                         {/* Breakdown rows */}
                         <div className="border-t border-slate-50">
-                            {/* Household expenses by ownership_type */}
-                            {ownershipRows.map(row => (
-                                <div key={row.key} className="flex items-center justify-between px-5 py-3 bg-slate-50/60 border-b border-slate-50">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-base">{row.emoji}</span>
-                                        <p className="text-xs font-bold text-slate-700">{row.label} expenses</p>
+                            {/* Household expenses by ownership_type — waterfall */}
+                            {ownershipRows.map(row => {
+                                const rowOver = row.remaining < 0
+                                return (
+                                    <div key={row.key} className="flex items-center justify-between px-5 py-3 bg-slate-50/60 border-b border-slate-50">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-base">{row.emoji}</span>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-700">{row.label} expenses</p>
+                                                <p className="text-xs text-slate-400">−{fmt(row.total)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-slate-400">remaining</p>
+                                            <p className={`text-sm font-bold ${rowOver ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                {rowOver ? '−' : ''}{fmt(row.remaining)}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <p className="text-sm font-bold text-slate-700">−{fmt(row.total)}</p>
-                                </div>
-                            ))}
+                                )
+                            })}
                             {ownershipRows.length === 0 && (
                                 <div className="px-5 py-3 bg-slate-50/60 border-b border-slate-50">
                                     <p className="text-xs text-slate-400">No household expenses yet</p>
