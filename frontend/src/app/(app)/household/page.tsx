@@ -80,7 +80,7 @@ export default function HouseholdPage() {
     const [newAccount, setNewAccount] = useState({ name: '', account_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
     const [editAccountDialog, setEditAccountDialog] = useState(false)
     const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', ownership: 'joint', current_balance: 0, household_member_id: '' })
+    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
     const [savingAccount, setSavingAccount] = useState(false)
 
     useEffect(() => {
@@ -213,7 +213,7 @@ export default function HouseholdPage() {
 
     const openEditAccount = (account: Account) => {
         setEditingAccount(account)
-        setEditAccountData({ name: account.name, account_type: account.account_type, ownership: account.ownership, current_balance: account.current_balance, household_member_id: account.household_member_id || '' })
+        setEditAccountData({ name: account.name, account_type: account.account_type, ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '' })
         setEditAccountDialog(true)
     }
 
@@ -226,6 +226,7 @@ export default function HouseholdPage() {
                 account_type: editAccountData.account_type,
                 ownership: editAccountData.ownership,
                 current_balance: editAccountData.current_balance,
+                currency: editAccountData.currency,
                 household_member_id: editAccountData.ownership === 'individual'
                     ? (editAccountData.household_member_id || null)
                     : null
@@ -625,6 +626,17 @@ export default function HouseholdPage() {
                             </Select>
                         </div>
                         <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Currency</Label>
+                            <Select value={newAccount.currency} onValueChange={val => setNewAccount(prev => ({ ...prev, currency: val }))}>
+                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    <SelectItem value="KES">🇰🇪 KES — Kenyan Shilling</SelectItem>
+                                    <SelectItem value="USD">🇺🇸 USD — US Dollar</SelectItem>
+                                    <SelectItem value="EUR">🇪🇺 EUR — Euro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
                             <Label className="text-sm font-bold text-slate-700">Ownership</Label>
                             <Select defaultValue="joint" onValueChange={val => setNewAccount(prev => ({ ...prev, ownership: val, household_member_id: val === 'joint' ? '' : prev.household_member_id }))}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
@@ -677,6 +689,17 @@ export default function HouseholdPage() {
                                     {Object.entries(ACCOUNT_TYPE_ICONS).map(([val, icon]) => (
                                         <SelectItem key={val} value={val}>{icon} {val.charAt(0).toUpperCase() + val.slice(1)}</SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Currency</Label>
+                            <Select value={editAccountData.currency} onValueChange={val => setEditAccountData(prev => ({ ...prev, currency: val }))}>
+                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    <SelectItem value="KES">🇰🇪 KES — Kenyan Shilling</SelectItem>
+                                    <SelectItem value="USD">🇺🇸 USD — US Dollar</SelectItem>
+                                    <SelectItem value="EUR">🇪🇺 EUR — Euro</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

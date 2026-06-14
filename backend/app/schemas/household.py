@@ -79,6 +79,7 @@ class AccountUpdate(BaseModel):
     ownership: Optional[str] = None
     household_member_id: Optional[UUID] = None
     current_balance: Optional[float] = None
+    currency: Optional[str] = None
     is_active: Optional[bool] = None
 
 class AccountResponse(BaseModel):
