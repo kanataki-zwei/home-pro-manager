@@ -107,7 +107,7 @@ export default function ExpenseLibrary() {
         group_id: '', account_id: '', tag_ids: [] as string[]
     })
 
-    useEffect(() => { if (household) loadAll() }, [household, showDeleted])
+    useEffect(() => { if (household) loadAll() }, [household?.id, showDeleted])
 
     const loadAll = async () => {
         if (!household) return
@@ -190,7 +190,7 @@ export default function ExpenseLibrary() {
         setSavingTag(true)
         try {
             const data = await apiPost<ExpenseTag>(`/api/households/${household.id}/budget/tags`, { name: tagName, color: tagColor })
-            setTags(prev => [...prev, data])
+            setTags(prev => prev.some(t => t.id === data.id) ? prev : [...prev, data])
             setTagName(''); setTagDialog(false)
             toast.success('Tag created!')
         } catch { toast.error('Failed') }
