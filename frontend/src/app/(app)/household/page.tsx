@@ -15,6 +15,10 @@ interface MemberType { id: string; name: string }
 interface Member {
     id: string; name: string; date_of_birth: string | null
     is_active: boolean; user_id: string | null; member_type: MemberType
+    contributes_income: boolean
+    income_amount: number | null
+    income_currency: string | null
+    income_cadence: string | null
 }
 interface Account {
     id: string; name: string; account_type: string; ownership: string
@@ -71,6 +75,8 @@ export default function HouseholdPage() {
     const [editingMember, setEditingMember] = useState<Member | null>(null)
     const [editMemberData, setEditMemberData] = useState({ name: '', member_type_id: '', date_of_birth: '', user_id: '' })
     const [savingMember, setSavingMember] = useState(false)
+    const [incomeEdits, setIncomeEdits] = useState<Record<string, { amount: string; currency: string; cadence: string }>>({})
+    const [savingIncome, setSavingIncome] = useState<string | null>(null)
 
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
@@ -246,6 +252,43 @@ export default function HouseholdPage() {
         } catch { toast.error('Failed') }
     }
 
+    const toggleIncome = async (member: Member) => {
+        if (!household) return
+        const next = !member.contributes_income
+        const data = await apiPatch<Member>(`/api/households/${household.id}/members/${member.id}`, {
+            contributes_income: next,
+            ...(next ? {} : { income_amount: null, income_currency: null, income_cadence: null })
+        }).catch(() => { toast.error('Failed'); return null })
+        if (!data) return
+        setMembers(members.map(m => m.id === data.id ? data : m))
+        if (next) setIncomeEdits(prev => ({
+            ...prev,
+            [member.id]: { amount: '', currency: 'KES', cadence: 'monthly' }
+        }))
+        else setIncomeEdits(prev => { const n = { ...prev }; delete n[member.id]; return n })
+    }
+
+    const saveIncome = async (member: Member) => {
+        if (!household) return
+        const edit = incomeEdits[member.id]
+        if (!edit?.amount || !edit.currency || !edit.cadence) {
+            toast.error('Please fill in all income fields')
+            return
+        }
+        setSavingIncome(member.id)
+        try {
+            const data = await apiPatch<Member>(`/api/households/${household.id}/members/${member.id}`, {
+                income_amount: parseFloat(edit.amount),
+                income_currency: edit.currency,
+                income_cadence: edit.cadence,
+            })
+            setMembers(members.map(m => m.id === data.id ? data : m))
+            setIncomeEdits(prev => { const n = { ...prev }; delete n[member.id]; return n })
+            toast.success('Income saved!')
+        } catch { toast.error('Failed to save income') }
+        finally { setSavingIncome(null) }
+    }
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -384,6 +427,71 @@ export default function HouseholdPage() {
                                         <span>Linked to system user</span>
                                     </div>
                                 )}
+
+                                {/* Income section */}
+                                <div className="mt-3 pt-3 border-t border-slate-50">
+                                    <button
+                                        onClick={() => toggleIncome(member)}
+                                        className="flex items-center justify-between w-full group/toggle">
+                                        <span className="text-xs font-semibold text-slate-500">Contributes to income</span>
+                                        <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                                            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${member.contributes_income ? 'left-4' : 'left-0.5'}`} />
+                                        </div>
+                                    </button>
+
+                                    {member.contributes_income && (
+                                        <div className="mt-3 space-y-2">
+                                            {/* Show saved values if not editing */}
+                                            {!incomeEdits[member.id] && member.income_amount ? (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-slate-500">
+                                                        {member.income_currency} {Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {member.income_cadence}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setIncomeEdits(prev => ({ ...prev, [member.id]: { amount: String(member.income_amount ?? ''), currency: member.income_currency ?? 'KES', cadence: member.income_cadence ?? 'monthly' } }))}
+                                                        className="text-xs font-semibold text-sky-500 hover:text-sky-700">
+                                                        Edit
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Amount"
+                                                            value={incomeEdits[member.id]?.amount ?? ''}
+                                                            onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], amount: e.target.value } }))}
+                                                            className="flex-1 h-9 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                                        />
+                                                        <select
+                                                            value={incomeEdits[member.id]?.currency ?? 'KES'}
+                                                            onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], currency: e.target.value } }))}
+                                                            className="h-9 px-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                                                            <option value="KES">KES</option>
+                                                            <option value="USD">USD</option>
+                                                            <option value="EUR">EUR</option>
+                                                        </select>
+                                                    </div>
+                                                    <select
+                                                        value={incomeEdits[member.id]?.cadence ?? 'monthly'}
+                                                        onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], cadence: e.target.value } }))}
+                                                        className="w-full h-9 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                                                        <option value="weekly">Weekly</option>
+                                                        <option value="monthly">Monthly</option>
+                                                        <option value="annually">Annually</option>
+                                                    </select>
+                                                    <button
+                                                        onClick={() => saveIncome(member)}
+                                                        disabled={savingIncome === member.id}
+                                                        className="w-full h-9 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
+                                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                        {savingIncome === member.id ? 'Saving…' : 'Save Income'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>

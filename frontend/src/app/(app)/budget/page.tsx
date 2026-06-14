@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { BookOpen, LayoutTemplate, CalendarCheck } from 'lucide-react'
+import { useHousehold } from '@/context/HouseholdContext'
+import { toast } from 'sonner'
 import ExpenseLibrary from '@/components/budget/ExpenseLibrary'
 
 const TABS = [
@@ -13,7 +16,29 @@ const TABS = [
 type Tab = typeof TABS[number]['key']
 
 export default function BudgetPage() {
+    const router = useRouter()
+    const { household, members, loading } = useHousehold()
     const [activeTab, setActiveTab] = useState<Tab>('library')
+
+    useEffect(() => {
+        if (loading) return
+        if (!household) { router.replace('/household'); return }
+        const hasIncome = members.some(m => m.contributes_income && m.income_amount)
+        if (!hasIncome) {
+            toast.error('Set household income first', {
+                description: 'Add income for at least one member before budgeting.',
+            })
+            router.replace('/household')
+        }
+    }, [loading, household, members])
+
+    if (loading || !household || !members.some(m => m.contributes_income && m.income_amount)) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+            </div>
+        )
+    }
 
     return (
         <div className="max-w-4xl space-y-6">

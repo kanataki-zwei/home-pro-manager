@@ -143,7 +143,7 @@ export default function ExpenseLibrary() {
         try {
             const data = await apiPost<ExpenseGroup>(`/api/households/${household.id}/budget/groups`, {
                 name: groupName,
-                owner_id: activeTab === 'personal' ? 'me' : null  // backend uses current_user.id
+                personal: activeTab === 'personal'
             })
             setGroups(prev => [...prev, data])
             setExpandedGroups(prev => new Set([...prev, data.id]))
@@ -239,7 +239,7 @@ export default function ExpenseLibrary() {
         joint_split_wife: expenseForm.ownership_type === 'joint' ? parseFloat(expenseForm.joint_split_wife) : null,
         group_id: expenseForm.group_id || null,
         account_id: expenseForm.account_id || null,
-        owner_id: activeTab === 'personal' ? 'me' : null,
+        personal: activeTab === 'personal',
         tag_ids: expenseForm.tag_ids
     })
 

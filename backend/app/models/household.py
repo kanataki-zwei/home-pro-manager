@@ -42,6 +42,10 @@ class HouseholdMember(Base, TimestampMixin):
     name = Column(String(255), nullable=False)
     date_of_birth = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
+    contributes_income = Column(Boolean, default=False, nullable=False)
+    income_amount = Column(Numeric(15, 2), nullable=True)
+    income_currency = Column(String(10), nullable=True)
+    income_cadence = Column(String(20), nullable=True)
 
     household = relationship("Household", back_populates="members")
     member_type = relationship("MemberType", back_populates="members")

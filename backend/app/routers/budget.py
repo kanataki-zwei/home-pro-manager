@@ -137,10 +137,10 @@ async def create_group(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    owner_id = current_user.id if payload.owner_id else None
+    owner_id = current_user.id if payload.personal else None
     group = ExpenseGroup(household_id=household_id, name=payload.name, owner_id=owner_id)
     db.add(group)
-    await db.commit()
+    await db.flush()
     await db.refresh(group)
     return group
 
@@ -237,8 +237,8 @@ async def create_expense(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    data = payload.model_dump(exclude={"tag_ids"})
-    data["owner_id"] = current_user.id if data.get("owner_id") else None
+    data = payload.model_dump(exclude={"tag_ids", "personal"})
+    data["owner_id"] = current_user.id if payload.personal else None
     data["monthly_amount"] = compute_monthly_amount(data["amount"], data["frequency"])
 
     expense = Expense(household_id=household_id, **data)

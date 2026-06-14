@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 from datetime import date, datetime
+from decimal import Decimal
 
 
 # ─── Member Type ────────────────────────────────────────────────
@@ -48,6 +49,10 @@ class HouseholdMemberUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     is_active: Optional[bool] = None
     user_id: Optional[UUID] = None
+    contributes_income: Optional[bool] = None
+    income_amount: Optional[Decimal] = None
+    income_currency: Optional[str] = None
+    income_cadence: Optional[str] = None
 
 class HouseholdMemberResponse(BaseModel):
     id: UUID
@@ -57,6 +62,10 @@ class HouseholdMemberResponse(BaseModel):
     name: str
     date_of_birth: Optional[date]
     is_active: bool
+    contributes_income: bool
+    income_amount: Optional[Decimal]
+    income_currency: Optional[str]
+    income_cadence: Optional[str]
     created_at: datetime
     member_type: MemberTypeResponse
 

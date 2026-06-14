@@ -15,6 +15,10 @@ interface Member {
     is_active: boolean
     user_id: string | null
     member_type: MemberType
+    contributes_income: boolean
+    income_amount: number | null
+    income_currency: string | null
+    income_cadence: string | null
 }
 
 interface Account {

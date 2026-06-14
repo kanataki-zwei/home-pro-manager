@@ -31,8 +31,9 @@ class ExpenseGroupBase(BaseModel):
     name: str
     owner_id: Optional[UUID] = None  # null = household group
 
-class ExpenseGroupCreate(ExpenseGroupBase):
-    pass
+class ExpenseGroupCreate(BaseModel):
+    name: str
+    personal: bool = False  # True = owned by current_user; resolved to owner_id in the route
 
 class ExpenseGroupUpdate(BaseModel):
     name: Optional[str] = None
@@ -50,7 +51,7 @@ class ExpenseGroupResponse(ExpenseGroupBase):
 
 # ─── Expense ─────────────────────────────────────────────────────
 class ExpenseCreate(BaseModel):
-    owner_id: Optional[UUID] = None  # null = household expense
+    personal: bool = False  # True = owned by current_user; resolved to owner_id in the route
     group_id: Optional[UUID] = None
     account_id: Optional[UUID] = None
     name: str
