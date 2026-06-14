@@ -435,22 +435,34 @@ export default function ExpenseLibrary() {
                 const refCurrency = currencies.includes('KES') ? 'KES' : currencies[0]
                 const fmt = (n: number) => `${refCurrency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-                // Per-member data
+                // Household expenses (owner_id = null) split by ownership_type
+                const hhExpenses = expenses.filter(e => !e.is_deleted && e.owner_id === null)
+                const byOwnership = {
+                    joint:   hhExpenses.filter(e => e.ownership_type === 'joint').reduce((s, e) => s + Number(e.monthly_amount), 0),
+                    husband: hhExpenses.filter(e => e.ownership_type === 'husband').reduce((s, e) => s + Number(e.monthly_amount), 0),
+                    wife:    hhExpenses.filter(e => e.ownership_type === 'wife').reduce((s, e) => s + Number(e.monthly_amount), 0),
+                }
+                const hhBudgeted = byOwnership.joint + byOwnership.husband + byOwnership.wife
+
+                // Per-member personal expenses (personal tab expenses, owner_id = auth user id)
                 const memberRows = incomeMembers.map(m => {
                     const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
                     const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.user_id).reduce((s, e) => s + Number(e.monthly_amount), 0)
                     return { member: m, income, personal, remaining: income - personal }
                 })
 
-                // Joint (household) expenses: owner_id = null
-                const jointBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === null).reduce((s, e) => s + Number(e.monthly_amount), 0)
-
                 const totalIncome = memberRows.reduce((s, r) => s + r.income, 0)
                 const totalPersonal = memberRows.reduce((s, r) => s + r.personal, 0)
-                const totalBudgeted = jointBudgeted + totalPersonal
+                const totalBudgeted = hhBudgeted + totalPersonal
                 const netRemaining = totalIncome - totalBudgeted
                 const pct = totalIncome > 0 ? Math.min((totalBudgeted / totalIncome) * 100, 100) : 0
                 const over = netRemaining < 0
+
+                const ownershipRows = [
+                    { key: 'joint',   label: 'Joint',   emoji: '🤝', total: byOwnership.joint },
+                    { key: 'husband', label: 'Husband', emoji: '👨', total: byOwnership.husband },
+                    { key: 'wife',    label: 'Wife',    emoji: '👩', total: byOwnership.wife },
+                ].filter(r => r.total > 0)
 
                 return (
                     <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
@@ -480,19 +492,21 @@ export default function ExpenseLibrary() {
 
                         {/* Breakdown rows */}
                         <div className="border-t border-slate-50">
-                            {/* Joint / household expenses row */}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50/60">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-base">🏠</span>
-                                    <div>
-                                        <p className="text-xs font-bold text-slate-700">Joint expenses</p>
-                                        <p className="text-xs text-slate-400">Shared household costs</p>
+                            {/* Household expenses by ownership_type */}
+                            {ownershipRows.map(row => (
+                                <div key={row.key} className="flex items-center justify-between px-5 py-3 bg-slate-50/60 border-b border-slate-50">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base">{row.emoji}</span>
+                                        <p className="text-xs font-bold text-slate-700">{row.label} expenses</p>
                                     </div>
+                                    <p className="text-sm font-bold text-slate-700">−{fmt(row.total)}</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-bold text-slate-700">−{fmt(jointBudgeted)}</p>
+                            ))}
+                            {ownershipRows.length === 0 && (
+                                <div className="px-5 py-3 bg-slate-50/60 border-b border-slate-50">
+                                    <p className="text-xs text-slate-400">No household expenses yet</p>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Per-member rows */}
                             {memberRows.map((row, i) => {
