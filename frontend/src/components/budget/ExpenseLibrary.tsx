@@ -385,77 +385,149 @@ export default function ExpenseLibrary() {
                 const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
                 if (incomeMembers.length === 0) return null
 
-                // Current user's member (for personal tab)
-                const myMember = members.find(m => m.user_id === currentUserId && m.contributes_income && m.income_amount)
-
-                // Total household monthly income (KES only for now; mixed currencies shown separately)
-                const totalIncomeByCurrency: Record<string, number> = {}
-                for (const m of incomeMembers) {
-                    const currency = m.income_currency ?? 'KES'
-                    totalIncomeByCurrency[currency] = (totalIncomeByCurrency[currency] ?? 0) + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                // ── Personal tab ──────────────────────────────────────────────
+                if (activeTab === 'personal') {
+                    const myMember = members.find(m => m.user_id === currentUserId && m.contributes_income && m.income_amount)
+                    if (!myMember) {
+                        return (
+                            <div className="bg-slate-50 rounded-3xl border border-slate-100 px-5 py-4 text-sm text-slate-400">
+                                No income linked to your account — set it on the Household page.
+                            </div>
+                        )
+                    }
+                    const currency = myMember.income_currency ?? 'KES'
+                    const myIncome = toMonthly(Number(myMember.income_amount), myMember.income_cadence ?? 'monthly')
+                    const myBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === myMember.id).reduce((s, e) => s + Number(e.monthly_amount), 0)
+                    const myRemaining = myIncome - myBudgeted
+                    const pct = myIncome > 0 ? Math.min((myBudgeted / myIncome) * 100, 100) : 0
+                    const over = myRemaining < 0
+                    const fmt = (n: number) => `${currency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    return (
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Your Income</p>
+                                    <p className="text-2xl font-black text-slate-900">{fmt(myIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Remaining</p>
+                                    <p className={`text-2xl font-black ${over ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        {over ? '−' : ''}{fmt(myRemaining)}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(myBudgeted)} budgeted</p>
+                                </div>
+                            </div>
+                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                    style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-1.5">
+                                <span className="text-xs text-slate-400">{pct.toFixed(0)}% of your income budgeted</span>
+                            </div>
+                        </div>
+                    )
                 }
 
-                // Expenses for current tab
-                const tabExpenses = expenses.filter(e =>
-                    !e.is_deleted &&
-                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
-                )
-                const totalBudgeted = tabExpenses.reduce((sum, e) => sum + Number(e.monthly_amount), 0)
-
-                // Reference income for this tab
-                let refIncome = 0
-                let refCurrency = 'KES'
-                if (activeTab === 'household') {
-                    // Use KES total (most common); if no KES members, use first currency
-                    refCurrency = totalIncomeByCurrency['KES'] !== undefined ? 'KES' : Object.keys(totalIncomeByCurrency)[0]
-                    refIncome = totalIncomeByCurrency[refCurrency] ?? 0
-                } else if (myMember) {
-                    refCurrency = myMember.income_currency ?? 'KES'
-                    refIncome = toMonthly(Number(myMember.income_amount), myMember.income_cadence ?? 'monthly')
-                }
-
-                const remaining = refIncome - totalBudgeted
-                const pct = refIncome > 0 ? Math.min((totalBudgeted / refIncome) * 100, 100) : 0
-                const overBudget = remaining < 0
-
+                // ── Household tab ─────────────────────────────────────────────
+                // Primary currency: KES if any member uses it, otherwise first found
+                const currencies = [...new Set(incomeMembers.map(m => m.income_currency ?? 'KES'))]
+                const refCurrency = currencies.includes('KES') ? 'KES' : currencies[0]
                 const fmt = (n: number) => `${refCurrency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+                // Per-member data
+                const memberRows = incomeMembers.map(m => {
+                    const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                    const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.id).reduce((s, e) => s + Number(e.monthly_amount), 0)
+                    return { member: m, income, personal, remaining: income - personal }
+                })
+
+                // Joint (household) expenses: owner_id = null
+                const jointBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === null).reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                const totalIncome = memberRows.reduce((s, r) => s + r.income, 0)
+                const totalPersonal = memberRows.reduce((s, r) => s + r.personal, 0)
+                const totalBudgeted = jointBudgeted + totalPersonal
+                const netRemaining = totalIncome - totalBudgeted
+                const pct = totalIncome > 0 ? Math.min((totalBudgeted / totalIncome) * 100, 100) : 0
+                const over = netRemaining < 0
+
                 return (
-                    <div className="bg-white rounded-3xl border border-slate-100 p-5"
+                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
                         style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div className="flex items-start justify-between gap-4 mb-4">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
-                                    {activeTab === 'household' ? 'Household Income' : 'Your Income'}
-                                </p>
-                                <p className="text-2xl font-black text-slate-900">{fmt(refIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
-                                {activeTab === 'household' && Object.keys(totalIncomeByCurrency).length > 1 && (
-                                    <p className="text-xs text-slate-400 mt-0.5">
-                                        {Object.entries(totalIncomeByCurrency).filter(([c]) => c !== refCurrency).map(([c, v]) => `+ ${c} ${v.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`).join(' ')}
+                        {/* Header */}
+                        <div className="p-5">
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Total Household Income</p>
+                                    <p className="text-2xl font-black text-slate-900">{fmt(totalIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Net Remaining</p>
+                                    <p className={`text-2xl font-black ${over ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        {over ? '−' : ''}{fmt(netRemaining)}
                                     </p>
-                                )}
-                                {activeTab === 'personal' && !myMember && (
-                                    <p className="text-xs text-slate-400 mt-0.5">No income set for your account</p>
-                                )}
+                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(totalBudgeted)} budgeted</p>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Remaining</p>
-                                <p className={`text-2xl font-black ${overBudget ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {overBudget ? '−' : ''}{fmt(remaining)}
-                                </p>
-                                <p className="text-xs text-slate-400 mt-0.5">{fmt(totalBudgeted)} budgeted</p>
+                            {/* Combined progress bar */}
+                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                    style={{ width: `${pct}%` }} />
                             </div>
+                            <p className="text-xs text-slate-400 mt-1.5">{pct.toFixed(0)}% of total income budgeted</p>
                         </div>
-                        {/* Progress bar */}
-                        <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all ${overBudget ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                                style={{ width: `${pct}%` }}
-                            />
-                        </div>
-                        <div className="flex justify-between mt-1.5">
-                            <span className="text-xs text-slate-400">{pct.toFixed(0)}% budgeted</span>
-                            <span className="text-xs text-slate-400">{tabExpenses.length} expense{tabExpenses.length !== 1 ? 's' : ''}</span>
+
+                        {/* Breakdown rows */}
+                        <div className="border-t border-slate-50">
+                            {/* Joint / household expenses row */}
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50/60">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-base">🏠</span>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">Joint expenses</p>
+                                        <p className="text-xs text-slate-400">Shared household costs</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-slate-700">−{fmt(jointBudgeted)}</p>
+                                </div>
+                            </div>
+
+                            {/* Per-member rows */}
+                            {memberRows.map((row, i) => {
+                                const memberOver = row.remaining < 0
+                                const memberPct = row.income > 0 ? Math.min((row.personal / row.income) * 100, 100) : 0
+                                return (
+                                    <div key={row.member.id} className="px-5 py-3 border-t border-slate-50">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                                                    style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                    {row.member.name.charAt(0)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-slate-700 truncate">{row.member.name}</p>
+                                                    <p className="text-xs text-slate-400">{fmt(row.income)} income</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="text-xs text-slate-500">−{fmt(row.personal)} personal</p>
+                                                <p className={`text-sm font-bold ${memberOver ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                    {memberOver ? '−' : ''}{fmt(row.remaining)} left
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {/* Mini per-member bar */}
+                                        {row.personal > 0 && (
+                                            <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full ${memberOver ? 'bg-red-400' : 'bg-sky-400'}`}
+                                                    style={{ width: `${memberPct}%` }} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 )
@@ -509,14 +581,7 @@ export default function ExpenseLibrary() {
                             {/* Expenses in group */}
                             {isExpanded && (
                                 <div className="border-t border-slate-50">
-                                    {groupExpenses.length === 0 ? (
-                                        <div className="flex items-center justify-center h-16 text-sm text-slate-400">
-                                            No expenses yet — <button className="ml-1 text-sky-500 font-semibold hover:underline"
-                                                onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}>
-                                                add one
-                                            </button>
-                                        </div>
-                                    ) : (
+                                    {groupExpenses.length > 0 && (
                                         <div className="divide-y divide-slate-50">
                                             {groupExpenses.map(expense => (
                                                 <ExpenseRow
@@ -529,6 +594,15 @@ export default function ExpenseLibrary() {
                                                 />
                                             ))}
                                         </div>
+                                    )}
+                                    {/* Add-to-group footer — always visible when expanded and group is not deleted */}
+                                    {!group.is_deleted && (
+                                        <button
+                                            onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
+                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-50">
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Add expense to {group.name}
+                                        </button>
                                     )}
                                 </div>
                             )}
