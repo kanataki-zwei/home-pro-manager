@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookOpen, LayoutTemplate, CalendarCheck } from 'lucide-react'
+import { BookOpen, LayoutTemplate, CalendarCheck, BarChart2 } from 'lucide-react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { toast } from 'sonner'
 import ExpenseLibrary from '@/components/budget/ExpenseLibrary'
+import BudgetReport from '@/components/budget/BudgetReport'
 
 const TABS = [
     { key: 'library', label: 'Expense Library', icon: BookOpen },
+    { key: 'reports', label: 'Reports', icon: BarChart2 },
     { key: 'templates', label: 'Budget Templates', icon: LayoutTemplate },
     { key: 'sessions', label: 'Monthly Sessions', icon: CalendarCheck },
 ] as const
@@ -72,6 +74,7 @@ export default function BudgetPage() {
 
             {/* Tab content */}
             {activeTab === 'library' && <ExpenseLibrary />}
+            {activeTab === 'reports' && <BudgetReport />}
             {activeTab === 'templates' && (
                 <div className="flex flex-col items-center justify-center h-48 rounded-3xl border-2 border-dashed border-slate-200">
                     <LayoutTemplate className="h-8 w-8 text-slate-200 mb-3" />
