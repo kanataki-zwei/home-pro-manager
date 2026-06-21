@@ -51,6 +51,40 @@ const GRADIENTS = [
     'linear-gradient(135deg, #06b6d4, #10b981)',
 ]
 
+const CHART_COLORS = ['#0ea5e9', '#f43f5e', '#10b981', '#8b5cf6', '#f59e0b', '#06b6d4']
+
+function DonutChart({ slices, centerLabel, centerSub }: {
+    slices: { color: string; pct: number }[]
+    centerLabel: string
+    centerSub: string
+}) {
+    const r = 40, cx = 56, cy = 56, sw = 13
+    const C = 2 * Math.PI * r
+    let cumulative = 0
+    return (
+        <div className="relative w-28 h-28 flex-shrink-0">
+            <svg width="112" height="112" viewBox="0 0 112 112" style={{ transform: 'rotate(-90deg)' }}>
+                <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={sw} />
+                {slices.map((sl, i) => {
+                    const dash = sl.pct * C
+                    const offset = -cumulative
+                    cumulative += dash
+                    return (
+                        <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+                            stroke={sl.color} strokeWidth={sw}
+                            strokeDasharray={`${dash} ${C - dash}`}
+                            strokeDashoffset={offset} />
+                    )
+                })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                <p className="text-2xl font-black text-slate-900 leading-none">{centerLabel}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{centerSub}</p>
+            </div>
+        </div>
+    )
+}
+
 function SaveButton({ onClick, loading, label = 'Save' }: { onClick: () => void; loading: boolean; label?: string }) {
     return (
         <button
@@ -528,6 +562,7 @@ export default function HouseholdPage() {
                     const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
                     totals[currency] = (totals[currency] ?? 0) + monthly
                 }
+                const rawTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
 
                 return (
                     <div>
@@ -539,6 +574,31 @@ export default function HouseholdPage() {
                         </div>
                         <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
                             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            {/* Donut chart */}
+                            <div className="p-5 flex items-center gap-5 border-b border-slate-50">
+                                <DonutChart
+                                    slices={incomeMembers.map((m, i) => ({
+                                        color: CHART_COLORS[i % CHART_COLORS.length],
+                                        pct: rawTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawTotal : 1 / incomeMembers.length,
+                                    }))}
+                                    centerLabel={String(incomeMembers.length)}
+                                    centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
+                                />
+                                <div className="flex-1 space-y-2.5 min-w-0">
+                                    {incomeMembers.map((m, i) => {
+                                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                                        const pct = rawTotal > 0 ? (monthly / rawTotal) * 100 : 100 / incomeMembers.length
+                                        return (
+                                            <div key={m.id} className="flex items-center gap-2 min-w-0">
+                                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                    style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                <p className="text-xs font-semibold text-slate-700 truncate flex-1 min-w-0">{m.name}</p>
+                                                <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
                             {/* Per-member rows */}
                             <div className="divide-y divide-slate-50">
                                 {incomeMembers.map((member, i) => {
@@ -553,7 +613,7 @@ export default function HouseholdPage() {
                                                 </div>
                                                 <div>
                                                     <p className="font-semibold text-slate-800 text-sm">{member.name}</p>
-                                                    <p className="text-xs text-slate-400 capitalize">{member.income_cadence}</p>
+                                                    <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
