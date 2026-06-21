@@ -65,7 +65,7 @@ function SaveButton({ onClick, loading, label = 'Save' }: { onClick: () => void;
 }
 
 export default function HouseholdPage() {
-    const { household, members, accounts, loading: contextLoading, setHousehold, setMembers, setAccounts } = useHousehold()
+    const { household, members, accounts, loading: contextLoading, setHousehold, setMembers, setAccounts, currentUserId } = useHousehold()
     const [loading, setLoading] = useState(true)
     const [systemUsers, setSystemUsers] = useState<SystemUser[]>([])
 
@@ -414,7 +414,15 @@ export default function HouseholdPage() {
                                             {member.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-900">{member.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-slate-900">{member.name}</p>
+                                                {member.user_id === currentUserId && (
+                                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
+                                                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+                                                        You
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-xs text-slate-400 mt-0.5">{member.member_type.name}
                                                 {member.date_of_birth ? ` · ${member.date_of_birth}` : ''}
                                             </p>
