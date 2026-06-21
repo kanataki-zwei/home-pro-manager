@@ -420,8 +420,9 @@ export default function ExpenseLibrary() {
 
                     const myAllocated = myHHOwned + myHHJoint + myPersonal
                     const myRemaining = myIncome - myAllocated
+                    const myRemainingDisplay = Math.max(0, myRemaining)
+                    const zeroBudgeted = myRemaining <= 0
                     const pct = myIncome > 0 ? Math.min((myAllocated / myIncome) * 100, 100) : 0
-                    const over = myRemaining < 0
                     return (
                         <div className="bg-white rounded-3xl border border-slate-100 p-5"
                             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -432,17 +433,22 @@ export default function ExpenseLibrary() {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Remaining</p>
-                                    <p className={`text-2xl font-black ${over ? 'text-red-500' : 'text-emerald-500'}`}>
-                                        {over ? '−' : ''}{fmt(myRemaining)}
-                                    </p>
+                                    <p className="text-2xl font-black text-emerald-500">{fmt(myRemainingDisplay)}</p>
                                     <p className="text-xs text-slate-400 mt-0.5">{fmt(myAllocated)} allocated</p>
                                 </div>
                             </div>
                             <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                <div className={`h-full rounded-full transition-all ${pct > 85 ? 'bg-emerald-400' : 'bg-emerald-400'}`}
                                     style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-xs text-slate-400 mt-1.5">{pct.toFixed(0)}% of your income allocated</p>
+                            <div className="flex items-center justify-between mt-1.5">
+                                <span className="text-xs text-slate-400">{pct.toFixed(0)}% of your income allocated</span>
+                                {zeroBudgeted && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
+                                        🎯 Zero budgeted
+                                    </span>
+                                )}
+                            </div>
                             {myAllocated > 0 && (
                                 <div className="mt-3 pt-3 border-t border-slate-50 space-y-1">
                                     {myHHOwned > 0 && (
@@ -539,7 +545,8 @@ export default function ExpenseLibrary() {
                         <div className="border-t border-slate-50">
                             {memberRows.map((row, i) => {
                                 const memberPct = row.income > 0 ? Math.min((row.allocated / row.income) * 100, 100) : 0
-                                const memberOver = row.remaining < 0
+                                const zeroBudgeted = row.remaining <= 0
+                                const remainingDisplay = Math.max(0, row.remaining)
                                 return (
                                     <div key={row.member.id} className="px-5 py-4 border-b border-slate-50 last:border-b-0">
                                         <div className="flex items-center justify-between gap-3 mb-2">
@@ -554,9 +561,7 @@ export default function ExpenseLibrary() {
                                                 </div>
                                             </div>
                                             <div className="text-right flex-shrink-0">
-                                                <p className={`text-sm font-bold ${memberOver ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                    {memberOver ? '−' : ''}{fmt(row.remaining)}
-                                                </p>
+                                                <p className="text-sm font-bold text-emerald-600">{fmt(remainingDisplay)}</p>
                                                 <p className="text-xs text-slate-400">remaining</p>
                                             </div>
                                         </div>
@@ -583,9 +588,16 @@ export default function ExpenseLibrary() {
                                                 <p className="text-xs text-slate-300 italic">No expenses allocated yet</p>
                                             )}
                                         </div>
-                                        <div className="ml-9 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className={`h-full rounded-full transition-all ${memberOver ? 'bg-red-400' : memberPct > 85 ? 'bg-amber-400' : 'bg-sky-400'}`}
-                                                style={{ width: `${memberPct}%` }} />
+                                        <div className="ml-9 flex items-center gap-3">
+                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${memberPct > 85 ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                                                    style={{ width: `${memberPct}%` }} />
+                                            </div>
+                                            {zeroBudgeted && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 flex-shrink-0">
+                                                    🎯 Zero budgeted
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 )
