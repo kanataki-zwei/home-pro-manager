@@ -705,7 +705,10 @@ export default function HouseholdPage() {
                                 <Label className="text-sm font-bold text-slate-700">System User <span className="font-normal text-slate-400">(optional)</span></Label>
                                 <button onClick={() => setCreateUserDialog(true)} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
-                            <Select value={newMember.user_id} onValueChange={val => setNewMember(prev => ({ ...prev, user_id: val }))}>
+                            <Select value={newMember.user_id} onValueChange={val => {
+                                const user = systemUsers.find(u => u.id === val)
+                                setNewMember(prev => ({ ...prev, user_id: val, name: user?.name || prev.name }))
+                            }}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
                                     {systemUsers.map(user => (
@@ -752,7 +755,10 @@ export default function HouseholdPage() {
                                 <Label className="text-sm font-bold text-slate-700">System User</Label>
                                 <button onClick={() => setCreateUserDialog(true)} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
-                            <Select value={editMemberData.user_id} onValueChange={val => setEditMemberData(prev => ({ ...prev, user_id: val }))}>
+                            <Select value={editMemberData.user_id} onValueChange={val => {
+                                const user = systemUsers.find(u => u.id === val)
+                                setEditMemberData(prev => ({ ...prev, user_id: val, name: user?.name || prev.name }))
+                            }}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
                                     {systemUsers.map(user => (
