@@ -397,11 +397,31 @@ export default function ExpenseLibrary() {
                     }
                     const currency = myMember.income_currency ?? 'KES'
                     const myIncome = toMonthly(Number(myMember.income_amount), myMember.income_cadence ?? 'monthly')
-                    const myBudgeted = expenses.filter(e => !e.is_deleted && e.owner_id === myMember.user_id).reduce((s, e) => s + Number(e.monthly_amount), 0)
-                    const myRemaining = myIncome - myBudgeted
-                    const pct = myIncome > 0 ? Math.min((myBudgeted / myIncome) * 100, 100) : 0
-                    const over = myRemaining < 0
                     const fmt = (n: number) => `${currency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    const hhAll = expenses.filter(e => !e.is_deleted && e.owner_id === null)
+                    const role = myMember.member_type.name.toLowerCase()
+
+                    const myHHOwned = hhAll
+                        .filter(e => e.ownership_type === role)
+                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                    const myHHJoint = hhAll
+                        .filter(e => e.ownership_type === 'joint')
+                        .reduce((s, e) => {
+                            const split = role === 'husband' ? (e.joint_split_husband ?? 50)
+                                        : role === 'wife'    ? (e.joint_split_wife    ?? 50)
+                                        : 0
+                            return s + Number(e.monthly_amount) * split / 100
+                        }, 0)
+
+                    const myPersonal = expenses
+                        .filter(e => !e.is_deleted && e.owner_id === myMember.user_id)
+                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                    const myAllocated = myHHOwned + myHHJoint + myPersonal
+                    const myRemaining = myIncome - myAllocated
+                    const pct = myIncome > 0 ? Math.min((myAllocated / myIncome) * 100, 100) : 0
+                    const over = myRemaining < 0
                     return (
                         <div className="bg-white rounded-3xl border border-slate-100 p-5"
                             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -415,16 +435,36 @@ export default function ExpenseLibrary() {
                                     <p className={`text-2xl font-black ${over ? 'text-red-500' : 'text-emerald-500'}`}>
                                         {over ? '−' : ''}{fmt(myRemaining)}
                                     </p>
-                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(myBudgeted)} budgeted</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(myAllocated)} allocated</p>
                                 </div>
                             </div>
                             <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                 <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                                     style={{ width: `${pct}%` }} />
                             </div>
-                            <div className="flex justify-between mt-1.5">
-                                <span className="text-xs text-slate-400">{pct.toFixed(0)}% of your income budgeted</span>
-                            </div>
+                            <p className="text-xs text-slate-400 mt-1.5">{pct.toFixed(0)}% of your income allocated</p>
+                            {myAllocated > 0 && (
+                                <div className="mt-3 pt-3 border-t border-slate-50 space-y-1">
+                                    {myHHOwned > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">HH · {myMember.member_type.name}</span>
+                                            <span className="text-slate-600 font-medium">−{fmt(myHHOwned)}</span>
+                                        </div>
+                                    )}
+                                    {myHHJoint > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">HH · Joint share</span>
+                                            <span className="text-slate-600 font-medium">−{fmt(myHHJoint)}</span>
+                                        </div>
+                                    )}
+                                    {myPersonal > 0 && (
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-400">Personal</span>
+                                            <span className="text-slate-600 font-medium">−{fmt(myPersonal)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )
                 }
