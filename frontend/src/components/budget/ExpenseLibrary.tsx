@@ -435,42 +435,39 @@ export default function ExpenseLibrary() {
                 const refCurrency = currencies.includes('KES') ? 'KES' : currencies[0]
                 const fmt = (n: number) => `${refCurrency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-                // Household expenses (owner_id = null) split by ownership_type
                 const hhExpenses = expenses.filter(e => !e.is_deleted && e.owner_id === null)
-                const byOwnership = {
-                    joint:   hhExpenses.filter(e => e.ownership_type === 'joint').reduce((s, e) => s + Number(e.monthly_amount), 0),
-                    husband: hhExpenses.filter(e => e.ownership_type === 'husband').reduce((s, e) => s + Number(e.monthly_amount), 0),
-                    wife:    hhExpenses.filter(e => e.ownership_type === 'wife').reduce((s, e) => s + Number(e.monthly_amount), 0),
-                }
-                const hhBudgeted = byOwnership.joint + byOwnership.husband + byOwnership.wife
 
-                // Per-member personal expenses (personal tab expenses, owner_id = auth user id)
+                // Each income member absorbs: HH expenses matching their role + their share of joint HH expenses + personal
                 const memberRows = incomeMembers.map(m => {
                     const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                    const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.user_id).reduce((s, e) => s + Number(e.monthly_amount), 0)
-                    return { member: m, income, personal, remaining: income - personal }
+                    const role = m.member_type.name.toLowerCase()
+
+                    const hhOwned = hhExpenses
+                        .filter(e => e.ownership_type === role)
+                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                    const hhJoint = hhExpenses
+                        .filter(e => e.ownership_type === 'joint')
+                        .reduce((s, e) => {
+                            const split = role === 'husband' ? (e.joint_split_husband ?? 50)
+                                        : role === 'wife'    ? (e.joint_split_wife    ?? 50)
+                                        : 0
+                            return s + Number(e.monthly_amount) * split / 100
+                        }, 0)
+
+                    const personal = expenses
+                        .filter(e => !e.is_deleted && e.owner_id === m.user_id)
+                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                    const allocated = hhOwned + hhJoint + personal
+                    return { member: m, income, hhOwned, hhJoint, personal, allocated, remaining: income - allocated }
                 })
 
                 const totalIncome = memberRows.reduce((s, r) => s + r.income, 0)
-                const totalPersonal = memberRows.reduce((s, r) => s + r.personal, 0)
-                const totalBudgeted = hhBudgeted + totalPersonal
-                const netRemaining = totalIncome - totalBudgeted
-                const pct = totalIncome > 0 ? Math.min((totalBudgeted / totalIncome) * 100, 100) : 0
+                const totalAllocated = memberRows.reduce((s, r) => s + r.allocated, 0)
+                const netRemaining = totalIncome - totalAllocated
+                const pct = totalIncome > 0 ? Math.min((totalAllocated / totalIncome) * 100, 100) : 0
                 const over = netRemaining < 0
-
-                // Waterfall: each row's remaining = income - cumulative expenses up to and including that row
-                const ownershipRows = (() => {
-                    const all = [
-                        { key: 'joint',   label: 'Joint',   emoji: '🤝', total: byOwnership.joint },
-                        { key: 'husband', label: 'Husband', emoji: '👨', total: byOwnership.husband },
-                        { key: 'wife',    label: 'Wife',    emoji: '👩', total: byOwnership.wife },
-                    ].filter(r => r.total > 0)
-                    let running = totalIncome
-                    return all.map(r => {
-                        running -= r.total
-                        return { ...r, remaining: running }
-                    })
-                })()
 
                 return (
                     <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
@@ -487,7 +484,7 @@ export default function ExpenseLibrary() {
                                     <p className={`text-2xl font-black ${over ? 'text-red-500' : 'text-emerald-500'}`}>
                                         {over ? '−' : ''}{fmt(netRemaining)}
                                     </p>
-                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(totalBudgeted)} budgeted</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(totalAllocated)} allocated</p>
                                 </div>
                             </div>
                             {/* Combined progress bar */}
@@ -495,45 +492,17 @@ export default function ExpenseLibrary() {
                                 <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                                     style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-xs text-slate-400 mt-1.5">{pct.toFixed(0)}% of total income budgeted</p>
+                            <p className="text-xs text-slate-400 mt-1.5">{pct.toFixed(0)}% of total income allocated</p>
                         </div>
 
-                        {/* Breakdown rows */}
+                        {/* Per-member breakdown */}
                         <div className="border-t border-slate-50">
-                            {/* Household expenses by ownership_type — waterfall */}
-                            {ownershipRows.map(row => {
-                                const rowOver = row.remaining < 0
-                                return (
-                                    <div key={row.key} className="flex items-center justify-between px-5 py-3 bg-slate-50/60 border-b border-slate-50">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-base">{row.emoji}</span>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-700">{row.label} expenses</p>
-                                                <p className="text-xs text-slate-400">−{fmt(row.total)}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-400">remaining</p>
-                                            <p className={`text-sm font-bold ${rowOver ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                {rowOver ? '−' : ''}{fmt(row.remaining)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            {ownershipRows.length === 0 && (
-                                <div className="px-5 py-3 bg-slate-50/60 border-b border-slate-50">
-                                    <p className="text-xs text-slate-400">No household expenses yet</p>
-                                </div>
-                            )}
-
-                            {/* Per-member rows */}
                             {memberRows.map((row, i) => {
+                                const memberPct = row.income > 0 ? Math.min((row.allocated / row.income) * 100, 100) : 0
                                 const memberOver = row.remaining < 0
-                                const memberPct = row.income > 0 ? Math.min((row.personal / row.income) * 100, 100) : 0
                                 return (
-                                    <div key={row.member.id} className="px-5 py-3 border-t border-slate-50">
-                                        <div className="flex items-center justify-between gap-3">
+                                    <div key={row.member.id} className="px-5 py-4 border-b border-slate-50 last:border-b-0">
+                                        <div className="flex items-center justify-between gap-3 mb-2">
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                                                     style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
@@ -541,23 +510,43 @@ export default function ExpenseLibrary() {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-xs font-bold text-slate-700 truncate">{row.member.name}</p>
-                                                    <p className="text-xs text-slate-400">{fmt(row.income)} income</p>
+                                                    <p className="text-xs text-slate-400">{row.member.member_type.name} · {fmt(row.income)}/mo</p>
                                                 </div>
                                             </div>
                                             <div className="text-right flex-shrink-0">
-                                                <p className="text-xs text-slate-500">−{fmt(row.personal)} personal</p>
                                                 <p className={`text-sm font-bold ${memberOver ? 'text-red-500' : 'text-emerald-600'}`}>
-                                                    {memberOver ? '−' : ''}{fmt(row.remaining)} left
+                                                    {memberOver ? '−' : ''}{fmt(row.remaining)}
                                                 </p>
+                                                <p className="text-xs text-slate-400">remaining</p>
                                             </div>
                                         </div>
-                                        {/* Mini per-member bar */}
-                                        {row.personal > 0 && (
-                                            <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className={`h-full rounded-full ${memberOver ? 'bg-red-400' : 'bg-sky-400'}`}
-                                                    style={{ width: `${memberPct}%` }} />
-                                            </div>
-                                        )}
+                                        <div className="ml-9 space-y-0.5 mb-2">
+                                            {row.hhOwned > 0 && (
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-slate-400">HH · {row.member.member_type.name}</span>
+                                                    <span className="text-slate-600 font-medium">−{fmt(row.hhOwned)}</span>
+                                                </div>
+                                            )}
+                                            {row.hhJoint > 0 && (
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-slate-400">HH · Joint share</span>
+                                                    <span className="text-slate-600 font-medium">−{fmt(row.hhJoint)}</span>
+                                                </div>
+                                            )}
+                                            {row.personal > 0 && (
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="text-slate-400">Personal</span>
+                                                    <span className="text-slate-600 font-medium">−{fmt(row.personal)}</span>
+                                                </div>
+                                            )}
+                                            {row.allocated === 0 && (
+                                                <p className="text-xs text-slate-300 italic">No expenses allocated yet</p>
+                                            )}
+                                        </div>
+                                        <div className="ml-9 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full transition-all ${memberOver ? 'bg-red-400' : memberPct > 85 ? 'bg-amber-400' : 'bg-sky-400'}`}
+                                                style={{ width: `${memberPct}%` }} />
+                                        </div>
                                     </div>
                                 )
                             })}
