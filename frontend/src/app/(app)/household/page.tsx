@@ -771,7 +771,7 @@ export default function HouseholdPage() {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label className="text-sm font-bold text-slate-700">System User <span className="font-normal text-slate-400">(optional)</span></Label>
-                                <button onClick={() => setCreateUserDialog(true)} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
+                                <button onClick={() => { setNewUser(prev => ({ ...prev, name: newMember.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
                             <Select value={newMember.user_id} onValueChange={val => {
                                 const user = systemUsers.find(u => u.id === val)
@@ -821,7 +821,7 @@ export default function HouseholdPage() {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label className="text-sm font-bold text-slate-700">System User</Label>
-                                <button onClick={() => setCreateUserDialog(true)} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
+                                <button onClick={() => { setNewUser(prev => ({ ...prev, name: editMemberData.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
                             <Select value={editMemberData.user_id} onValueChange={val => {
                                 const user = systemUsers.find(u => u.id === val)
