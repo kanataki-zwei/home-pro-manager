@@ -1,10 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.auth import get_current_user
+from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.user import UserResponse, UserCreate
 from supabase import create_client
@@ -27,7 +28,8 @@ async def list_users(db: AsyncSession = Depends(get_db), current_user: User = De
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def create_user(request: Request, payload: UserCreate, db: AsyncSession = Depends(get_db)):
     # Check if user already exists
     result = await db.execute(select(User).where(User.email == payload.email))
     existing = result.scalar_one_or_none()

@@ -5,12 +5,13 @@ class Settings(BaseSettings):
     # App
     APP_NAME: str = "Home Pro Manager"
     DEBUG: bool = False
-    
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # Supabase
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     SUPABASE_JWT_SECRET: str
-    
+
     # Database
     DATABASE_URL: str  # postgresql+asyncpg://...
     

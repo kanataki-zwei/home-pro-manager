@@ -5,8 +5,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.database import engine
+from app.core.limiter import limiter
 from sqlalchemy import text
 import app.models
 from app.routers.users import router as users_router, get_supabase
@@ -19,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.DEBUG:
+        logger.warning("DEBUG mode is enabled — disable before deploying to production")
     # Pre-warm blocking clients so cold-start latency hits before any request comes in
     await asyncio.to_thread(lambda: _jwks_client.fetch_data())
     await asyncio.to_thread(get_supabase)
@@ -37,11 +42,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Order matters: add the catch-all FIRST so it sits INSIDE the CORS layer.
-# Unhandled exceptions from route handlers escape Starlette's ExceptionMiddleware
-# and propagate up through CORSMiddleware without CORS headers being set, causing
-# browsers to report them as CORS errors. This middleware catches those exceptions
-# before they reach CORSMiddleware and returns a proper JSON 500 with CORS headers.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ── Middleware stack (last added = outermost = runs first on request) ─────────
+
+# 1. Catch-all: innermost — catches unhandled exceptions before they escape past
+#    CORS, which would cause browsers to report them as CORS errors.
 class _CatchAllMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
@@ -51,13 +59,30 @@ class _CatchAllMiddleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 app.add_middleware(_CatchAllMiddleware)
+
+# 2. CORS: middle layer — sets Access-Control-* headers on every response.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# 3. Security headers: outermost — added last so it runs last on responses,
+#    ensuring headers are present on every reply including error responses.
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+app.add_middleware(_SecurityHeadersMiddleware)
 
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(households_router, prefix="/api/households", tags=["Households"])
