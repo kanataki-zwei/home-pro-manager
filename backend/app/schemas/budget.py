@@ -179,32 +179,21 @@ class BudgetTemplateSummaryResponse(BaseModel):
 
 # ─── Budget Session ───────────────────────────────────────────────
 class BudgetSessionCreate(BaseModel):
-    budget_template_id: UUID
-    month: date  # frontend sends first day of month e.g. 2026-02-01
-    name: str    # e.g. "February 2026"
+    month: date  # frontend sends first day of month e.g. 2026-06-01
 
 class BudgetSessionUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None  # draft, active, closed
 
 class BudgetSessionItemUpdate(BaseModel):
-    amount_paid: Optional[Decimal] = None
-    status: Optional[str] = None  # pending, partial, paid, reserved, skipped
-    reference_number: Optional[str] = None
-    notes: Optional[str] = None
-    paid_date: Optional[date] = None
+    status: str  # todo, paid, reserved, na
 
 class BudgetSessionItemResponse(BaseModel):
     id: UUID
     session_id: UUID
     expense_id: UUID
     allocated_amount: Decimal
-    amount_paid: Decimal
-    remaining_balance: Optional[Decimal] = None  # computed field
     status: str
-    reference_number: Optional[str]
-    notes: Optional[str]
-    paid_date: Optional[date]
     expense: ExpenseResponse
     created_at: datetime
     updated_at: datetime
@@ -212,16 +201,11 @@ class BudgetSessionItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
-    @model_validator(mode="after")
-    def compute_remaining(self):
-        self.remaining_balance = self.allocated_amount - self.amount_paid
-        return self
-
 class BudgetSessionResponse(BaseModel):
     id: UUID
     household_id: UUID
     user_id: UUID
-    budget_template_id: UUID
+    budget_template_id: Optional[UUID] = None
     month: date
     name: str
     status: str
@@ -240,7 +224,7 @@ class BudgetSessionSummaryResponse(BaseModel):
     id: UUID
     household_id: UUID
     user_id: UUID
-    budget_template_id: UUID
+    budget_template_id: Optional[UUID] = None
     month: date
     name: str
     status: str

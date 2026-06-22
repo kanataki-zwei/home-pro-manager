@@ -84,7 +84,6 @@ class BudgetTemplate(Base, TimestampMixin):
 
     household = relationship("Household")
     items = relationship("BudgetTemplateItem", back_populates="template")
-    sessions = relationship("BudgetSession", back_populates="template")
 
 
 class BudgetTemplateItem(Base, TimestampMixin):
@@ -106,7 +105,7 @@ class BudgetSession(Base, TimestampMixin):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(UUID(as_uuid=True), nullable=False)
-    budget_template_id = Column(UUID(as_uuid=True), ForeignKey("budget_templates.id", ondelete="RESTRICT"), nullable=False)
+    budget_template_id = Column(UUID(as_uuid=True), nullable=True)  # nullable — sessions are standalone
     month = Column(Date, nullable=False)  # always stored as first day of month e.g. 2026-02-01
     name = Column(String(255), nullable=False)  # e.g. "February 2026"
     status = Column(String(20), nullable=False, default="draft")  # draft, active, closed
@@ -117,7 +116,6 @@ class BudgetSession(Base, TimestampMixin):
     )
 
     household = relationship("Household")
-    template = relationship("BudgetTemplate", back_populates="sessions")
     items = relationship("BudgetSessionItem", back_populates="session")
 
 
@@ -127,15 +125,15 @@ class BudgetSessionItem(Base, TimestampMixin):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("budget_sessions.id", ondelete="CASCADE"), nullable=False)
     expense_id = Column(UUID(as_uuid=True), ForeignKey("expenses.id", ondelete="RESTRICT"), nullable=False)
-    allocated_amount = Column(Numeric(15, 2), nullable=False)  # copied from template at session creation
+    allocated_amount = Column(Numeric(15, 2), nullable=False)  # copied from expense.monthly_amount at session creation
     amount_paid = Column(Numeric(15, 2), default=0.00)
-    status = Column(String(20), nullable=False, default="pending")  # pending, partial, paid, reserved, skipped
+    status = Column(String(20), nullable=False, default="todo")  # todo, paid, reserved, na
     reference_number = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     paid_date = Column(Date, nullable=True)
 
     __table_args__ = (
-        CheckConstraint(status.in_(['pending', 'partial', 'paid', 'reserved', 'skipped']), name='session_item_status_check'),
+        CheckConstraint(status.in_(['todo', 'paid', 'reserved', 'na']), name='session_item_status_check'),
     )
 
     session = relationship("BudgetSession", back_populates="items")

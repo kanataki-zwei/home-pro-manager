@@ -13,6 +13,7 @@ from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem
 )
+from app.models.household import HouseholdMember
 from app.schemas.budget import (
     ExpenseGroupCreate, ExpenseGroupUpdate, ExpenseGroupResponse,
     ExpenseTagCreate, ExpenseTagUpdate, ExpenseTagResponse,
@@ -628,11 +629,12 @@ async def list_sessions(
     out = []
     for s in sessions:
         total_allocated = sum(i.allocated_amount for i in s.items)
-        total_paid = sum(i.amount_paid for i in s.items)
+        total_paid = sum(
+            i.allocated_amount for i in s.items if i.status == "paid"
+        )
         out.append(BudgetSessionSummaryResponse(
             id=s.id, household_id=s.household_id, user_id=s.user_id,
-            budget_template_id=s.budget_template_id, month=s.month,
-            name=s.name, status=s.status, is_deleted=s.is_deleted,
+            month=s.month, name=s.name, status=s.status, is_deleted=s.is_deleted,
             created_at=s.created_at, updated_at=s.updated_at,
             total_allocated=total_allocated,
             total_paid=total_paid,
@@ -654,45 +656,61 @@ async def create_session(
         select(BudgetSession).where(
             BudgetSession.household_id == household_id,
             BudgetSession.user_id == current_user.id,
-            BudgetSession.budget_template_id == payload.budget_template_id,
             BudgetSession.month == month_start,
             BudgetSession.is_deleted == False
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="A session already exists for this template and month")
+        raise HTTPException(status_code=400, detail="A session already exists for this month")
 
-    template_result = await db.execute(
-        select(BudgetTemplate)
-        .options(selectinload(BudgetTemplate.items))
+    # Determine the calling user's household role (e.g. "husband", "wife")
+    member_result = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
         .where(
-            BudgetTemplate.id == payload.budget_template_id,
-            BudgetTemplate.household_id == household_id,
-            BudgetTemplate.is_deleted == False
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == current_user.id,
+            HouseholdMember.is_active == True
         )
     )
-    template = template_result.scalar_one_or_none()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+    member = member_result.scalar_one_or_none()
+    role = member.member_type.name.lower() if member else None
+
+    # Fetch all active household expenses
+    expense_result = await db.execute(
+        select(Expense)
+        .options(selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .where(Expense.household_id == household_id, Expense.is_deleted == False)
+    )
+    all_expenses = expense_result.scalars().all()
+
+    # Include personal expenses owned by this user, and household expenses
+    # where ownership_type matches the user's role or is joint
+    relevant = [
+        exp for exp in all_expenses
+        if exp.owner_id == current_user.id
+        or (exp.owner_id is None and (exp.ownership_type == role or exp.ownership_type == "joint"))
+    ]
+
+    name = month_start.strftime("%B %Y")  # e.g. "June 2026"
 
     session = BudgetSession(
         household_id=household_id,
         user_id=current_user.id,
-        budget_template_id=payload.budget_template_id,
         month=month_start,
-        name=payload.name,
+        name=name,
         status="draft"
     )
     db.add(session)
     await db.flush()
 
-    for template_item in template.items:
+    for exp in relevant:
         db.add(BudgetSessionItem(
             session_id=session.id,
-            expense_id=template_item.expense_id,
-            allocated_amount=template_item.allocated_amount,
+            expense_id=exp.id,
+            allocated_amount=exp.monthly_amount,
             amount_paid=Decimal("0.00"),
-            status="pending"
+            status="todo"
         ))
 
     await db.commit()
@@ -801,14 +819,6 @@ async def update_session_item(
 
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
-
-    if payload.amount_paid is not None and payload.status is None:
-        if item.amount_paid >= item.allocated_amount:
-            item.status = "paid"
-        elif item.amount_paid > 0:
-            item.status = "partial"
-        else:
-            item.status = "pending"
 
     await db.commit()
 
