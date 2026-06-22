@@ -691,7 +691,7 @@ export default function ExpenseLibrary() {
                 {visibleGroups.map((group, gi) => {
                     const groupExpenses = expensesForGroup(group.id)
                     const isExpanded = expandedGroups.has(group.id)
-                    const monthlyTotal = groupExpenses.filter(e => !e.is_deleted).reduce((sum, e) => sum + e.monthly_amount, 0)
+                    const monthlyTotal = groupExpenses.filter(e => !e.is_deleted).reduce((sum, e) => sum + Number(e.monthly_amount), 0)
 
                     return (
                         <div key={group.id}
