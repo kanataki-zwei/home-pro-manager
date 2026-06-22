@@ -124,16 +124,19 @@ class BudgetSessionItem(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("budget_sessions.id", ondelete="CASCADE"), nullable=False)
-    expense_id = Column(UUID(as_uuid=True), ForeignKey("expenses.id", ondelete="RESTRICT"), nullable=False)
-    allocated_amount = Column(Numeric(15, 2), nullable=False)  # copied from expense.monthly_amount at session creation
+    expense_id = Column(UUID(as_uuid=True), ForeignKey("expenses.id", ondelete="RESTRICT"), nullable=True)
+    ad_hoc_name = Column(String(255), nullable=True)    # set only for one-time session expenses
+    ad_hoc_amount = Column(Numeric(15, 2), nullable=True)
+    allocated_amount = Column(Numeric(15, 2), nullable=False)
     amount_paid = Column(Numeric(15, 2), default=0.00)
     status = Column(String(20), nullable=False, default="todo")  # todo, paid, reserved, na
-    reference_number = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
+    reference_number = Column(String(255), nullable=True)
     paid_date = Column(Date, nullable=True)
 
     __table_args__ = (
         CheckConstraint(status.in_(['todo', 'paid', 'reserved', 'na']), name='session_item_status_check'),
+        CheckConstraint('(expense_id IS NOT NULL) OR (ad_hoc_name IS NOT NULL)', name='session_item_source_check'),
     )
 
     session = relationship("BudgetSession", back_populates="items")

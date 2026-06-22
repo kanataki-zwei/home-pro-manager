@@ -21,7 +21,7 @@ from app.schemas.budget import (
     BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateResponse, BudgetTemplateSummaryResponse,
     BudgetTemplateItemCreate, BudgetTemplateItemUpdate, BudgetTemplateItemResponse,
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
-    BudgetSessionItemUpdate, BudgetSessionItemResponse
+    BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate
 )
 
 router = APIRouter(prefix="/households/{household_id}/budget", tags=["Budget"])

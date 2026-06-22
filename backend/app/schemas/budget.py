@@ -186,15 +186,23 @@ class BudgetSessionUpdate(BaseModel):
     status: Optional[str] = None  # draft, active, closed
 
 class BudgetSessionItemUpdate(BaseModel):
-    status: str  # todo, paid, reserved, na
+    status: str              # todo, paid, reserved, na
+    notes: Optional[str] = None
+
+class AdHocSessionItemCreate(BaseModel):
+    name: str
+    amount: Decimal          # stored directly as allocated_amount
 
 class BudgetSessionItemResponse(BaseModel):
     id: UUID
     session_id: UUID
-    expense_id: UUID
+    expense_id: Optional[UUID] = None
+    ad_hoc_name: Optional[str] = None
+    ad_hoc_amount: Optional[Decimal] = None
     allocated_amount: Decimal
     status: str
-    expense: ExpenseResponse
+    notes: Optional[str] = None
+    expense: Optional[ExpenseResponse] = None
     created_at: datetime
     updated_at: datetime
 
