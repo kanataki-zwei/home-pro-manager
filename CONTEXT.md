@@ -215,6 +215,17 @@ constraint changed from `pending/partial/paid/reserved/skipped` to `todo/paid/re
 
 ---
 
+## Payment Reference Numbers — COMPLETE
+
+Rent expenses (name contains "rent", case-insensitive) and any expense in the **Education** group require a reference number when marked Paid.
+
+- `reference_number VARCHAR(255)` column already existed on `budget_session_items` (added in `a0857efd3031`). No new migration needed.
+- `schemas/budget.py` — `BudgetSessionItemUpdate` and `BudgetSessionItemResponse` now include `reference_number: Optional[str]`.
+- `routers/budget.py` — `update_session_item` clears `reference_number` when status moves away from `paid`.
+- `MonthlySession.tsx` — `requiresRef(item)` checks name/group; clicking Paid on a matching item opens an inline ref input (required) instead of immediately patching. The saved ref displays as a green `Ref: …` callout on the item row.
+
+---
+
 ## Freed-Up Budget for Ad-hoc Items — COMPLETE
 
 ### Concept
@@ -254,3 +265,4 @@ Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed 
 | 2026-06-22 | Budget | Monthly Sessions: full implementation (migration, schema, router, UI) |
 | 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0, backend endpoints, frontend UI) |
 | 2026-06-22 | Budget | Freed-up budget pool: backend validation, stat cards, N/A callout, status distribution bar |
+| 2026-06-22 | Budget | Payment ref number required for rent + Education group items on Paid status |
