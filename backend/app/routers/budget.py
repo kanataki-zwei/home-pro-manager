@@ -13,7 +13,7 @@ from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem
 )
-from app.models.household import HouseholdMember
+from app.models.household import HouseholdMember, Account, AccountTransaction
 from app.schemas.budget import (
     ExpenseGroupCreate, ExpenseGroupUpdate, ExpenseGroupResponse,
     ExpenseTagCreate, ExpenseTagUpdate, ExpenseTagResponse,
@@ -857,7 +857,9 @@ async def update_session_item(
     current_user: User = Depends(get_current_user)
 ):
     result = await db.execute(
-        select(BudgetSessionItem).where(
+        select(BudgetSessionItem)
+        .options(selectinload(BudgetSessionItem.expense))
+        .where(
             BudgetSessionItem.id == item_id,
             BudgetSessionItem.session_id == session_id
         )
@@ -869,6 +871,8 @@ async def update_session_item(
     if payload.status == "na" and not payload.notes:
         raise HTTPException(status_code=422, detail="A note is required when marking an item as N/A")
 
+    old_status = item.status
+
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
 
@@ -879,6 +883,38 @@ async def update_session_item(
     # Clear reference number when moving away from paid
     if payload.status != "paid":
         item.reference_number = None
+
+    # ── Auto-credit account on paid ──────────────────────────────
+    if payload.status == "paid" and old_status != "paid":
+        account_id = item.expense.account_id if item.expense else None
+        if account_id:
+            acc_result = await db.execute(select(Account).where(Account.id == account_id))
+            account = acc_result.scalar_one_or_none()
+            if account and account.contributes_to_net_worth:
+                expense_name = item.expense.name if item.expense else (item.ad_hoc_name or "Ad-hoc")
+                txn = AccountTransaction(
+                    account_id=account.id,
+                    household_id=household_id,
+                    amount=item.allocated_amount,
+                    narration=f"{expense_name}",
+                    transaction_type="credit",
+                    session_item_id=item.id,
+                )
+                db.add(txn)
+                account.current_balance = (account.current_balance or 0) + item.allocated_amount
+
+    # ── Reverse auto-credit when un-paying ───────────────────────
+    elif old_status == "paid" and payload.status != "paid":
+        rev_result = await db.execute(
+            select(AccountTransaction).where(AccountTransaction.session_item_id == item.id)
+        )
+        auto_txn = rev_result.scalar_one_or_none()
+        if auto_txn:
+            acc_result = await db.execute(select(Account).where(Account.id == auto_txn.account_id))
+            account = acc_result.scalar_one_or_none()
+            if account:
+                account.current_balance = (account.current_balance or 0) - auto_txn.amount
+            await db.delete(auto_txn)
 
     await db.commit()
 

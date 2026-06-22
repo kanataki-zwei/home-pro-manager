@@ -6,12 +6,13 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
-from app.models.household import Household, MemberType, HouseholdMember, Account
+from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction
 from app.schemas.household import (
     HouseholdCreate, HouseholdResponse,
     MemberTypeCreate, MemberTypeResponse,
     HouseholdMemberCreate, HouseholdMemberUpdate, HouseholdMemberResponse,
-    AccountCreate, AccountUpdate, AccountResponse
+    AccountCreate, AccountUpdate, AccountResponse,
+    AccountTransactionCreate, AccountTransactionResponse
 )
 
 router = APIRouter()
@@ -256,3 +257,75 @@ async def delete_account(household_id: UUID, account_id: UUID, db: AsyncSession 
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     account.is_active = False
+
+
+# ─── Account Transactions ────────────────────────────────────────
+
+@router.get("/{household_id}/transactions", response_model=list[AccountTransactionResponse])
+async def get_all_household_transactions(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(AccountTransaction)
+        .where(AccountTransaction.household_id == household_id)
+        .order_by(AccountTransaction.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.get("/{household_id}/accounts/{account_id}/transactions", response_model=list[AccountTransactionResponse])
+async def get_account_transactions(
+    household_id: UUID,
+    account_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(AccountTransaction)
+        .where(
+            AccountTransaction.account_id == account_id,
+            AccountTransaction.household_id == household_id
+        )
+        .order_by(AccountTransaction.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/{household_id}/accounts/{account_id}/transactions",
+             response_model=AccountTransactionResponse, status_code=status.HTTP_201_CREATED)
+async def create_account_transaction(
+    household_id: UUID,
+    account_id: UUID,
+    payload: AccountTransactionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(Account).where(Account.id == account_id, Account.household_id == household_id)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if payload.transaction_type not in ('credit', 'debit'):
+        raise HTTPException(status_code=422, detail="transaction_type must be 'credit' or 'debit'")
+
+    txn = AccountTransaction(
+        account_id=account_id,
+        household_id=household_id,
+        amount=payload.amount,
+        narration=payload.narration,
+        transaction_type=payload.transaction_type,
+    )
+    db.add(txn)
+
+    if payload.transaction_type == 'credit':
+        account.current_balance += payload.amount
+    else:
+        account.current_balance -= payload.amount
+
+    await db.commit()
+    await db.refresh(txn)
+    return txn

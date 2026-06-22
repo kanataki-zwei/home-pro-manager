@@ -82,6 +82,7 @@ class AccountCreate(BaseModel):
     household_member_id: Optional[UUID] = None
     current_balance: float = 0.00
     currency: str = "KES"
+    contributes_to_net_worth: bool = True
 
 class AccountUpdate(BaseModel):
     name: Optional[str] = None
@@ -92,6 +93,7 @@ class AccountUpdate(BaseModel):
     current_balance: Optional[float] = None
     currency: Optional[str] = None
     is_active: Optional[bool] = None
+    contributes_to_net_worth: Optional[bool] = None
 
 class AccountResponse(BaseModel):
     id: UUID
@@ -104,6 +106,27 @@ class AccountResponse(BaseModel):
     current_balance: float
     currency: str
     is_active: bool
+    contributes_to_net_worth: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Account Transactions ────────────────────────────────────────
+class AccountTransactionCreate(BaseModel):
+    amount: Decimal
+    narration: str
+    transaction_type: str  # credit or debit
+
+class AccountTransactionResponse(BaseModel):
+    id: UUID
+    account_id: UUID
+    household_id: UUID
+    amount: Decimal
+    narration: str
+    transaction_type: str
+    session_item_id: Optional[UUID]
     created_at: datetime
 
     class Config:

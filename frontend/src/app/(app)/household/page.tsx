@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,7 +23,11 @@ interface Member {
 interface Account {
     id: string; name: string; account_type: string; institution_type: string | null
     ownership: string; current_balance: number; currency: string; is_active: boolean
-    household_member_id: string | null
+    household_member_id: string | null; contributes_to_net_worth: boolean
+}
+interface AccountTransaction {
+    id: string; account_id: string; amount: string; narration: string
+    transaction_type: 'credit' | 'debit'; session_item_id: string | null; created_at: string
 }
 interface Household { id: string; name: string; member_types: MemberType[] }
 interface SystemUser { id: string; email: string; name: string | null }
@@ -145,11 +149,18 @@ export default function HouseholdPage() {
     const [creatingUser, setCreatingUser] = useState(false)
 
     const [accountDialog, setAccountDialog] = useState(false)
-    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
+    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
     const [editAccountDialog, setEditAccountDialog] = useState(false)
     const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
+    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
     const [savingAccount, setSavingAccount] = useState(false)
+
+    // ── Account transactions ──────────────────────────────────────
+    const [txnDialogAccount, setTxnDialogAccount] = useState<Account | null>(null)
+    const [txnData, setTxnData] = useState({ amount: '', narration: '', transaction_type: 'credit' as 'credit' | 'debit' })
+    const [savingTxn, setSavingTxn] = useState(false)
+    const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null)
+    const [accountTxns, setAccountTxns] = useState<Record<string, AccountTransaction[]>>({})
 
     useEffect(() => {
         if (!contextLoading) {
@@ -273,7 +284,7 @@ export default function HouseholdPage() {
                 household_member_id: newAccount.ownership === 'individual' && newAccount.household_member_id ? newAccount.household_member_id : null
             })
             setAccounts([...accounts, data])
-            setNewAccount({ name: '', account_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
+            setNewAccount({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
             setAccountDialog(false); toast.success('Account added!')
         } catch { toast.error('Failed') }
         finally { setSavingAccount(false) }
@@ -281,7 +292,7 @@ export default function HouseholdPage() {
 
     const openEditAccount = (account: Account) => {
         setEditingAccount(account)
-        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '' })
+        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '', contributes_to_net_worth: account.contributes_to_net_worth })
         setEditAccountDialog(true)
     }
 
@@ -298,7 +309,8 @@ export default function HouseholdPage() {
                 currency: editAccountData.currency,
                 household_member_id: editAccountData.ownership === 'individual'
                     ? (editAccountData.household_member_id || null)
-                    : null
+                    : null,
+                contributes_to_net_worth: editAccountData.contributes_to_net_worth,
             }
             const data = await apiPatch<Account>(`/api/households/${household.id}/accounts/${editingAccount.id}`, payload)
             setAccounts(accounts.map(a => a.id === data.id ? data : a))
@@ -313,6 +325,44 @@ export default function HouseholdPage() {
             await apiDelete(`/api/households/${household.id}/accounts/${accountId}`)
             setAccounts(accounts.filter(a => a.id !== accountId))
         } catch { toast.error('Failed') }
+    }
+
+    const toggleTransactionHistory = async (accountId: string) => {
+        if (expandedAccountId === accountId) { setExpandedAccountId(null); return }
+        setExpandedAccountId(accountId)
+        if (accountTxns[accountId]) return
+        try {
+            const data = await apiGet<AccountTransaction[]>(`/api/households/${household!.id}/accounts/${accountId}/transactions`)
+            setAccountTxns(prev => ({ ...prev, [accountId]: data }))
+        } catch { toast.error('Failed to load history') }
+    }
+
+    const openTxnDialog = (account: Account) => {
+        setTxnDialogAccount(account)
+        setTxnData({ amount: '', narration: '', transaction_type: 'credit' })
+    }
+
+    const addTransaction = async () => {
+        if (!txnDialogAccount || !household || !txnData.amount || !txnData.narration) return
+        setSavingTxn(true)
+        try {
+            const txn = await apiPost<AccountTransaction>(
+                `/api/households/${household.id}/accounts/${txnDialogAccount.id}/transactions`,
+                { amount: parseFloat(txnData.amount), narration: txnData.narration, transaction_type: txnData.transaction_type }
+            )
+            // Update account balance in state
+            const delta = txnData.transaction_type === 'credit' ? parseFloat(txnData.amount) : -parseFloat(txnData.amount)
+            setAccounts(accounts.map(a => a.id === txnDialogAccount.id
+                ? { ...a, current_balance: a.current_balance + delta } : a))
+            // Prepend to cached transactions
+            setAccountTxns(prev => ({
+                ...prev,
+                [txnDialogAccount.id]: [txn, ...(prev[txnDialogAccount.id] ?? [])]
+            }))
+            setTxnDialogAccount(null)
+            toast.success('Entry added!')
+        } catch { toast.error('Failed') }
+        finally { setSavingTxn(false) }
     }
 
     const toggleIncome = async (member: Member) => {
@@ -771,43 +821,92 @@ export default function HouseholdPage() {
                     <div className="space-y-3">
                         {visibleAccounts.map((account, i) => {
                             const owner = members.find(m => m.id === account.household_member_id)
+                            const isExpanded = expandedAccountId === account.id
+                            const txns = accountTxns[account.id] ?? []
                             return (
                                 <div key={account.id}
-                                    className="bg-white rounded-3xl p-5 border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group flex items-center justify-between"
+                                    className="bg-white rounded-3xl border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-                                            style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
-                                            {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
+                                    <div className="p-5 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+                                                style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
+                                                {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-slate-900">{account.name}</p>
+                                                    {account.contributes_to_net_worth && (
+                                                        <span title="Contributes to net worth" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                                            <Shield className="h-2.5 w-2.5" /> Net Worth
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                    {ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type} · {account.ownership}
+                                                    {owner ? ` · ${owner.name}` : ''}
+                                                </p>
+                                                {account.institution_type && (
+                                                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
+                                                        {INSTITUTION_TYPE_MAP[account.institution_type]?.icon} {INSTITUTION_TYPE_MAP[account.institution_type]?.label}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-slate-900">{account.name}</p>
-                                            <p className="text-xs text-slate-400 mt-0.5">
-                                                {ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type} · {account.ownership}
-                                                {owner ? ` · ${owner.name}` : ''}
+                                        <div className="flex items-center gap-3">
+                                            <p className="font-black text-slate-900 text-lg" style={{ fontFamily: 'Plus Jakarta Sans' }}>
+                                                {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </p>
-                                            {account.institution_type && (
-                                                <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
-                                                    {INSTITUTION_TYPE_MAP[account.institution_type]?.icon} {INSTITUTION_TYPE_MAP[account.institution_type]?.label}
-                                                </span>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => openTxnDialog(account)}
+                                                    title="Add entry"
+                                                    className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                                    <Plus className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button onClick={() => toggleTransactionHistory(account.id)}
+                                                    title="Transaction history"
+                                                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'text-sky-500 bg-sky-50' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50'}`}>
+                                                    <History className="h-3.5 w-3.5" />
+                                                </button>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => openEditAccount(account)}
+                                                        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <button onClick={() => deleteAccount(account.id)}
+                                                        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {isExpanded && (
+                                        <div className="border-t border-slate-100">
+                                            {txns.length === 0 ? (
+                                                <p className="px-5 py-4 text-sm text-slate-400">No transactions yet. Use + to add an entry.</p>
+                                            ) : (
+                                                <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                                                    {txns.map(t => (
+                                                        <div key={t.id} className="flex items-center gap-3 px-5 py-3">
+                                                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 ${t.transaction_type === 'credit' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                                                                {t.transaction_type === 'credit'
+                                                                    ? <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                                                                    : <TrendingDown className="h-3.5 w-3.5 text-red-500" />}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-slate-800 truncate">{t.narration}</p>
+                                                                <p className="text-xs text-slate-400">{new Date(t.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                                                            </div>
+                                                            <p className={`text-sm font-bold flex-shrink-0 ${t.transaction_type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                {t.transaction_type === 'credit' ? '+' : '-'}{account.currency} {Number(t.amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             )}
                                         </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <p className="font-black text-slate-900 text-lg" style={{ fontFamily: 'Plus Jakarta Sans' }}>
-                                            {account.currency} {account.current_balance.toLocaleString()}
-                                        </p>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => openEditAccount(account)}
-                                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button onClick={() => deleteAccount(account.id)}
-                                                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -975,9 +1074,9 @@ export default function HouseholdPage() {
             </Dialog>
 
             <Dialog open={accountDialog} onOpenChange={setAccountDialog}>
-                <DialogContent className="rounded-3xl border-0" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
+                <DialogContent className="rounded-3xl border-0 flex flex-col max-h-[90vh]" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
                     <DialogHeader><DialogTitle className="text-xl font-black">Add Account</DialogTitle></DialogHeader>
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
                         <div className="space-y-2">
                             <Label className="text-sm font-bold text-slate-700">Account Name</Label>
                             <Input className="h-12 rounded-2xl" placeholder="e.g. KCB Joint Account" value={newAccount.name}
@@ -1044,6 +1143,21 @@ export default function HouseholdPage() {
                             <Input type="number" className="h-12 rounded-2xl" placeholder="0" value={newAccount.current_balance}
                                 onChange={e => setNewAccount(prev => ({ ...prev, current_balance: parseFloat(e.target.value) || 0 }))} />
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => setNewAccount(prev => ({ ...prev, contributes_to_net_worth: !prev.contributes_to_net_worth }))}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${newAccount.contributes_to_net_worth ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                            <div className="flex items-center gap-3">
+                                <Shield className={`h-4 w-4 ${newAccount.contributes_to_net_worth ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <div className="text-left">
+                                    <p className={`text-sm font-bold ${newAccount.contributes_to_net_worth ? 'text-emerald-700' : 'text-slate-600'}`}>Contributes to Net Worth</p>
+                                    <p className="text-xs text-slate-400">Balance included in total household net worth</p>
+                                </div>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full transition-all relative ${newAccount.contributes_to_net_worth ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${newAccount.contributes_to_net_worth ? 'left-5' : 'left-1'}`} />
+                            </div>
+                        </button>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" className="rounded-2xl" onClick={() => setAccountDialog(false)}>Cancel</Button>
@@ -1053,9 +1167,9 @@ export default function HouseholdPage() {
             </Dialog>
 
             <Dialog open={editAccountDialog} onOpenChange={setEditAccountDialog}>
-                <DialogContent className="rounded-3xl border-0" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
+                <DialogContent className="rounded-3xl border-0 flex flex-col max-h-[90vh]" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
                     <DialogHeader><DialogTitle className="text-xl font-black">Edit Account</DialogTitle></DialogHeader>
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
                         <div className="space-y-2">
                             <Label className="text-sm font-bold text-slate-700">Account Name</Label>
                             <Input className="h-12 rounded-2xl" value={editAccountData.name}
@@ -1122,10 +1236,66 @@ export default function HouseholdPage() {
                             <Input type="number" className="h-12 rounded-2xl" value={editAccountData.current_balance}
                                 onChange={e => setEditAccountData(prev => ({ ...prev, current_balance: parseFloat(e.target.value) || 0 }))} />
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => setEditAccountData(prev => ({ ...prev, contributes_to_net_worth: !prev.contributes_to_net_worth }))}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${editAccountData.contributes_to_net_worth ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                            <div className="flex items-center gap-3">
+                                <Shield className={`h-4 w-4 ${editAccountData.contributes_to_net_worth ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <div className="text-left">
+                                    <p className={`text-sm font-bold ${editAccountData.contributes_to_net_worth ? 'text-emerald-700' : 'text-slate-600'}`}>Contributes to Net Worth</p>
+                                    <p className="text-xs text-slate-400">Balance included in total household net worth</p>
+                                </div>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full transition-all relative ${editAccountData.contributes_to_net_worth ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${editAccountData.contributes_to_net_worth ? 'left-5' : 'left-1'}`} />
+                            </div>
+                        </button>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" className="rounded-2xl" onClick={() => setEditAccountDialog(false)}>Cancel</Button>
                         <SaveButton onClick={updateAccount} loading={savingAccount} />
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Transaction Dialog */}
+            <Dialog open={!!txnDialogAccount} onOpenChange={open => { if (!open) setTxnDialogAccount(null) }}>
+                <DialogContent className="rounded-3xl border-0" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black">Add Entry</DialogTitle>
+                        {txnDialogAccount && <p className="text-sm text-slate-400 mt-1">{txnDialogAccount.name}</p>}
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        {/* Credit / Debit toggle */}
+                        <div className="flex rounded-2xl bg-slate-100 p-1 gap-1">
+                            <button
+                                onClick={() => setTxnData(prev => ({ ...prev, transaction_type: 'credit' }))}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${txnData.transaction_type === 'credit' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>
+                                <TrendingUp className="h-4 w-4" /> Deposit
+                            </button>
+                            <button
+                                onClick={() => setTxnData(prev => ({ ...prev, transaction_type: 'debit' }))}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${txnData.transaction_type === 'debit' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-500'}`}>
+                                <TrendingDown className="h-4 w-4" /> Withdrawal
+                            </button>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Amount ({txnDialogAccount?.currency ?? 'KES'})</Label>
+                            <Input type="number" className="h-12 rounded-2xl" placeholder="0.00"
+                                value={txnData.amount}
+                                onChange={e => setTxnData(prev => ({ ...prev, amount: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Narration</Label>
+                            <Input className="h-12 rounded-2xl" placeholder="e.g. Salary deposit, Rent payment…"
+                                value={txnData.narration}
+                                onChange={e => setTxnData(prev => ({ ...prev, narration: e.target.value }))} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" className="rounded-2xl" onClick={() => setTxnDialogAccount(null)}>Cancel</Button>
+                        <SaveButton onClick={addTransaction} loading={savingTxn} label="Add Entry" />
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

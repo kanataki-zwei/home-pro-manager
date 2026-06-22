@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
-import { Wallet, Users, TrendingUp, ArrowUpRight, CalendarDays, Tag } from 'lucide-react'
+import { Wallet, Users, TrendingUp, ArrowUpRight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -49,11 +49,14 @@ const GRADIENTS = [
 // ─── Dashboard ────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-    const { household, members, accounts, loading } = useHousehold()
+    const { household, members, accounts, loading, currentUserId } = useHousehold()
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
     const [budgetLoading, setBudgetLoading] = useState(true)
+    const [membersExpanded, setMembersExpanded] = useState(false)
+    const [incomeExpanded, setIncomeExpanded] = useState(false)
+    const [myAccountsOnly, setMyAccountsOnly] = useState(false)
 
     useEffect(() => {
         if (!household) return
@@ -91,7 +94,14 @@ export default function DashboardPage() {
 
     // ── Derived numbers ───────────────────────────────────────────
 
-    const totalBalance = accounts.reduce((s, a) => s + Number(a.current_balance), 0)
+    const myMember = members.find(m => m.user_id === currentUserId)
+    const visibleAccounts = myAccountsOnly
+        ? accounts.filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
+        : accounts
+
+    const totalBalance = visibleAccounts
+        .filter(a => a.contributes_to_net_worth)
+        .reduce((s, a) => s + Number(a.current_balance), 0)
     const currency = accounts[0]?.currency || 'KES'
 
     const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
@@ -139,46 +149,142 @@ export default function DashboardPage() {
                     style={{ background: 'radial-gradient(circle, #38bdf8, transparent)', transform: 'translate(30%, -30%)' }} />
                 <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-5"
                     style={{ background: 'radial-gradient(circle, #0ea5e9, transparent)', transform: 'translate(-30%, 30%)' }} />
-                <div className="relative grid grid-cols-2 gap-8">
-                    <div>
-                        <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Balance</p>
-                        <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
-                            {currency} {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-slate-400 text-xs mt-2">{accounts.length} account{accounts.length !== 1 ? 's' : ''} across your household</p>
-                    </div>
-                    {totalIncome > 0 && (
+                <div className="relative">
+                    <div className="grid grid-cols-2 gap-8">
                         <div>
-                            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">Monthly Income</p>
+                            <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Balance</p>
                             <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
-                                {fmtCompact(totalIncome)}
+                                {currency} {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
-                            <p className="text-slate-400 text-xs mt-2">{incomeMembers.length} contributor{incomeMembers.length !== 1 ? 's' : ''}</p>
+                            <p className="text-slate-400 text-xs mt-2">
+                            {visibleAccounts.filter(a => a.contributes_to_net_worth).length} net worth account{visibleAccounts.filter(a => a.contributes_to_net_worth).length !== 1 ? 's' : ''} · {myAccountsOnly ? 'your accounts' : 'household'}
+                        </p>
+                        </div>
+                        {totalIncome > 0 && (
+                            <div>
+                                <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">Monthly Income</p>
+                                <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
+                                    {fmtCompact(totalIncome)}
+                                </p>
+                                <button
+                                    onClick={() => setIncomeExpanded(v => !v)}
+                                    className="flex items-center gap-1 text-slate-400 text-xs mt-2 hover:text-slate-200 transition-colors"
+                                >
+                                    {incomeMembers.length} contributor{incomeMembers.length !== 1 ? 's' : ''}
+                                    {incomeExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {incomeExpanded && incomeMembers.length > 0 && (
+                        <div className="mt-5 pt-5 border-t border-slate-700 grid grid-cols-1 gap-2">
+                            {incomeMembers.map((m, i) => {
+                                const income = toMonthly(m.income_amount, m.income_cadence)
+                                return (
+                                    <div key={m.id} className="flex items-center gap-3">
+                                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                                            style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                            {m.name.charAt(0)}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-semibold text-white">{m.name}</span>
+                                            <span className="text-xs text-slate-400 ml-2">{m.member_type.name}</span>
+                                        </div>
+                                        <span className="text-sm font-bold text-emerald-400">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></span>
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
             </div>
 
             {/* Key stats row */}
-            <div className="grid grid-cols-4 gap-4">
-                {[
-                    { label: 'Members', value: members.length, sub: members.map(m => m.name).join(', ') || 'None yet', icon: Users, color: 'sky' },
-                    { label: 'Months Tracked', value: monthsTracked, sub: monthsTracked === 0 ? 'No sessions yet' : `${sessions.filter(s => s.status === 'closed').length} closed`, icon: CalendarDays, color: 'violet' },
-                    { label: 'Budgeted / mo', value: fmtCompact(totalBudgeted), sub: totalIncome > 0 ? `${budgetPct.toFixed(0)}% of income` : 'No income set', icon: Wallet, color: 'amber' },
-                    { label: 'Net Remaining', value: fmtCompact(Math.abs(netRemaining)), sub: isOver ? 'over budget' : 'unallocated', icon: TrendingUp, color: isOver ? 'red' : 'emerald' },
-                ].map(stat => (
-                    <div key={stat.label} className="bg-white rounded-2xl p-5 border border-slate-100"
-                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+            <div className="grid grid-cols-4 gap-4 items-start">
+
+                {/* Members — expandable */}
+                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <button
+                        className="w-full p-5 text-left"
+                        onClick={() => setMembersExpanded(v => !v)}
+                    >
                         <div className="flex items-center justify-between mb-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{stat.label}</p>
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-${stat.color}-50`}>
-                                <stat.icon className={`h-4 w-4 text-${stat.color}-500`} />
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Members</p>
+                            <div className="flex items-center gap-1">
+                                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-sky-50">
+                                    <Users className="h-4 w-4 text-sky-500" />
+                                </div>
                             </div>
                         </div>
-                        <p className="text-xl font-black text-slate-900">{stat.value}</p>
-                        <p className="text-xs text-slate-400 mt-1 truncate">{stat.sub}</p>
+                        <div className="flex items-end justify-between">
+                            <div>
+                                <p className="text-xl font-black text-slate-900">{members.length}</p>
+                                <p className="text-xs text-slate-400 mt-1">{membersExpanded ? 'Hide members' : 'Show members'}</p>
+                            </div>
+                            {membersExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 mb-0.5" /> : <ChevronDown className="h-4 w-4 text-slate-400 mb-0.5" />}
+                        </div>
+                    </button>
+                    {membersExpanded && members.length > 0 && (
+                        <div className="border-t border-slate-100 divide-y divide-slate-50">
+                            {members.map((m, i) => (
+                                <div key={m.id} className="flex items-center gap-2 px-5 py-2.5">
+                                    <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                        {m.name.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-slate-800 truncate">{m.name}</p>
+                                        <p className="text-xs text-slate-400">{m.member_type.name}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {membersExpanded && members.length === 0 && (
+                        <p className="px-5 pb-4 text-xs text-slate-400">No members yet.</p>
+                    )}
+                </div>
+
+                {/* Months Tracked */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Months Tracked</p>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-violet-50">
+                            <CalendarDays className="h-4 w-4 text-violet-500" />
+                        </div>
                     </div>
-                ))}
+                    <p className="text-xl font-black text-slate-900">{monthsTracked}</p>
+                    <p className="text-xs text-slate-400 mt-1">{monthsTracked === 0 ? 'No sessions yet' : `${sessions.filter(s => s.status === 'closed').length} closed`}</p>
+                </div>
+
+                {/* Budgeted / mo */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Budgeted / mo</p>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-50">
+                            <Wallet className="h-4 w-4 text-amber-500" />
+                        </div>
+                    </div>
+                    <p className="text-xl font-black text-slate-900">{fmtCompact(totalBudgeted)}</p>
+                    <p className="text-xs text-slate-400 mt-1">{totalIncome > 0 ? `${budgetPct.toFixed(0)}% of income` : 'No income set'}</p>
+                </div>
+
+                {/* Amount Not Budgeted */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Amount Not Budgeted</p>
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isOver ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                            <TrendingUp className={`h-4 w-4 ${isOver ? 'text-red-500' : 'text-emerald-500'}`} />
+                        </div>
+                    </div>
+                    <p className="text-xl font-black text-slate-900">{fmtCompact(Math.abs(netRemaining))}</p>
+                    <p className="text-xs text-slate-400 mt-1">{isOver ? 'over budget' : 'unallocated'}</p>
+                </div>
+
             </div>
 
             {/* Income + Tag breakdown — side by side */}
@@ -317,18 +423,30 @@ export default function DashboardPage() {
             <div>
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="font-bold text-slate-900 text-lg">Accounts</h2>
-                    <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
-                        Manage <ArrowUpRight className="h-3 w-3" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                            <button
+                                onClick={() => setMyAccountsOnly(false)}
+                                className={`px-3 py-1.5 rounded-lg transition-all ${!myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >All</button>
+                            <button
+                                onClick={() => setMyAccountsOnly(true)}
+                                className={`px-3 py-1.5 rounded-lg transition-all ${myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >Mine</button>
+                        </div>
+                        <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
+                            Manage <ArrowUpRight className="h-3 w-3" />
+                        </Link>
+                    </div>
                 </div>
-                {accounts.length === 0 ? (
+                {visibleAccounts.length === 0 ? (
                     <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
-                        <p className="text-slate-400 text-sm">No accounts yet</p>
-                        <Link href="/household" className="text-sky-500 text-sm font-semibold mt-1 inline-block">Add one →</Link>
+                        <p className="text-slate-400 text-sm">{myAccountsOnly ? 'No accounts linked to you' : 'No accounts yet'}</p>
+                        {!myAccountsOnly && <Link href="/household" className="text-sky-500 text-sm font-semibold mt-1 inline-block">Add one →</Link>}
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {accounts.map((account, i) => {
+                        {visibleAccounts.map((account, i) => {
                             const owner = members.find(m => m.id === account.household_member_id)
                             return (
                                 <div key={account.id}

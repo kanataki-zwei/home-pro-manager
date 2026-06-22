@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint
+from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint, DateTime, func, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -65,6 +65,7 @@ class Account(Base, TimestampMixin):
     current_balance = Column(Numeric(15, 2), default=0.00)
     currency = Column(String(10), default="KES")
     is_active = Column(Boolean, default=True)
+    contributes_to_net_worth = Column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
         CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),
@@ -74,3 +75,23 @@ class Account(Base, TimestampMixin):
 
     household = relationship("Household", back_populates="accounts")
     member = relationship("HouseholdMember", back_populates="accounts")
+    transactions = relationship("AccountTransaction", back_populates="account", order_by="AccountTransaction.created_at.desc()")
+
+
+class AccountTransaction(Base):
+    __tablename__ = "account_transactions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    narration = Column(String(500), nullable=False)
+    transaction_type = Column(String(10), nullable=False)  # credit or debit
+    session_item_id = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("transaction_type IN ('credit', 'debit')", name='transaction_type_check'),
+    )
+
+    account = relationship("Account", back_populates="transactions")
