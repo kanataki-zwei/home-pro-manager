@@ -40,6 +40,7 @@ const ACCOUNT_TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map(t => [t.value, t])
 const INSTITUTION_TYPES = [
     { value: 'bank',            icon: '🏦', label: 'Bank Account' },
     { value: 'money_market',    icon: '💹', label: 'Money Market' },
+    { value: 'mobile_money',    icon: '📱', label: 'Mobile Money' },
     { value: 'insurance',       icon: '🛡️', label: 'Insurance' },
     { value: 'govt_securities', icon: '🏛️', label: 'Govt Securities' },
     { value: 'stocks_shares',   icon: '📈', label: 'Stocks & Shares' },
