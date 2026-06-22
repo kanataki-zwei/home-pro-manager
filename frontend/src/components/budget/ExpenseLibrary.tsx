@@ -350,151 +350,11 @@ export default function ExpenseLibrary() {
     return (
         <div className="space-y-6">
 
-            {/* ── Toolbar ── */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1">
-                    {(['household', 'personal'] as const).map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            {tab === 'household' ? '🏠 Household' : '👤 Personal'}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowDeleted(p => !p)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${showDeleted ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'text-slate-400 hover:text-slate-600'}`}>
-                        <RotateCcw className="h-3 w-3" />
-                        {showDeleted ? 'Hide deleted' : 'Show deleted'}
-                    </button>
-                    <button onClick={() => setTagDialog(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors">
-                        <Tag className="h-3.5 w-3.5" /> Tags
-                    </button>
-                    <button onClick={() => setGroupDialog(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                        <Layers className="h-3.5 w-3.5" /> New Group
-                    </button>
-                    <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white transition-colors"
-                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
-                        <Plus className="h-3.5 w-3.5" /> Add Expense
-                    </button>
-                </div>
-            </div>
-
-            {/* ── Tags bar ── */}
-            {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                    {tags.map(tag => (
-                        <span key={tag.id}
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white"
-                            style={{ background: tag.color || '#6366f1' }}>
-                            {tag.name}
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            {/* ── Income vs Budgeted tracker ── */}
+            {/* ── Income vs Budgeted tracker (always visible, all expenses) ── */}
             {(() => {
                 const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
                 if (incomeMembers.length === 0) return null
 
-                // ── Personal tab ──────────────────────────────────────────────
-                if (activeTab === 'personal') {
-                    const myMember = members.find(m => m.user_id === currentUserId && m.contributes_income && m.income_amount)
-                    if (!myMember) {
-                        return (
-                            <div className="bg-slate-50 rounded-3xl border border-slate-100 px-5 py-4 text-sm text-slate-400">
-                                No income linked to your account — set it on the Household page.
-                            </div>
-                        )
-                    }
-                    const currency = myMember.income_currency ?? 'KES'
-                    const myIncome = toMonthly(Number(myMember.income_amount), myMember.income_cadence ?? 'monthly')
-                    const fmt = (n: number) => `${currency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    const hhAll = expenses.filter(e => !e.is_deleted && e.owner_id === null)
-                    const role = myMember.member_type.name.toLowerCase()
-
-                    const myHHOwned = hhAll
-                        .filter(e => e.ownership_type === role)
-                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
-
-                    const myHHJoint = hhAll
-                        .filter(e => e.ownership_type === 'joint')
-                        .reduce((s, e) => {
-                            const split = role === 'husband' ? (e.joint_split_husband ?? 50)
-                                        : role === 'wife'    ? (e.joint_split_wife    ?? 50)
-                                        : 0
-                            return s + Number(e.monthly_amount) * split / 100
-                        }, 0)
-
-                    const myPersonal = expenses
-                        .filter(e => !e.is_deleted && e.owner_id === myMember.user_id)
-                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
-
-                    const myAllocated = myHHOwned + myHHJoint + myPersonal
-                    const myRemaining = myIncome - myAllocated
-                    const myRemainingDisplay = Math.max(0, myRemaining)
-                    const zeroBudgeted = myRemaining <= 0
-                    const pct = myIncome > 0 ? Math.min((myAllocated / myIncome) * 100, 100) : 0
-                    return (
-                        <div className="bg-white rounded-3xl border border-slate-100 p-5"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="flex items-start justify-between gap-4 mb-4">
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Your Income</p>
-                                    <p className="text-2xl font-black text-slate-900">{fmt(myIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Remaining</p>
-                                    <p className="text-2xl font-black text-emerald-500">{fmt(myRemainingDisplay)}</p>
-                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(myAllocated)} allocated</p>
-                                </div>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full transition-all ${pct > 85 ? 'bg-emerald-400' : 'bg-emerald-400'}`}
-                                    style={{ width: `${pct}%` }} />
-                            </div>
-                            <div className="flex items-center justify-between mt-1.5">
-                                <span className="text-xs text-slate-400">{pct.toFixed(0)}% of your income allocated</span>
-                                {zeroBudgeted && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
-                                        🎯 Zero budgeted
-                                    </span>
-                                )}
-                            </div>
-                            {myAllocated > 0 && (
-                                <div className="mt-3 pt-3 border-t border-slate-50 space-y-1">
-                                    {myHHOwned > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">HH · {myMember.member_type.name}</span>
-                                            <span className="text-slate-600 font-medium">−{fmt(myHHOwned)}</span>
-                                        </div>
-                                    )}
-                                    {myHHJoint > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">HH · Joint share</span>
-                                            <span className="text-slate-600 font-medium">−{fmt(myHHJoint)}</span>
-                                        </div>
-                                    )}
-                                    {myPersonal > 0 && (
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-400">Personal</span>
-                                            <span className="text-slate-600 font-medium">−{fmt(myPersonal)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )
-                }
-
-                // ── Household tab ─────────────────────────────────────────────
                 // Primary currency: KES if any member uses it, otherwise first found
                 const currencies = [...new Set(incomeMembers.map(m => m.income_currency ?? 'KES'))]
                 const refCurrency = currencies.includes('KES') ? 'KES' : currencies[0]
@@ -626,12 +486,9 @@ export default function ExpenseLibrary() {
                 )
             })()}
 
-            {/* ── Tag breakdown ── */}
+            {/* ── Tag breakdown (always visible, all expenses) ── */}
             {(() => {
-                const visibleExpenses = expenses.filter(e =>
-                    !e.is_deleted &&
-                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
-                )
+                const visibleExpenses = expenses.filter(e => !e.is_deleted)
                 if (visibleExpenses.length === 0 || tags.length === 0) return null
 
                 const totalMonthly = visibleExpenses.reduce((s, e) => s + Number(e.monthly_amount), 0)
@@ -684,6 +541,55 @@ export default function ExpenseLibrary() {
                     </div>
                 )
             })()}
+
+            {/* ── Toolbar ── */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1">
+                    {(['household', 'personal'] as const).map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            {tab === 'household' ? '🏠 Household' : '👤 Personal'}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowDeleted(p => !p)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${showDeleted ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <RotateCcw className="h-3 w-3" />
+                        {showDeleted ? 'Hide deleted' : 'Show deleted'}
+                    </button>
+                    <button onClick={() => setTagDialog(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors">
+                        <Tag className="h-3.5 w-3.5" /> Tags
+                    </button>
+                    <button onClick={() => setGroupDialog(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                        <Layers className="h-3.5 w-3.5" /> New Group
+                    </button>
+                    <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white transition-colors"
+                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+                        <Plus className="h-3.5 w-3.5" /> Add Expense
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Tags bar ── */}
+            {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                    {tags.map(tag => (
+                        <span key={tag.id}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white"
+                            style={{ background: tag.color || '#6366f1' }}>
+                            {tag.name}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* ── Groups + Expenses ── */}
             <div className="space-y-4">
