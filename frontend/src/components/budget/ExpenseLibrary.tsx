@@ -337,10 +337,9 @@ export default function ExpenseLibrary() {
         e.group_id === groupId
     )
 
-    const totalBudgetedMonthly = expenses.filter(e =>
-        !e.is_deleted &&
-        (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
-    ).reduce((s, e) => s + Number(e.monthly_amount), 0)
+    const totalBudgetedMonthly = expenses
+        .filter(e => !e.is_deleted)
+        .reduce((s, e) => s + Number(e.monthly_amount), 0)
 
     if (loading) return (
         <div className="flex items-center justify-center h-48">
