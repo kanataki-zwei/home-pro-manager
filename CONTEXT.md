@@ -215,7 +215,7 @@ constraint changed from `pending/partial/paid/reserved/skipped` to `todo/paid/re
 
 ---
 
-## Freed-Up Budget for Ad-hoc Items — IN PROGRESS (pick up here)
+## Freed-Up Budget for Ad-hoc Items — COMPLETE
 
 ### Concept
 When a library expense is marked N/A, its `allocated_amount` becomes "freed up budget".
@@ -225,43 +225,14 @@ Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed 
 - **Ad-hoc used** = sum of `allocated_amount` of ad-hoc items (`expense_id IS NULL`)
 - **Available** = freed up − ad-hoc used
 
-### What's been done
-- `routers/budget.py` → `add_adhoc_session_item`: after session auth check, loads all session items,
-  computes `freed_up` and `adhoc_used`, raises HTTP 400 if `payload.amount > available`.
-
-### What still needs doing (pick up here)
-
-**`frontend/src/components/budget/MonthlySession.tsx` — `SessionDetailView`:**
-
-1. Compute in the component body (after `adHocItems` is derived):
-   ```ts
-   const freedUp = items
-       .filter(i => i.expense_id !== null && i.status === 'na')
-       .reduce((s, i) => s + Number(i.allocated_amount), 0)
-   const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
-   const adHocAvailable = Math.max(freedUp - adHocUsed, 0)
-   ```
-
-2. Ad-hoc section header — show available budget next to the label:
-   ```tsx
-   <div className="flex items-center justify-between">
-       <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-           One-time expenses
-       </p>
-       {freedUp > 0 && (
-           <span className="text-xs text-slate-500">
-               {fmt(adHocAvailable)} available of {fmt(freedUp)} freed
-           </span>
-       )}
-   </div>
-   ```
-
-3. In the ad-hoc add form:
-   - Show `Available: {fmt(adHocAvailable)}` as a helper line above the amount input.
-   - If `adHocAvailable <= 0`: show "No freed budget — mark expenses as N/A first" and keep Add disabled.
-   - Disable Add button also when `parseFloat(adHocAmount) > adHocAvailable`.
-
-4. Bottom `+ Add one-time expense` button: no change to visibility logic (always show when `!isPast && !showAdHocForm`).
+### What's implemented
+- `routers/budget.py` → `add_adhoc_session_item`: validates that `payload.amount` does not exceed available freed budget; raises HTTP 400 if exceeded.
+- `MonthlySession.tsx` → `SessionDetailView`:
+  - `freedUp`, `adHocUsed`, `adHocAvailable` computed from session items.
+  - **Freed Up (N/A)** and **Available for Ad-hoc** stat cards appear below the main three summary cards whenever `freedUp > 0`.
+  - N/A items remain in their expense group with muted name text and a left-bordered note callout; excluded from `totalAllocated` and the progress bar.
+  - One-time expenses section header shows available/freed amounts when `freedUp > 0`; add form disables inputs and the Add button when no freed budget remains or entered amount exceeds available.
+  - Status distribution replaces the old progress bar: stacked bar (Paid / Reserved / To Do / N/A) + 4-column breakdown with item count and compact amount per status.
 
 ---
 
@@ -282,3 +253,4 @@ Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed 
 | 2026-06-21 | Budget | Reports tab: recharts donut + horizontal bar charts, scope toggle (All/Me) |
 | 2026-06-22 | Budget | Monthly Sessions: full implementation (migration, schema, router, UI) |
 | 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0, backend endpoints, frontend UI) |
+| 2026-06-22 | Budget | Freed-up budget pool: backend validation, stat cards, N/A callout, status distribution bar |
