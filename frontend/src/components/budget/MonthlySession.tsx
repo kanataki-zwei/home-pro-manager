@@ -169,12 +169,16 @@ function SessionDetailView({
     const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const adHocAvailable = Math.max(freedUp - adHocUsed, 0)
 
+    const totalOriginalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalAllocated = items.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalTodo      = items.filter(i => i.status === 'todo').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalRemaining = totalAllocated - totalPaid - totalReserved
-    const paidPct = totalAllocated > 0 ? (totalPaid / totalAllocated) * 100 : 0
-    const reservedPct = totalAllocated > 0 ? (totalReserved / totalAllocated) * 100 : 0
+    const countPaid     = items.filter(i => i.status === 'paid').length
+    const countReserved = items.filter(i => i.status === 'reserved').length
+    const countTodo     = items.filter(i => i.status === 'todo').length
+    const countNa       = items.filter(i => i.status === 'na').length
 
     async function updateStatus(itemId: string, newStatus: ItemStatus) {
         setUpdatingId(itemId)
@@ -397,31 +401,40 @@ function SessionDetailView({
             )}
 
             {/* Progress bar */}
-            {totalAllocated > 0 && (
-                <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-slate-400 font-medium">
-                        <span>Progress</span>
-                        <span>{Math.round(paidPct + reservedPct)}% settled</span>
+            {items.length > 0 && (
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <p className="text-xs font-medium text-slate-400">Status distribution</p>
+                        <p className="text-xs text-slate-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
                     </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div
-                            className="h-full bg-emerald-400 transition-all duration-500"
-                            style={{ width: `${paidPct}%` }}
-                        />
-                        <div
-                            className="h-full bg-amber-300 transition-all duration-500"
-                            style={{ width: `${reservedPct}%` }}
-                        />
-                    </div>
-                    <div className="flex gap-4 text-xs text-slate-400">
-                        <span className="flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-                            Paid
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-amber-300" />
-                            Reserved
-                        </span>
+                    {totalOriginalAllocated > 0 && (
+                        <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                            <div className="h-full bg-emerald-400 transition-all duration-500"
+                                style={{ width: `${(totalPaid / totalOriginalAllocated) * 100}%` }} />
+                            <div className="h-full bg-amber-300 transition-all duration-500"
+                                style={{ width: `${(totalReserved / totalOriginalAllocated) * 100}%` }} />
+                            <div className="h-full bg-slate-300 transition-all duration-500"
+                                style={{ width: `${(totalTodo / totalOriginalAllocated) * 100}%` }} />
+                            <div className="h-full bg-slate-200 transition-all duration-500"
+                                style={{ width: `${(freedUp / totalOriginalAllocated) * 100}%` }} />
+                        </div>
+                    )}
+                    <div className="grid grid-cols-4 gap-3">
+                        {([
+                            { label: 'Paid',     dot: 'bg-emerald-400', text: 'text-emerald-700', count: countPaid,     amount: totalPaid },
+                            { label: 'Reserved', dot: 'bg-amber-300',   text: 'text-amber-600',   count: countReserved, amount: totalReserved },
+                            { label: 'To Do',    dot: 'bg-slate-300',   text: 'text-slate-600',   count: countTodo,     amount: totalTodo },
+                            { label: 'N/A',      dot: 'bg-slate-200',   text: 'text-slate-400',   count: countNa,       amount: freedUp },
+                        ] as const).map(({ label, dot, text, count, amount }) => (
+                            <div key={label}>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                                    <span className="text-xs text-slate-400">{label}</span>
+                                </div>
+                                <p className={`text-sm font-bold ${text}`}>{count}</p>
+                                <p className="text-xs text-slate-400">{fmtCompact(amount)}</p>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
