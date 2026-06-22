@@ -100,32 +100,6 @@ function monthStart(year: number, monthIdx: number) {
     return `${year}-${String(monthIdx + 1).padStart(2, '0')}-01`
 }
 
-// ─── Status card ─────────────────────────────────────────────────
-
-function StatCard({
-    label,
-    value,
-    sub,
-    colorClass,
-    labelClass,
-    valueClass,
-}: {
-    label: string
-    value: string
-    sub?: string
-    colorClass: string
-    labelClass: string
-    valueClass: string
-}) {
-    return (
-        <div className={`rounded-2xl px-5 py-4 ${colorClass}`}>
-            <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass}`}>{label}</p>
-            <p className={`text-xl font-black mt-1 ${valueClass}`}>{value}</p>
-            {sub && <p className={`text-xs mt-0.5 ${labelClass} opacity-70`}>{sub}</p>}
-        </div>
-    )
-}
-
 // ─── Detail view ──────────────────────────────────────────────────
 
 function SessionDetailView({
@@ -781,49 +755,8 @@ export default function MonthlySession() {
     const sessionsByMonth = new Map(sessions.map(s => [s.month.slice(0, 7), s]))
     const currentSession = sessionsByMonth.get(currMonthStart.slice(0, 7))
 
-    const budgeted  = currentSession?.total_allocated ?? null
-    const paid      = currentSession?.total_paid ?? null
-    const remaining = budgeted !== null && paid !== null ? Math.max(budgeted - paid, 0) : null
-
     return (
         <div className="space-y-6">
-            {/* ── Status summary ─────────────────────────────────── */}
-            <div className="grid grid-cols-4 gap-3">
-                <StatCard
-                    label="Monthly Income"
-                    value={fmt(totalIncome)}
-                    colorClass="bg-sky-50"
-                    labelClass="text-sky-500"
-                    valueClass="text-sky-800"
-                />
-                <StatCard
-                    label="Budgeted"
-                    value={budgeted !== null ? fmt(budgeted) : '—'}
-                    sub={budgeted !== null && totalIncome > 0
-                        ? `${Math.round((budgeted / totalIncome) * 100)}% of income`
-                        : undefined}
-                    colorClass="bg-slate-50"
-                    labelClass="text-slate-400"
-                    valueClass="text-slate-700"
-                />
-                <StatCard
-                    label="Paid"
-                    value={paid !== null ? fmt(paid) : '—'}
-                    sub={paid !== null && budgeted ? `${Math.round((paid / budgeted) * 100)}% of budget` : undefined}
-                    colorClass="bg-emerald-50"
-                    labelClass="text-emerald-500"
-                    valueClass="text-emerald-700"
-                />
-                <StatCard
-                    label="Remaining"
-                    value={remaining !== null ? fmt(remaining) : '—'}
-                    sub={remaining !== null ? 'still to pay' : 'no session yet'}
-                    colorClass="bg-amber-50"
-                    labelClass="text-amber-500"
-                    valueClass="text-amber-700"
-                />
-            </div>
-
             {/* ── Year label + grid ──────────────────────────────── */}
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{currentYear}</p>
 
