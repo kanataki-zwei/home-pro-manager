@@ -163,6 +163,12 @@ function SessionDetailView({
     const adHocItems = grouped.get('__adhoc__') ?? []
     const libraryGroups = [...grouped.entries()].filter(([k]) => k !== '__adhoc__')
 
+    const freedUp = items
+        .filter(i => i.expense_id !== null && i.status === 'na')
+        .reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const adHocAvailable = Math.max(freedUp - adHocUsed, 0)
+
     const totalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
@@ -419,9 +425,16 @@ function SessionDetailView({
             {/* Ad-hoc section */}
             {showAdHocSection && (
                 <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        One-time expenses
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                            One-time expenses
+                        </p>
+                        {freedUp > 0 && (
+                            <span className="text-xs text-slate-500">
+                                {fmt(adHocAvailable)} available of {fmt(freedUp)} freed
+                            </span>
+                        )}
+                    </div>
                     {adHocItems.length > 0 && (
                         <div className="rounded-2xl border border-slate-100 overflow-hidden">
                             {adHocItems.map((item, idx) =>
@@ -431,12 +444,22 @@ function SessionDetailView({
                     )}
                     {!isPast && showAdHocForm && (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                            {adHocAvailable <= 0 ? (
+                                <p className="text-xs text-slate-400 italic">
+                                    No freed budget — mark expenses as N/A first
+                                </p>
+                            ) : (
+                                <p className="text-xs text-slate-500">
+                                    Available: {fmt(adHocAvailable)}
+                                </p>
+                            )}
                             <input
                                 type="text"
                                 placeholder="Expense name"
                                 value={adHocName}
                                 onChange={e => setAdHocName(e.target.value)}
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
+                                disabled={adHocAvailable <= 0}
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white disabled:opacity-40"
                             />
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-slate-400 shrink-0">KES</span>
@@ -447,13 +470,20 @@ function SessionDetailView({
                                     step="0.01"
                                     value={adHocAmount}
                                     onChange={e => setAdHocAmount(e.target.value)}
-                                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
+                                    disabled={adHocAvailable <= 0}
+                                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white disabled:opacity-40"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={addAdHoc}
-                                    disabled={addingAdHoc || !adHocName.trim() || !adHocAmount}
+                                    disabled={
+                                        addingAdHoc ||
+                                        !adHocName.trim() ||
+                                        !adHocAmount ||
+                                        adHocAvailable <= 0 ||
+                                        parseFloat(adHocAmount) > adHocAvailable
+                                    }
                                     className="text-xs font-semibold bg-slate-700 text-white rounded-lg px-4 py-1.5 hover:bg-slate-800 transition-colors disabled:opacity-40">
                                     {addingAdHoc ? 'Adding…' : 'Add'}
                                 </button>

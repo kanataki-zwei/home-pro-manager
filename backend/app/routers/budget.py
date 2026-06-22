@@ -856,6 +856,26 @@ async def add_adhoc_session_item(
     if not session_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # Enforce freed-up budget constraint
+    existing_result = await db.execute(
+        select(BudgetSessionItem).where(BudgetSessionItem.session_id == session_id)
+    )
+    existing_items = existing_result.scalars().all()
+    freed_up = sum(
+        i.allocated_amount for i in existing_items
+        if i.expense_id is not None and i.status == "na"
+    )
+    adhoc_used = sum(
+        i.allocated_amount for i in existing_items
+        if i.expense_id is None
+    )
+    available = freed_up - adhoc_used
+    if payload.amount > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Amount exceeds available freed up budget (KES {available:.2f} remaining)"
+        )
+
     item = BudgetSessionItem(
         session_id=session_id,
         expense_id=None,
