@@ -795,16 +795,25 @@ async def reset_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    items_result = await db.execute(
-        select(BudgetSessionItem).where(BudgetSessionItem.session_id == session_id)
+    # Hard-delete all ad-hoc items (expense_id IS NULL)
+    await db.execute(
+        delete(BudgetSessionItem).where(
+            BudgetSessionItem.session_id == session_id,
+            BudgetSessionItem.expense_id == None
+        )
     )
-    for item in items_result.scalars().all():
-        if item.expense_id is None:
-            await db.delete(item)
-        else:
-            item.status = 'todo'
-            item.notes = None
-            item.reference_number = None
+
+    # Reset library items to default state
+    library_result = await db.execute(
+        select(BudgetSessionItem).where(
+            BudgetSessionItem.session_id == session_id,
+            BudgetSessionItem.expense_id != None
+        )
+    )
+    for item in library_result.scalars().all():
+        item.status = 'todo'
+        item.notes = None
+        item.reference_number = None
 
     await db.commit()
 
