@@ -28,9 +28,16 @@ interface Account {
 interface Household { id: string; name: string; member_types: MemberType[] }
 interface SystemUser { id: string; email: string; name: string | null }
 
-const ACCOUNT_TYPE_ICONS: Record<string, string> = {
-    checking: '🏦', savings: '💰', cash: '💵', investment: '📈', credit: '💳'
-}
+const ACCOUNT_TYPES = [
+    { value: 'bank',            icon: '🏦', label: 'Bank Account' },
+    { value: 'money_market',    icon: '💹', label: 'Money Market' },
+    { value: 'insurance',       icon: '🛡️', label: 'Insurance' },
+    { value: 'govt_securities', icon: '🏛️', label: 'Govt Securities' },
+    { value: 'stocks_shares',   icon: '📈', label: 'Stocks & Shares' },
+    { value: 'cash',            icon: '💵', label: 'Cash' },
+    { value: 'credit',          icon: '💳', label: 'Credit' },
+]
+const ACCOUNT_TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map(t => [t.value, t]))
 
 function toMonthly(amount: number, cadence: string): number {
     if (cadence === 'weekly') return (amount * 52) / 12
@@ -679,12 +686,12 @@ export default function HouseholdPage() {
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                                             style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
-                                            {ACCOUNT_TYPE_ICONS[account.account_type] || '🏦'}
+                                            {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏦'}
                                         </div>
                                         <div>
                                             <p className="font-bold text-slate-900">{account.name}</p>
-                                            <p className="text-xs text-slate-400 mt-0.5 capitalize">
-                                                {account.account_type} · {account.ownership}
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                {ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type} · {account.ownership}
                                                 {owner ? ` · ${owner.name}` : ''}
                                             </p>
                                         </div>
@@ -884,8 +891,8 @@ export default function HouseholdPage() {
                             <Select onValueChange={val => setNewAccount(prev => ({ ...prev, account_type: val }))}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Select type" /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
-                                    {Object.entries(ACCOUNT_TYPE_ICONS).map(([val, icon]) => (
-                                        <SelectItem key={val} value={val}>{icon} {val.charAt(0).toUpperCase() + val.slice(1)}</SelectItem>
+                                    {ACCOUNT_TYPES.map(t => (
+                                        <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -951,8 +958,8 @@ export default function HouseholdPage() {
                             <Select value={editAccountData.account_type} onValueChange={val => setEditAccountData(prev => ({ ...prev, account_type: val }))}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
-                                    {Object.entries(ACCOUNT_TYPE_ICONS).map(([val, icon]) => (
-                                        <SelectItem key={val} value={val}>{icon} {val.charAt(0).toUpperCase() + val.slice(1)}</SelectItem>
+                                    {ACCOUNT_TYPES.map(t => (
+                                        <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

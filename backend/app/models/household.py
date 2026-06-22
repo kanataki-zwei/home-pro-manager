@@ -66,7 +66,7 @@ class Account(Base, TimestampMixin):
     is_active = Column(Boolean, default=True)
 
     __table_args__ = (
-        CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),
+        CheckConstraint(account_type.in_(['bank', 'money_market', 'insurance', 'govt_securities', 'stocks_shares', 'cash', 'credit']), name='account_type_check'),
         CheckConstraint(ownership.in_(['joint', 'individual']), name='ownership_check'),
     )
 
