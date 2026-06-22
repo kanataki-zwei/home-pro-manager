@@ -776,6 +776,46 @@ async def update_session(
     return result.scalar_one()
 
 
+@router.post("/sessions/{session_id}/reset", response_model=BudgetSessionResponse)
+async def reset_session(
+    household_id: UUID,
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(BudgetSession).where(
+            BudgetSession.id == session_id,
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    items_result = await db.execute(
+        select(BudgetSessionItem).where(BudgetSessionItem.session_id == session_id)
+    )
+    for item in items_result.scalars().all():
+        if item.expense_id is None:
+            await db.delete(item)
+        else:
+            item.status = 'todo'
+            item.notes = None
+            item.reference_number = None
+
+    await db.commit()
+
+    result = await db.execute(
+        select(BudgetSession)
+        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .where(BudgetSession.id == session_id)
+    )
+    return result.scalar_one()
+
+
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     household_id: UUID,

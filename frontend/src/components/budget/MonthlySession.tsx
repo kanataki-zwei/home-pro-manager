@@ -154,6 +154,8 @@ function SessionDetailView({
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [sessionStatus, setSessionStatus] = useState(session.status)
     const [closingSession, setClosingSession] = useState(false)
+    const [resetting, setResetting] = useState(false)
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
 
     const isPast = session.month.slice(0, 10) < currentMonthStart
     const isReadOnly = isPast || sessionStatus === 'closed'
@@ -285,6 +287,23 @@ function SessionDetailView({
             toast.error('Failed to close session')
         } finally {
             setClosingSession(false)
+        }
+    }
+
+    async function resetSession() {
+        setResetting(true)
+        try {
+            const data = await apiPost<SessionDetail>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/reset`,
+                {}
+            )
+            setItems(data.items)
+            setShowResetConfirm(false)
+            toast.success(`${session.name} reset to default`)
+        } catch {
+            toast.error('Failed to reset session')
+        } finally {
+            setResetting(false)
         }
     }
 
@@ -434,12 +453,36 @@ function SessionDetailView({
                     </span>
                 )}
                 {!isReadOnly && (
-                    <button
-                        onClick={closeSession}
-                        disabled={closingSession}
-                        className="ml-auto text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                        {closingSession ? 'Saving…' : 'Mark as Complete'}
-                    </button>
+                    <div className="ml-auto flex items-center gap-2">
+                        {showResetConfirm ? (
+                            <>
+                                <span className="text-xs text-slate-500">Reset all items to default?</span>
+                                <button
+                                    onClick={resetSession}
+                                    disabled={resetting}
+                                    className="text-xs font-semibold bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                                    {resetting ? 'Resetting…' : 'Yes, reset'}
+                                </button>
+                                <button
+                                    onClick={() => setShowResetConfirm(false)}
+                                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => setShowResetConfirm(true)}
+                                className="text-xs font-semibold text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg transition-colors">
+                                Clear & Reset
+                            </button>
+                        )}
+                        <button
+                            onClick={closeSession}
+                            disabled={closingSession}
+                            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                            {closingSession ? 'Saving…' : 'Mark as Complete'}
+                        </button>
+                    </div>
                 )}
             </div>
 
