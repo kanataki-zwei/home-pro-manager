@@ -622,6 +622,65 @@ export default function ExpenseLibrary() {
                 )
             })()}
 
+            {/* ── Tag breakdown ── */}
+            {(() => {
+                const visibleExpenses = expenses.filter(e =>
+                    !e.is_deleted &&
+                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                )
+                if (visibleExpenses.length === 0 || tags.length === 0) return null
+
+                const totalMonthly = visibleExpenses.reduce((s, e) => s + Number(e.monthly_amount), 0)
+                if (totalMonthly === 0) return null
+
+                const tagRows = tags.map(tag => ({
+                    id: tag.id,
+                    name: tag.name,
+                    color: tag.color || '#6366f1',
+                    total: visibleExpenses
+                        .filter(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
+                        .reduce((s, e) => s + Number(e.monthly_amount), 0),
+                })).filter(r => r.total > 0)
+
+                const untaggedTotal = visibleExpenses
+                    .filter(e => e.tag_assignments.length === 0)
+                    .reduce((s, e) => s + Number(e.monthly_amount), 0)
+
+                const allRows = [
+                    ...tagRows,
+                    ...(untaggedTotal > 0 ? [{ id: '__none', name: 'Untagged', color: '#cbd5e1', total: untaggedTotal }] : []),
+                ]
+                if (allRows.length === 0) return null
+
+                return (
+                    <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Expenses by Tag</p>
+
+                        {/* Stacked bar */}
+                        <div className="flex h-3 rounded-full overflow-hidden gap-px mb-4">
+                            {allRows.map(row => (
+                                <div key={row.id} style={{ width: `${(row.total / totalMonthly) * 100}%`, background: row.color }} />
+                            ))}
+                        </div>
+
+                        {/* Legend rows */}
+                        <div className="space-y-2">
+                            {allRows.map(row => {
+                                const pct = ((row.total / totalMonthly) * 100).toFixed(1)
+                                return (
+                                    <div key={row.id} className="flex items-center gap-3">
+                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color }} />
+                                        <span className="text-sm text-slate-600 flex-1">{row.name}</span>
+                                        <span className="text-xs text-slate-400 w-10 text-right">{pct}%</span>
+                                        <span className="text-sm font-bold text-slate-800 w-32 text-right">{formatKES(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span></span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )
+            })()}
+
             {/* ── Groups + Expenses ── */}
             <div className="space-y-4">
                 {visibleGroups.map((group, gi) => {
