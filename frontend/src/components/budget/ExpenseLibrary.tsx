@@ -337,6 +337,11 @@ export default function ExpenseLibrary() {
         e.group_id === groupId
     )
 
+    const totalBudgetedMonthly = expenses.filter(e =>
+        !e.is_deleted &&
+        (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+    ).reduce((s, e) => s + Number(e.monthly_amount), 0)
+
     if (loading) return (
         <div className="flex items-center justify-center h-48">
             <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -702,7 +707,14 @@ export default function ExpenseLibrary() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="font-bold text-slate-900">{group.name}</p>
-                                    <p className="text-xs text-slate-400">{groupExpenses.filter(e => !e.is_deleted).length} expenses · {formatKES(monthlyTotal)}/mo</p>
+                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                        <p className="text-xs text-slate-400">{groupExpenses.filter(e => !e.is_deleted).length} expenses · {formatKES(monthlyTotal)}/mo</p>
+                                        {totalBudgetedMonthly > 0 && monthlyTotal > 0 && (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-500">
+                                                {((monthlyTotal / totalBudgetedMonthly) * 100).toFixed(1)}% of budget
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                                     {group.is_deleted ? (
