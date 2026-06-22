@@ -101,6 +101,9 @@ export default function ExpenseLibrary() {
     const [tagName, setTagName] = useState('')
     const [tagColor, setTagColor] = useState('#0ea5e9')
     const [savingTag, setSavingTag] = useState(false)
+    const [editingTag, setEditingTag] = useState<ExpenseTag | null>(null)
+    const [editTagName, setEditTagName] = useState('')
+    const [editTagColor, setEditTagColor] = useState('#0ea5e9')
 
     // Expense dialog
     const [expenseDialog, setExpenseDialog] = useState(false)
@@ -210,6 +213,18 @@ export default function ExpenseLibrary() {
             setTags(prev => prev.filter(t => t.id !== id))
             toast.success('Tag removed')
         } catch { toast.error('Failed') }
+    }
+
+    const updateTag = async () => {
+        if (!editingTag || !editTagName.trim() || !household) return
+        setSavingTag(true)
+        try {
+            const data = await apiPatch<ExpenseTag>(`/api/households/${household.id}/budget/tags/${editingTag.id}`, { name: editTagName, color: editTagColor })
+            setTags(prev => prev.map(t => t.id === data.id ? data : t))
+            setEditingTag(null)
+            toast.success('Tag updated!')
+        } catch { toast.error('Failed') }
+        finally { setSavingTag(false) }
     }
 
     // ─── Expense CRUD ─────────────────────────────────────────────
@@ -751,35 +766,63 @@ export default function ExpenseLibrary() {
             </Dialog>
 
             {/* Tags Manager */}
-            <Dialog open={tagDialog} onOpenChange={setTagDialog}>
+            <Dialog open={tagDialog} onOpenChange={open => { setTagDialog(open); if (!open) setEditingTag(null) }}>
                 <DialogContent className="rounded-3xl border-0" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
                     <DialogHeader><DialogTitle className="text-xl font-black">Manage Tags</DialogTitle></DialogHeader>
                     <div className="space-y-4 py-2">
-                        <div className="flex flex-wrap gap-2 min-h-8">
-                            {tags.map(tag => (
-                                <span key={tag.id} className="flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full text-xs font-bold text-white"
-                                    style={{ background: tag.color || '#6366f1' }}>
-                                    {tag.name}
-                                    <button onClick={() => deleteTag(tag.id)}
-                                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center hover:bg-white/20">
-                                        <X className="h-2.5 w-2.5" />
-                                    </button>
-                                </span>
-                            ))}
+                        {/* Existing tags list */}
+                        <div className="space-y-2">
                             {tags.length === 0 && <p className="text-sm text-slate-400">No tags yet</p>}
+                            {tags.map(tag => editingTag?.id === tag.id ? (
+                                <div key={tag.id} className="flex items-center gap-2 p-2 rounded-2xl bg-slate-50 border border-slate-200">
+                                    <input type="color" value={editTagColor} onChange={e => setEditTagColor(e.target.value)}
+                                        className="w-8 h-8 rounded-xl border border-slate-200 cursor-pointer p-0.5 flex-shrink-0" />
+                                    <Input className="h-8 rounded-xl flex-1 text-sm"
+                                        value={editTagName}
+                                        onChange={e => setEditTagName(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') updateTag(); if (e.key === 'Escape') setEditingTag(null) }}
+                                        autoFocus />
+                                    <button onClick={updateTag} disabled={savingTag}
+                                        className="px-3 h-8 rounded-xl text-xs font-bold text-white bg-sky-500 hover:bg-sky-600 transition-colors disabled:opacity-50 flex-shrink-0">
+                                        {savingTag ? '…' : 'Save'}
+                                    </button>
+                                    <button onClick={() => setEditingTag(null)}
+                                        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors flex-shrink-0">
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div key={tag.id} className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-slate-50 group">
+                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: tag.color || '#6366f1' }} />
+                                    <span className="flex-1 text-sm font-semibold text-slate-800">{tag.name}</span>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setEditingTag(tag); setEditTagName(tag.name); setEditTagColor(tag.color || '#6366f1') }}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                            <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button onClick={() => deleteTag(tag.id)}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
+
+                        {/* New tag form */}
                         <div className="border-t border-slate-100 pt-4 space-y-3">
                             <Label className="text-sm font-bold text-slate-700">New Tag</Label>
                             <div className="flex gap-2">
                                 <Input className="h-10 rounded-2xl flex-1" placeholder="Tag name"
-                                    value={tagName} onChange={e => setTagName(e.target.value)} />
+                                    value={tagName} onChange={e => setTagName(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && createTag()} />
                                 <input type="color" value={tagColor} onChange={e => setTagColor(e.target.value)}
                                     className="w-10 h-10 rounded-2xl border border-slate-200 cursor-pointer p-1" />
                             </div>
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" className="rounded-2xl" onClick={() => setTagDialog(false)}>Done</Button>
+                        <Button variant="outline" className="rounded-2xl" onClick={() => { setTagDialog(false); setEditingTag(null) }}>Done</Button>
                         <SaveButton onClick={createTag} loading={savingTag} label="Add Tag" />
                     </DialogFooter>
                 </DialogContent>
