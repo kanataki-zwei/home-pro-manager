@@ -7,6 +7,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { toast } from 'sonner'
 import ExpenseLibrary from '@/components/budget/ExpenseLibrary'
 import BudgetReport from '@/components/budget/BudgetReport'
+import MonthlySession from '@/components/budget/MonthlySession'
 
 const TABS = [
     { key: 'library', label: 'Expense Library', icon: BookOpen },
@@ -82,13 +83,7 @@ export default function BudgetPage() {
                     <p className="text-xs text-slate-300 mt-1">Coming next</p>
                 </div>
             )}
-            {activeTab === 'sessions' && (
-                <div className="flex flex-col items-center justify-center h-48 rounded-3xl border-2 border-dashed border-slate-200">
-                    <CalendarCheck className="h-8 w-8 text-slate-200 mb-3" />
-                    <p className="text-sm font-semibold text-slate-400">Monthly Sessions</p>
-                    <p className="text-xs text-slate-300 mt-1">Coming next</p>
-                </div>
-            )}
+            {activeTab === 'sessions' && <MonthlySession />}
         </div>
     )
 }

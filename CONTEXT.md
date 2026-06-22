@@ -63,9 +63,17 @@ thread pool. A lifespan startup hook pre-warms both clients at server boot.
 
 ### Migration chain
 ```
-b1c2d3e4f5a6_initial_schema   (root)
+b1c2d3e4f5a6_initial_schema            (root)
         ↓
 a0857efd3031_add_budget_module
+        ↓
+c3f9e2b1a7d4_add_created_by_to_households
+        ↓
+d6e7f8a9b0c1_add_income_to_household_members
+        ↓
+e4a5b6c7d8e9_refactor_sessions_standalone
+        ↓
+f5b6c7d8e9f0_add_adhoc_session_items        ← current HEAD
 ```
 
 ### Tables (initial schema)
@@ -76,7 +84,7 @@ a0857efd3031_add_budget_module
 - `accounts` — financial accounts (checking, savings, cash, investment, credit)
 
 ### Tables (budget module)
-- `budget_templates` — reusable budget plans
+- `budget_templates` — reusable budget plans (skipped in UI for now)
 - `budget_template_items` — line items within a template
 - `budget_sessions` — a monthly budget run (draft → active → closed)
 - `budget_session_items` — actual spending tracked against a session
@@ -88,6 +96,21 @@ a0857efd3031_add_budget_module
 ### Ownership model
 Expenses carry an `ownership_type`: `husband`, `wife`, or `joint`. Joint expenses
 split by configurable percentages (`joint_split_husband`, `joint_split_wife`).
+`owner_id = null` means household expense; `owner_id = user_id` means personal expense.
+
+The member role is derived via `member_type.name.toLowerCase()` which equals
+`ownership_type` for household expense attribution. This mapping is load-bearing
+throughout the budget tracker and reports.
+
+### Income model (added d6e7f8a9b0c1)
+`household_members` gained: `contributes_income`, `income_amount`, `income_currency`,
+`income_cadence` (weekly / monthly / annually). Monthly normalisation:
+weekly × 52 / 12, annually ÷ 12.
+
+### Sessions refactor (e4a5b6c7d8e9)
+`budget_sessions.budget_template_id` made nullable (sessions are standalone,
+populated directly from the expense library). `budget_session_items.status` check
+constraint changed from `pending/partial/paid/reserved/skipped` to `todo/paid/reserved/na`.
 
 ---
 
@@ -125,6 +148,105 @@ split by configurable percentages (`joint_split_husband`, `joint_split_wife`).
 
 ---
 
+## UI Features Built
+
+### Household page (`/household`)
+- Member cards with member type badges and income display.
+- "You" badge on the card of the member linked to the logged-in user (`user_id === currentUserId`).
+- Add/Edit member dialogs prefill name from the selected system user.
+- "Create new system user" dialog prefills the name already typed in the member form.
+- Household income section: per-member income rows showing amount + member type + cadence,
+  plus an SVG donut chart (pure stroke-dasharray technique, no library) showing income share.
+
+### Budget page (`/budget`) — tabs:
+
+**Expense Library tab**
+- Expense groups (household or personal) + per-group expense list.
+- Add/edit/delete expenses with: name, amount, frequency, ownership_type, joint splits,
+  group, tags, account.
+- Budget tracker (household tab): per-member income → allocated breakdown in three
+  buckets per member: `HH · [Type]`, `HH · Joint share`, `Personal`.
+- Budget tracker (personal tab): same three-bucket calculation for the logged-in user only.
+- Remaining income clamped to zero minimum. "Zero budgeted" emerald badge when remaining = 0
+  (this is the goal, not a warning).
+
+**Reports tab**
+- Scope toggle: All Household / Me.
+- Summary cards: monthly total, expense count, active group count.
+- Donut chart (recharts PieChart) — expense breakdown by group.
+- Horizontal bar chart (recharts BarChart) — per-member allocated expenses (All scope only).
+- Detailed group list with proportional bars and per-expense ownership badges.
+- Joint expense in "Me" scope shows the user's percentage share.
+
+**Monthly Sessions tab** ← COMPLETE
+
+**Budget Templates tab** — placeholder, skipped for now.
+
+---
+
+## Monthly Sessions — Complete
+
+**Spec implemented:**
+- 12 month tiles (3-col grid) for the current calendar year.
+- Future months: greyed out, not clickable.
+- Past month with no session: shows "No budget" on tile, not clickable.
+- Past month with session: clickable, opens read-only detail view.
+- Current month without session: "Start this month's budget" button → `POST /sessions`.
+- Current month with session: clickable, opens editable detail view.
+- Session detail: items grouped by expense group, status pill buttons (To Do / Paid / Reserved / N/A).
+- Status change calls `PATCH /sessions/{id}/items/{item_id}`.
+- Past sessions render pills as disabled (read-only).
+- `POST /sessions` filters expenses by user role: personal (`owner_id == user`) + HH owned (`ownership_type == role`) + joint.
+- Session name auto-generated server-side (e.g. "June 2026").
+- `total_paid` in summary and detail computed from items with `status == 'paid'` × `allocated_amount`.
+- 4-card status bar above grid: Monthly Income / Budgeted / Paid / Remaining.
+- Number formatting: `en-US` locale, compact format on tiles (KES 150K), full format in detail.
+- Decimal API values coerced to `Number()` before formatting (Pydantic sends Decimal as string).
+
+---
+
+## N/A Notes + Ad-hoc Session Items — COMPLETE
+
+- Migration `f5b6c7d8e9f0` run: `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount` columns added, check constraint in place.
+- `models/budget.py` — `BudgetSessionItem` has `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount`, `notes`.
+- `schemas/budget.py` — `BudgetSessionItemUpdate` has `notes`; `BudgetSessionItemResponse` has `expense_id`/`expense` Optional, `notes`, `ad_hoc_name`, `ad_hoc_amount`; `AdHocSessionItemCreate` schema added.
+- `routers/budget.py` — `update_session_item` requires notes on N/A and clears notes on status change away from N/A; `POST /sessions/{id}/items` creates ad-hoc items; `DELETE /sessions/{id}/items/{item_id}` deletes ad-hoc items only.
+- `MonthlySession.tsx` — N/A inline note flow, ad-hoc items section, add/delete one-time expenses.
+
+---
+
+## Payment Reference Numbers — COMPLETE
+
+Rent expenses (name contains "rent", case-insensitive) and any expense in the **Education** group require a reference number when marked Paid.
+
+- `reference_number VARCHAR(255)` column already existed on `budget_session_items` (added in `a0857efd3031`). No new migration needed.
+- `schemas/budget.py` — `BudgetSessionItemUpdate` and `BudgetSessionItemResponse` now include `reference_number: Optional[str]`.
+- `routers/budget.py` — `update_session_item` clears `reference_number` when status moves away from `paid`.
+- `MonthlySession.tsx` — `requiresRef(item)` checks name/group; clicking Paid on a matching item opens an inline ref input (required) instead of immediately patching. The saved ref displays as a green `Ref: …` callout on the item row.
+
+---
+
+## Freed-Up Budget for Ad-hoc Items — COMPLETE
+
+### Concept
+When a library expense is marked N/A, its `allocated_amount` becomes "freed up budget".
+Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed total freed-up budget.
+
+- **Freed up** = sum of `allocated_amount` of library items (`expense_id IS NOT NULL`) with `status = 'na'`
+- **Ad-hoc used** = sum of `allocated_amount` of ad-hoc items (`expense_id IS NULL`)
+- **Available** = freed up − ad-hoc used
+
+### What's implemented
+- `routers/budget.py` → `add_adhoc_session_item`: validates that `payload.amount` does not exceed available freed budget; raises HTTP 400 if exceeded.
+- `MonthlySession.tsx` → `SessionDetailView`:
+  - `freedUp`, `adHocUsed`, `adHocAvailable` computed from session items.
+  - **Freed Up (N/A)** and **Available for Ad-hoc** stat cards appear below the main three summary cards whenever `freedUp > 0`.
+  - N/A items remain in their expense group with muted name text and a left-bordered note callout; excluded from `totalAllocated` and the progress bar.
+  - One-time expenses section header shows available/freed amounts when `freedUp > 0`; add form disables inputs and the Add button when no freed budget remains or entered amount exceeds available.
+  - Status distribution replaces the old progress bar: stacked bar (Paid / Reserved / To Do / N/A) + 4-column breakdown with item count and compact amount per status.
+
+---
+
 ## Upgrade Log
 
 | Date | Area | Change |
@@ -136,3 +258,11 @@ split by configurable percentages (`joint_split_husband`, `joint_split_wife`).
 | 2026-06-08 | DB | Migrated to new Supabase project; full Alembic chain established |
 | 2026-06-08 | DB | Transaction pooler (port 6543) + `prepared_statement_cache_size=0` |
 | 2026-06-08 | Alembic | Fixed env.py to bypass configparser `%` interpolation on passwords |
+| 2026-06-21 | Household | "You" badge, member name prefill from system user, income donut chart |
+| 2026-06-21 | Budget | Per-member expense attribution with 3-bucket model (HH owned/joint/personal) |
+| 2026-06-21 | Budget | Zero-budgeted callout; remaining clamped to 0 minimum |
+| 2026-06-21 | Budget | Reports tab: recharts donut + horizontal bar charts, scope toggle (All/Me) |
+| 2026-06-22 | Budget | Monthly Sessions: full implementation (migration, schema, router, UI) |
+| 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0, backend endpoints, frontend UI) |
+| 2026-06-22 | Budget | Freed-up budget pool: backend validation, stat cards, N/A callout, status distribution bar |
+| 2026-06-22 | Budget | Payment ref number required for rent + Education group items on Paid status |

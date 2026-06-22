@@ -13,6 +13,7 @@ from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem
 )
+from app.models.household import HouseholdMember
 from app.schemas.budget import (
     ExpenseGroupCreate, ExpenseGroupUpdate, ExpenseGroupResponse,
     ExpenseTagCreate, ExpenseTagUpdate, ExpenseTagResponse,
@@ -20,7 +21,7 @@ from app.schemas.budget import (
     BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateResponse, BudgetTemplateSummaryResponse,
     BudgetTemplateItemCreate, BudgetTemplateItemUpdate, BudgetTemplateItemResponse,
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
-    BudgetSessionItemUpdate, BudgetSessionItemResponse
+    BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate
 )
 
 router = APIRouter(prefix="/households/{household_id}/budget", tags=["Budget"])
@@ -628,11 +629,12 @@ async def list_sessions(
     out = []
     for s in sessions:
         total_allocated = sum(i.allocated_amount for i in s.items)
-        total_paid = sum(i.amount_paid for i in s.items)
+        total_paid = sum(
+            i.allocated_amount for i in s.items if i.status == "paid"
+        )
         out.append(BudgetSessionSummaryResponse(
             id=s.id, household_id=s.household_id, user_id=s.user_id,
-            budget_template_id=s.budget_template_id, month=s.month,
-            name=s.name, status=s.status, is_deleted=s.is_deleted,
+            month=s.month, name=s.name, status=s.status, is_deleted=s.is_deleted,
             created_at=s.created_at, updated_at=s.updated_at,
             total_allocated=total_allocated,
             total_paid=total_paid,
@@ -654,45 +656,61 @@ async def create_session(
         select(BudgetSession).where(
             BudgetSession.household_id == household_id,
             BudgetSession.user_id == current_user.id,
-            BudgetSession.budget_template_id == payload.budget_template_id,
             BudgetSession.month == month_start,
             BudgetSession.is_deleted == False
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="A session already exists for this template and month")
+        raise HTTPException(status_code=400, detail="A session already exists for this month")
 
-    template_result = await db.execute(
-        select(BudgetTemplate)
-        .options(selectinload(BudgetTemplate.items))
+    # Determine the calling user's household role (e.g. "husband", "wife")
+    member_result = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
         .where(
-            BudgetTemplate.id == payload.budget_template_id,
-            BudgetTemplate.household_id == household_id,
-            BudgetTemplate.is_deleted == False
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == current_user.id,
+            HouseholdMember.is_active == True
         )
     )
-    template = template_result.scalar_one_or_none()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+    member = member_result.scalar_one_or_none()
+    role = member.member_type.name.lower() if member else None
+
+    # Fetch all active household expenses
+    expense_result = await db.execute(
+        select(Expense)
+        .options(selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .where(Expense.household_id == household_id, Expense.is_deleted == False)
+    )
+    all_expenses = expense_result.scalars().all()
+
+    # Include personal expenses owned by this user, and household expenses
+    # where ownership_type matches the user's role or is joint
+    relevant = [
+        exp for exp in all_expenses
+        if exp.owner_id == current_user.id
+        or (exp.owner_id is None and (exp.ownership_type == role or exp.ownership_type == "joint"))
+    ]
+
+    name = month_start.strftime("%B %Y")  # e.g. "June 2026"
 
     session = BudgetSession(
         household_id=household_id,
         user_id=current_user.id,
-        budget_template_id=payload.budget_template_id,
         month=month_start,
-        name=payload.name,
+        name=name,
         status="draft"
     )
     db.add(session)
     await db.flush()
 
-    for template_item in template.items:
+    for exp in relevant:
         db.add(BudgetSessionItem(
             session_id=session.id,
-            expense_id=template_item.expense_id,
-            allocated_amount=template_item.allocated_amount,
+            expense_id=exp.id,
+            allocated_amount=exp.monthly_amount,
             amount_paid=Decimal("0.00"),
-            status="pending"
+            status="todo"
         ))
 
     await db.commit()
@@ -799,16 +817,19 @@ async def update_session_item(
     if not item:
         raise HTTPException(status_code=404, detail="Session item not found")
 
+    if payload.status == "na" and not payload.notes:
+        raise HTTPException(status_code=422, detail="A note is required when marking an item as N/A")
+
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
 
-    if payload.amount_paid is not None and payload.status is None:
-        if item.amount_paid >= item.allocated_amount:
-            item.status = "paid"
-        elif item.amount_paid > 0:
-            item.status = "partial"
-        else:
-            item.status = "pending"
+    # Clear notes when moving away from N/A
+    if payload.status != "na":
+        item.notes = None
+
+    # Clear reference number when moving away from paid
+    if payload.status != "paid":
+        item.reference_number = None
 
     await db.commit()
 
@@ -818,3 +839,80 @@ async def update_session_item(
         .where(BudgetSessionItem.id == item_id)
     )
     return result.scalar_one()
+
+
+@router.post("/sessions/{session_id}/items", response_model=BudgetSessionItemResponse, status_code=status.HTTP_201_CREATED)
+async def add_adhoc_session_item(
+    household_id: UUID,
+    session_id: UUID,
+    payload: AdHocSessionItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    session_result = await db.execute(
+        select(BudgetSession).where(
+            BudgetSession.id == session_id,
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False
+        )
+    )
+    if not session_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Enforce freed-up budget constraint
+    existing_result = await db.execute(
+        select(BudgetSessionItem).where(BudgetSessionItem.session_id == session_id)
+    )
+    existing_items = existing_result.scalars().all()
+    freed_up = sum(
+        i.allocated_amount for i in existing_items
+        if i.expense_id is not None and i.status == "na"
+    )
+    adhoc_used = sum(
+        i.allocated_amount for i in existing_items
+        if i.expense_id is None
+    )
+    available = freed_up - adhoc_used
+    if payload.amount > available:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Amount exceeds available freed up budget (KES {available:.2f} remaining)"
+        )
+
+    item = BudgetSessionItem(
+        session_id=session_id,
+        expense_id=None,
+        ad_hoc_name=payload.name,
+        ad_hoc_amount=payload.amount,
+        allocated_amount=payload.amount,
+        amount_paid=Decimal("0.00"),
+        status="todo"
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.delete("/sessions/{session_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_adhoc_session_item(
+    household_id: UUID,
+    session_id: UUID,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(BudgetSessionItem).where(
+            BudgetSessionItem.id == item_id,
+            BudgetSessionItem.session_id == session_id
+        )
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Session item not found")
+    if item.expense_id is not None:
+        raise HTTPException(status_code=400, detail="Only one-time expenses can be removed from a session")
+    await db.delete(item)
+    await db.commit()
