@@ -676,6 +676,7 @@ export default function ExpenseLibrary() {
                                                 <ExpenseRow
                                                     key={expense.id}
                                                     expense={expense}
+                                                    accounts={accounts as Account[]}
                                                     onEdit={() => openEditExpense(expense)}
                                                     onDelete={() => deleteExpense(expense.id)}
                                                     onRestore={() => restoreExpense(expense.id)}
@@ -711,6 +712,7 @@ export default function ExpenseLibrary() {
                                 <ExpenseRow
                                     key={expense.id}
                                     expense={expense}
+                                    accounts={accounts as Account[]}
                                     onEdit={() => openEditExpense(expense)}
                                     onDelete={() => deleteExpense(expense.id)}
                                     onRestore={() => restoreExpense(expense.id)}
@@ -871,13 +873,15 @@ export default function ExpenseLibrary() {
 
 // ─── Expense Row ──────────────────────────────────────────────────
 
-function ExpenseRow({ expense, onEdit, onDelete, onRestore, showDeleted }: {
+function ExpenseRow({ expense, accounts, onEdit, onDelete, onRestore, showDeleted }: {
     expense: Expense
+    accounts: Account[]
     onEdit: () => void
     onDelete: () => void
     onRestore: () => void
     showDeleted: boolean
 }) {
+    const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
     return (
         <div className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors group ${expense.is_deleted ? 'opacity-50' : ''}`}>
             <div className="flex-1 min-w-0">
@@ -890,11 +894,19 @@ function ExpenseRow({ expense, onEdit, onDelete, onRestore, showDeleted }: {
                         </span>
                     ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                    {OWNERSHIP_LABELS[expense.ownership_type]}
-                    {expense.ownership_type === 'joint' && ` · ${expense.joint_split_husband}% / ${expense.joint_split_wife}%`}
-                    {' · '}{FREQUENCY_LABELS[expense.frequency]}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <p className="text-xs text-slate-400">
+                        {OWNERSHIP_LABELS[expense.ownership_type]}
+                        {expense.ownership_type === 'joint' && ` · ${expense.joint_split_husband}% / ${expense.joint_split_wife}%`}
+                        {' · '}{FREQUENCY_LABELS[expense.frequency]}
+                    </p>
+                    {sourceAccount && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500">
+                            <Wallet className="h-2.5 w-2.5" />
+                            {sourceAccount.name}
+                        </span>
+                    )}
+                </div>
             </div>
             <div className="text-right flex-shrink-0">
                 <p className="font-black text-slate-900 text-sm">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
