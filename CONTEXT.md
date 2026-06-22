@@ -183,8 +183,7 @@ throughout the budget tracker.
   - **Expenses by Tag**: breakdown of all non-deleted expenses
 - Expense groups with header showing: expense count · KES total/mo · % of total budgeted
 - Per-expense rows show source account badge when set
-- Tag filter bar + group/expense list
-- Tags manager: edit (name + colour) and delete tags inline
+- Tags pill bar: each tag shows pencil (inline edit: name + colour) and × (delete) on hover; dashed "+ Add tag" button at end of row opens a create dialog
 
 #### Monthly Sessions tab
 - 12 month tiles (3-col grid) for the current calendar year
@@ -245,3 +244,4 @@ throughout the budget tracker.
 | 2026-06-22 | Accounts | Manual deposit/withdrawal entries with narration; inline transaction history on card |
 | 2026-06-22 | Budget | Auto-credit account balance on session item paid; reversed on un-pay |
 | 2026-06-22 | Net Worth | New `/networth` page: net worth breakdown + full transaction log with filters |
+| 2026-06-22 | Budget | Tags pill bar: inline edit/delete on hover; replaced hidden Manage Tags dialog |
