@@ -169,7 +169,7 @@ function SessionDetailView({
     const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const adHocAvailable = Math.max(freedUp - adHocUsed, 0)
 
-    const totalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalAllocated = items.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalRemaining = totalAllocated - totalPaid - totalReserved
@@ -244,18 +244,17 @@ function SessionDetailView({
         const isUpdating = updatingId === item.id
         const disabled = isPast || isUpdating
         const isAdHoc = item.expense_id === null
-        const displayName = isAdHoc ? (item.ad_hoc_name ?? 'One-time expense') : item.expense!.name
+        const displayName = isAdHoc ? (item.ad_hoc_name ?? 'One-time expense') : (item.expense?.name ?? 'Unknown expense')
         const isPendingNa = pendingNa?.itemId === item.id
 
         return (
             <div key={item.id} className={!isLast ? 'border-b border-slate-100' : ''}>
                 <div className="flex items-center gap-4 px-5 py-4">
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{displayName}</p>
+                        <p className={`text-sm font-semibold truncate ${item.status === 'na' ? 'text-slate-400' : 'text-slate-800'}`}>
+                            {displayName}
+                        </p>
                         <p className="text-xs text-slate-400">{fmt(item.allocated_amount)}</p>
-                        {item.notes && (
-                            <p className="text-xs text-slate-400 italic mt-0.5">{item.notes}</p>
-                        )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                         {STATUSES.map(s => {
@@ -295,6 +294,11 @@ function SessionDetailView({
                         )}
                     </div>
                 </div>
+                {item.status === 'na' && item.notes && !isPendingNa && (
+                    <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-slate-100 border-l-2 border-slate-300">
+                        <p className="text-xs text-slate-500 italic">{item.notes}</p>
+                    </div>
+                )}
                 {isPendingNa && (
                     <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
                         <textarea
@@ -323,7 +327,7 @@ function SessionDetailView({
         )
     }
 
-    const showAdHocSection = adHocItems.length > 0 || (!isPast && showAdHocForm)
+    const showAdHocSection = adHocItems.length > 0 || (!isPast && showAdHocForm) || freedUp > 0
 
     return (
         <div className="space-y-6">
@@ -369,6 +373,28 @@ function SessionDetailView({
                     valueClass="text-amber-700"
                 />
             </div>
+
+            {/* Freed-up budget row — appears once any item is marked N/A */}
+            {freedUp > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard
+                        label="Freed Up (N/A)"
+                        value={fmt(freedUp)}
+                        sub={`${items.filter(i => i.status === 'na' && i.expense_id !== null).length} expense(s) skipped`}
+                        colorClass="bg-violet-50"
+                        labelClass="text-violet-500"
+                        valueClass="text-violet-700"
+                    />
+                    <StatCard
+                        label="Available for Ad-hoc"
+                        value={fmt(adHocAvailable)}
+                        sub={adHocUsed > 0 ? `${fmt(adHocUsed)} used` : 'No one-time expenses yet'}
+                        colorClass="bg-sky-50"
+                        labelClass="text-sky-500"
+                        valueClass="text-sky-700"
+                    />
+                </div>
+            )}
 
             {/* Progress bar */}
             {totalAllocated > 0 && (
