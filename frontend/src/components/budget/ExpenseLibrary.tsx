@@ -5,7 +5,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
 import {
-    Plus, Trash2, Pencil, ChevronDown, ChevronRight, Tag, Layers,
+    Plus, Trash2, Pencil, ChevronDown, ChevronRight, Layers,
     Wallet, RotateCcw, X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'

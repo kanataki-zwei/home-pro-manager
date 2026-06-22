@@ -173,7 +173,7 @@ export default function HouseholdPage() {
         try {
             const users = await apiGet<SystemUser[]>('/api/users/')
             setSystemUsers(users)
-        } catch { console.error('Failed to load system users') }
+        } catch { /* non-critical — system users not available */ }
     }
 
     const createHousehold = async () => {
