@@ -817,8 +817,15 @@ async def update_session_item(
     if not item:
         raise HTTPException(status_code=404, detail="Session item not found")
 
+    if payload.status == "na" and not payload.notes:
+        raise HTTPException(status_code=422, detail="A note is required when marking an item as N/A")
+
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
+
+    # Clear notes when moving away from N/A
+    if payload.status != "na":
+        item.notes = None
 
     await db.commit()
 
@@ -828,3 +835,60 @@ async def update_session_item(
         .where(BudgetSessionItem.id == item_id)
     )
     return result.scalar_one()
+
+
+@router.post("/sessions/{session_id}/items", response_model=BudgetSessionItemResponse, status_code=status.HTTP_201_CREATED)
+async def add_adhoc_session_item(
+    household_id: UUID,
+    session_id: UUID,
+    payload: AdHocSessionItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    session_result = await db.execute(
+        select(BudgetSession).where(
+            BudgetSession.id == session_id,
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False
+        )
+    )
+    if not session_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    item = BudgetSessionItem(
+        session_id=session_id,
+        expense_id=None,
+        ad_hoc_name=payload.name,
+        ad_hoc_amount=payload.amount,
+        allocated_amount=payload.amount,
+        amount_paid=Decimal("0.00"),
+        status="todo"
+    )
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.delete("/sessions/{session_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_adhoc_session_item(
+    household_id: UUID,
+    session_id: UUID,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(BudgetSessionItem).where(
+            BudgetSessionItem.id == item_id,
+            BudgetSessionItem.session_id == session_id
+        )
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Session item not found")
+    if item.expense_id is not None:
+        raise HTTPException(status_code=400, detail="Only one-time expenses can be removed from a session")
+    await db.delete(item)
+    await db.commit()

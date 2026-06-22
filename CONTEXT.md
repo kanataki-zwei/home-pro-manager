@@ -73,7 +73,7 @@ d6e7f8a9b0c1_add_income_to_household_members
         ↓
 e4a5b6c7d8e9_refactor_sessions_standalone
         ↓
-f5b6c7d8e9f0_add_adhoc_session_items        ← current HEAD (NOT YET RUN)
+f5b6c7d8e9f0_add_adhoc_session_items        ← current HEAD
 ```
 
 ### Tables (initial schema)
@@ -205,55 +205,13 @@ constraint changed from `pending/partial/paid/reserved/skipped` to `todo/paid/re
 
 ---
 
-## N/A Notes + Ad-hoc Session Items — IN PROGRESS (pick up here)
+## N/A Notes + Ad-hoc Session Items — COMPLETE
 
-### What's been done
-1. Migration `f5b6c7d8e9f0_add_adhoc_session_items.py` created — **NOT YET RUN**.
-   - Makes `budget_session_items.expense_id` nullable.
-   - Adds `ad_hoc_name VARCHAR(255)` and `ad_hoc_amount NUMERIC(15,2)`.
-   - Adds check constraint `(expense_id IS NOT NULL) OR (ad_hoc_name IS NOT NULL)`.
-2. `models/budget.py` — `BudgetSessionItem` updated to match the migration.
-3. `schemas/budget.py` — updated:
-   - `BudgetSessionItemUpdate`: added `notes: Optional[str] = None`.
-   - `BudgetSessionItemResponse`: `expense_id` Optional, `expense` Optional, added `notes`, `ad_hoc_name`, `ad_hoc_amount`.
-   - New `AdHocSessionItemCreate`: `name: str, amount: Decimal`.
-4. `routers/budget.py` — `AdHocSessionItemCreate` imported.
-
-### What still needs doing (pick up here)
-
-**Step A — `routers/budget.py`:**
-- Update `update_session_item`:
-  - Require `notes` when `status == 'na'` (raise HTTP 422 if missing).
-  - When status changes away from `'na'`, clear `item.notes = None`.
-- Add `POST /sessions/{session_id}/items` endpoint:
-  - Verify session belongs to current user.
-  - Create `BudgetSessionItem(session_id=..., expense_id=None, ad_hoc_name=payload.name, ad_hoc_amount=payload.amount, allocated_amount=payload.amount, status='todo')`.
-  - Return `BudgetSessionItemResponse` (no `selectinload` on expense since it's None).
-- Add `DELETE /sessions/{session_id}/items/{item_id}` endpoint:
-  - Only allow deleting items where `expense_id IS NULL` (ad-hoc only).
-  - Raise 400 if item is from the expense library.
-
-**Step B — `frontend/src/components/budget/MonthlySession.tsx`:**
-- Update `SessionItem` type: `expense_id: string | null`, `expense: Expense | null`, add `notes: string | null`, `ad_hoc_name: string | null`, `ad_hoc_amount: number | string | null`.
-- Add `apiDelete` to imports from `@/lib/api`.
-- Add `Trash2` to imports from `lucide-react`.
-- `SessionDetailView` state: add `pendingNa: { itemId: string; note: string } | null`, `showAdHocForm: boolean`, `adHocName: string`, `adHocAmount: string`, `addingAdHoc: boolean`, `deletingId: string | null`.
-- Group items: ad-hoc items (`expense_id === null`) go into a `'__adhoc__'` bucket; uncategorised library items stay in `'__none__'`.
-- N/A pill click logic: if clicking `'na'` and item is not already `'na'` → set `pendingNa` (show inline note input); do NOT call PATCH yet.
-- Inline note input (renders below the item row when `pendingNa.itemId === item.id`): textarea, Cancel button, "Confirm N/A" button (disabled until note non-empty). On confirm: call PATCH `{ status: 'na', notes }`.
-- Display note under item name for any item where `item.notes` is set.
-- Ad-hoc section (`'__adhoc__'` group): label "One-time expenses"; items show `item.ad_hoc_name`, `Trash2` delete button; at bottom of this section show the ad-hoc add form (or an "+ Add one-time expense" toggle button).
-- Ad-hoc form: Name input + Amount (KES) input + "Add" button + "✕" cancel. On submit: `apiPost .../items { name, amount }`, prepend result to items state.
-- Delete ad-hoc: `apiDelete .../items/{id}`, remove from items state.
-- "+ Add one-time expense" button should also appear at the bottom of the detail view (outside the group list) if `showAdHocForm` is false.
-
-**Step C — Run migration:**
-```powershell
-cd backend
-.\venv\Scripts\alembic.exe upgrade head
-```
-
-**Step D — Update CONTEXT.md** (mark this section complete, update migration chain).
+- Migration `f5b6c7d8e9f0` run: `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount` columns added, check constraint in place.
+- `models/budget.py` — `BudgetSessionItem` has `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount`, `notes`.
+- `schemas/budget.py` — `BudgetSessionItemUpdate` has `notes`; `BudgetSessionItemResponse` has `expense_id`/`expense` Optional, `notes`, `ad_hoc_name`, `ad_hoc_amount`; `AdHocSessionItemCreate` schema added.
+- `routers/budget.py` — `update_session_item` requires notes on N/A and clears notes on status change away from N/A; `POST /sessions/{id}/items` creates ad-hoc items; `DELETE /sessions/{id}/items/{item_id}` deletes ad-hoc items only.
+- `MonthlySession.tsx` — N/A inline note flow, ad-hoc items section, add/delete one-time expenses.
 
 ---
 
@@ -273,3 +231,4 @@ cd backend
 | 2026-06-21 | Budget | Zero-budgeted callout; remaining clamped to 0 minimum |
 | 2026-06-21 | Budget | Reports tab: recharts donut + horizontal bar charts, scope toggle (All/Me) |
 | 2026-06-22 | Budget | Monthly Sessions: full implementation (migration, schema, router, UI) |
+| 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0, backend endpoints, frontend UI) |

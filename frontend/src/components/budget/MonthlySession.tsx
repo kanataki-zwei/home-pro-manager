@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
-import { apiGet, apiPost, apiPatch } from '@/lib/api'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -33,10 +33,13 @@ interface Expense {
 interface SessionItem {
     id: string
     session_id: string
-    expense_id: string
+    expense_id: string | null
+    expense: Expense | null
+    notes: string | null
+    ad_hoc_name: string | null
+    ad_hoc_amount: number | string | null
     allocated_amount: number
     status: string   // todo | paid | reserved | na
-    expense: Expense
     created_at: string
     updated_at: string
 }
@@ -139,16 +142,26 @@ function SessionDetailView({
 }) {
     const [items, setItems] = useState<SessionItem[]>(session.items)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
-    const isPast = session.month.slice(0, 10) < currentMonthStart
+    const [pendingNa, setPendingNa] = useState<{ itemId: string; note: string } | null>(null)
+    const [showAdHocForm, setShowAdHocForm] = useState(false)
+    const [adHocName, setAdHocName] = useState('')
+    const [adHocAmount, setAdHocAmount] = useState('')
+    const [addingAdHoc, setAddingAdHoc] = useState(false)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
+    const isPast = session.month.slice(0, 10) < currentMonthStart
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
 
     const grouped = new Map<string, SessionItem[]>()
     for (const item of items) {
-        const key = item.expense.group_id ?? '__none__'
+        const key = item.expense_id === null
+            ? '__adhoc__'
+            : (item.expense?.group_id ?? '__none__')
         if (!grouped.has(key)) grouped.set(key, [])
         grouped.get(key)!.push(item)
     }
+    const adHocItems = grouped.get('__adhoc__') ?? []
+    const libraryGroups = [...grouped.entries()].filter(([k]) => k !== '__adhoc__')
 
     const totalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
@@ -171,6 +184,140 @@ function SessionDetailView({
             setUpdatingId(null)
         }
     }
+
+    async function confirmNa(itemId: string, note: string) {
+        setUpdatingId(itemId)
+        try {
+            const updated = await apiPatch<SessionItem>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/items/${itemId}`,
+                { status: 'na', notes: note }
+            )
+            setItems(prev => prev.map(i => i.id === itemId ? updated : i))
+            setPendingNa(null)
+        } catch {
+            toast.error('Failed to update status')
+        } finally {
+            setUpdatingId(null)
+        }
+    }
+
+    async function addAdHoc() {
+        const trimmedName = adHocName.trim()
+        const parsedAmount = parseFloat(adHocAmount)
+        if (!trimmedName || isNaN(parsedAmount) || parsedAmount <= 0) return
+        setAddingAdHoc(true)
+        try {
+            const created = await apiPost<SessionItem>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/items`,
+                { name: trimmedName, amount: parsedAmount }
+            )
+            setItems(prev => [created, ...prev])
+            setAdHocName('')
+            setAdHocAmount('')
+            setShowAdHocForm(false)
+        } catch {
+            toast.error('Failed to add expense')
+        } finally {
+            setAddingAdHoc(false)
+        }
+    }
+
+    async function deleteAdHoc(itemId: string) {
+        setDeletingId(itemId)
+        try {
+            await apiDelete(`/api/households/${householdId}/budget/sessions/${session.id}/items/${itemId}`)
+            setItems(prev => prev.filter(i => i.id !== itemId))
+        } catch {
+            toast.error('Failed to delete expense')
+        } finally {
+            setDeletingId(null)
+        }
+    }
+
+    function renderItemRow(item: SessionItem, isLast: boolean) {
+        const isUpdating = updatingId === item.id
+        const disabled = isPast || isUpdating
+        const isAdHoc = item.expense_id === null
+        const displayName = isAdHoc ? (item.ad_hoc_name ?? 'One-time expense') : item.expense!.name
+        const isPendingNa = pendingNa?.itemId === item.id
+
+        return (
+            <div key={item.id} className={!isLast ? 'border-b border-slate-100' : ''}>
+                <div className="flex items-center gap-4 px-5 py-4">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{displayName}</p>
+                        <p className="text-xs text-slate-400">{fmt(item.allocated_amount)}</p>
+                        {item.notes && (
+                            <p className="text-xs text-slate-400 italic mt-0.5">{item.notes}</p>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {STATUSES.map(s => {
+                            const cfg = STATUS_CONFIG[s]
+                            const isActive = item.status === s
+                            return (
+                                <button
+                                    key={s}
+                                    disabled={disabled}
+                                    onClick={() => {
+                                        if (isActive || disabled) return
+                                        if (pendingNa?.itemId === item.id) setPendingNa(null)
+                                        if (s === 'na') {
+                                            setPendingNa({ itemId: item.id, note: '' })
+                                        } else {
+                                            updateStatus(item.id, s)
+                                        }
+                                    }}
+                                    className={`text-xs px-2.5 py-1 rounded-full transition-all ${
+                                        disabled
+                                            ? `opacity-60 cursor-not-allowed ${isActive ? cfg.active : cfg.idle}`
+                                            : isActive
+                                                ? cfg.active
+                                                : `${cfg.idle} cursor-pointer`
+                                    }`}>
+                                    {cfg.label}
+                                </button>
+                            )
+                        })}
+                        {isAdHoc && !isPast && (
+                            <button
+                                onClick={() => deleteAdHoc(item.id)}
+                                disabled={deletingId === item.id}
+                                className="ml-1 p-1 text-slate-300 hover:text-red-400 transition-colors disabled:opacity-40">
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+                {isPendingNa && (
+                    <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
+                        <textarea
+                            className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300"
+                            placeholder="Why is this N/A? (required)"
+                            rows={2}
+                            value={pendingNa.note}
+                            onChange={e => setPendingNa({ ...pendingNa, note: e.target.value })}
+                        />
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => confirmNa(item.id, pendingNa.note)}
+                                disabled={!pendingNa.note.trim() || isUpdating}
+                                className="text-xs font-semibold bg-slate-700 text-white rounded-lg px-3 py-1.5 disabled:opacity-40 hover:bg-slate-800 transition-colors">
+                                Confirm N/A
+                            </button>
+                            <button
+                                onClick={() => setPendingNa(null)}
+                                className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    const showAdHocSection = adHocItems.length > 0 || (!isPast && showAdHocForm)
 
     return (
         <div className="space-y-6">
@@ -247,14 +394,14 @@ function SessionDetailView({
                 </div>
             )}
 
-            {items.length === 0 && (
+            {items.length === 0 && !showAdHocForm && (
                 <div className="flex items-center justify-center h-32 rounded-2xl border-2 border-dashed border-slate-200">
                     <p className="text-sm text-slate-400">No expenses found for this session</p>
                 </div>
             )}
 
-            {/* Items grouped by expense group */}
-            {[...grouped.entries()].map(([groupId, groupItems]) => (
+            {/* Library item groups */}
+            {libraryGroups.map(([groupId, groupItems]) => (
                 <div key={groupId} className="space-y-2">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                         {groupId === '__none__'
@@ -262,47 +409,73 @@ function SessionDetailView({
                             : (groupMap.get(groupId) ?? 'Unknown group')}
                     </p>
                     <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                        {groupItems.map((item, idx) => {
-                            const isLast = idx === groupItems.length - 1
-                            const isUpdating = updatingId === item.id
-                            const disabled = isPast || isUpdating
-                            return (
-                                <div
-                                    key={item.id}
-                                    className={`flex items-center gap-4 px-5 py-4 ${!isLast ? 'border-b border-slate-100' : ''}`}>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800 truncate">
-                                            {item.expense.name}
-                                        </p>
-                                        <p className="text-xs text-slate-400">{fmt(item.allocated_amount)}</p>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        {STATUSES.map(s => {
-                                            const cfg = STATUS_CONFIG[s]
-                                            const isActive = item.status === s
-                                            return (
-                                                <button
-                                                    key={s}
-                                                    disabled={disabled}
-                                                    onClick={() => !isActive && !disabled && updateStatus(item.id, s)}
-                                                    className={`text-xs px-2.5 py-1 rounded-full transition-all ${
-                                                        disabled
-                                                            ? `opacity-60 cursor-not-allowed ${isActive ? cfg.active : cfg.idle}`
-                                                            : isActive
-                                                                ? cfg.active
-                                                                : `${cfg.idle} cursor-pointer`
-                                                    }`}>
-                                                    {cfg.label}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )
-                        })}
+                        {groupItems.map((item, idx) =>
+                            renderItemRow(item, idx === groupItems.length - 1)
+                        )}
                     </div>
                 </div>
             ))}
+
+            {/* Ad-hoc section */}
+            {showAdHocSection && (
+                <div className="space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        One-time expenses
+                    </p>
+                    {adHocItems.length > 0 && (
+                        <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                            {adHocItems.map((item, idx) =>
+                                renderItemRow(item, idx === adHocItems.length - 1)
+                            )}
+                        </div>
+                    )}
+                    {!isPast && showAdHocForm && (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                            <input
+                                type="text"
+                                placeholder="Expense name"
+                                value={adHocName}
+                                onChange={e => setAdHocName(e.target.value)}
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
+                            />
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 shrink-0">KES</span>
+                                <input
+                                    type="number"
+                                    placeholder="Amount"
+                                    min="0"
+                                    step="0.01"
+                                    value={adHocAmount}
+                                    onChange={e => setAdHocAmount(e.target.value)}
+                                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={addAdHoc}
+                                    disabled={addingAdHoc || !adHocName.trim() || !adHocAmount}
+                                    className="text-xs font-semibold bg-slate-700 text-white rounded-lg px-4 py-1.5 hover:bg-slate-800 transition-colors disabled:opacity-40">
+                                    {addingAdHoc ? 'Adding…' : 'Add'}
+                                </button>
+                                <button
+                                    onClick={() => { setShowAdHocForm(false); setAdHocName(''); setAdHocAmount('') }}
+                                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                    ✕ Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Bottom add button — always accessible when not in form mode */}
+            {!isPast && !showAdHocForm && (
+                <button
+                    onClick={() => setShowAdHocForm(true)}
+                    className="w-full text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl py-3 hover:border-slate-300 hover:text-slate-600 transition-colors">
+                    + Add one-time expense
+                </button>
+            )}
         </div>
     )
 }
