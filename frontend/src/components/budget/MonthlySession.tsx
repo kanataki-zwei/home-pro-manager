@@ -872,7 +872,11 @@ export default function MonthlySession() {
                     }
 
                     // Has session
+                    const allocated = Number(session!.total_allocated ?? 0)
+                    const sessionPaid = Number(session!.total_paid ?? 0)
+                    const sessionPct = allocated > 0 ? Math.round((sessionPaid / allocated) * 100) : 0
                     const tileNameColor = isCurrent ? 'text-sky-700' : isFuture ? 'text-violet-700' : 'text-slate-700'
+                    const tileAmtColor = isCurrent ? 'text-sky-800' : isFuture ? 'text-violet-800' : 'text-slate-800'
                     const tileBorder = isCurrent
                         ? 'border-sky-200 bg-sky-50 hover:border-sky-300'
                         : isFuture
@@ -899,6 +903,20 @@ export default function MonthlySession() {
                             </div>
                             {isCurrent && <p className="text-xs text-sky-400 mt-0.5">Current month</p>}
                             {isFuture && <p className="text-xs text-violet-400 mt-0.5">Future month</p>}
+                            <p className={`text-sm font-bold mt-2 ${tileAmtColor}`}>
+                                {fmtCompact(allocated)}
+                            </p>
+                            {allocated > 0 && (
+                                <div className="mt-2 space-y-1">
+                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-emerald-400 rounded-full transition-all"
+                                            style={{ width: `${sessionPct}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400">{sessionPct}% paid</p>
+                                </div>
+                            )}
                             {isLoading && (
                                 <div className="mt-2 w-3 h-3 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
                             )}
