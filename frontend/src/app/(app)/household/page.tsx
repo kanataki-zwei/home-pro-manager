@@ -138,6 +138,8 @@ export default function HouseholdPage() {
     const [incomeEdits, setIncomeEdits] = useState<Record<string, { amount: string; currency: string; cadence: string }>>({})
     const [savingIncome, setSavingIncome] = useState<string | null>(null)
 
+    const [myAccountsOnly, setMyAccountsOnly] = useState(false)
+
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
     const [creatingUser, setCreatingUser] = useState(false)
@@ -388,6 +390,14 @@ export default function HouseholdPage() {
             </div>
         )
     }
+
+    const myMember = members.find(m => m.user_id === currentUserId)
+    const visibleAccounts = myAccountsOnly
+        ? accounts.filter(a =>
+            a.ownership === 'joint' ||
+            (a.ownership === 'individual' && a.household_member_id === myMember?.id)
+          )
+        : accounts
 
     return (
         <div className="max-w-4xl space-y-8">
@@ -673,30 +683,42 @@ export default function HouseholdPage() {
                         <h2 className="text-lg font-bold text-slate-900">Accounts</h2>
                         <p className="text-sm text-slate-400">Bank and cash accounts</p>
                     </div>
-                    <button onClick={() => setAccountDialog(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
-                        <Plus className="h-3.5 w-3.5" /> Add Account
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                            <button onClick={() => setMyAccountsOnly(false)}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                All
+                            </button>
+                            <button onClick={() => setMyAccountsOnly(true)}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                Mine
+                            </button>
+                        </div>
+                        <button onClick={() => setAccountDialog(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
+                            <Plus className="h-3.5 w-3.5" /> Add Account
+                        </button>
+                    </div>
                 </div>
 
-                {accounts.length > 0 && (() => {
+                {visibleAccounts.length > 0 && (() => {
                     const TYPE_COLORS  = ['bg-sky-400','bg-emerald-400','bg-amber-400','bg-rose-400','bg-slate-400']
                     const INST_COLORS  = ['bg-sky-500','bg-teal-400','bg-blue-400','bg-purple-400','bg-orange-400','bg-indigo-400','bg-pink-400']
                     const ownershipItems = [
-                        { label: 'Joint',      color: 'bg-sky-400',    count: accounts.filter(a => a.ownership === 'joint').length },
-                        { label: 'Individual', color: 'bg-violet-400', count: accounts.filter(a => a.ownership === 'individual').length },
+                        { label: 'Joint',      color: 'bg-sky-400',    count: visibleAccounts.filter(a => a.ownership === 'joint').length },
+                        { label: 'Individual', color: 'bg-violet-400', count: visibleAccounts.filter(a => a.ownership === 'individual').length },
                     ].filter(g => g.count > 0)
                     const typeItems = ACCOUNT_TYPES.map((t, i) => ({
                         label: t.label, color: TYPE_COLORS[i] ?? 'bg-slate-300',
-                        count: accounts.filter(a => a.account_type === t.value).length,
+                        count: visibleAccounts.filter(a => a.account_type === t.value).length,
                     })).filter(g => g.count > 0)
                     const instItems = [
                         ...INSTITUTION_TYPES.map((t, i) => ({
                             label: t.label, color: INST_COLORS[i] ?? 'bg-slate-300',
-                            count: accounts.filter(a => a.institution_type === t.value).length,
+                            count: visibleAccounts.filter(a => a.institution_type === t.value).length,
                         })).filter(g => g.count > 0),
-                        ...(accounts.filter(a => !a.institution_type).length > 0
-                            ? [{ label: 'Untagged', color: 'bg-slate-200', count: accounts.filter(a => !a.institution_type).length }]
+                        ...(visibleAccounts.filter(a => !a.institution_type).length > 0
+                            ? [{ label: 'Untagged', color: 'bg-slate-200', count: visibleAccounts.filter(a => !a.institution_type).length }]
                             : []),
                     ]
                     const Bar = ({ items }: { items: { label: string; count: number; color: string }[] }) => {
@@ -737,15 +759,17 @@ export default function HouseholdPage() {
                     )
                 })()}
 
-                {accounts.length === 0 ? (
+                {visibleAccounts.length === 0 ? (
                     <div onClick={() => setAccountDialog(true)}
                         className="flex flex-col items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-sky-300 hover:bg-sky-50 transition-all">
                         <Wallet className="h-6 w-6 text-slate-300 mb-2" />
-                        <p className="text-sm text-slate-400 font-medium">Add your first account</p>
+                        <p className="text-sm text-slate-400 font-medium">
+                            {myAccountsOnly ? 'No accounts linked to you' : 'Add your first account'}
+                        </p>
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {accounts.map((account, i) => {
+                        {visibleAccounts.map((account, i) => {
                             const owner = members.find(m => m.id === account.household_member_id)
                             return (
                                 <div key={account.id}
