@@ -68,7 +68,7 @@ class Account(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),
-        CheckConstraint("institution_type IS NULL OR institution_type IN ('bank', 'money_market', 'mobile_money', 'insurance', 'govt_securities', 'stocks_shares')", name='institution_type_check'),
+        CheckConstraint("institution_type IS NULL OR institution_type IN ('bank', 'money_market', 'mobile_money', 'direct_pay', 'insurance', 'govt_securities', 'stocks_shares')", name='institution_type_check'),
         CheckConstraint(ownership.in_(['joint', 'individual']), name='ownership_check'),
     )
 
