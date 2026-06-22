@@ -74,20 +74,22 @@ const STATUS_CONFIG: Record<ItemStatus, { label: string; idle: string; active: s
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-function toMonthly(amount: number, cadence: string | null): number {
-    if (cadence === 'weekly') return (amount * 52) / 12
-    if (cadence === 'annually') return amount / 12
-    return amount
+function toMonthly(amount: number | string | null, cadence: string | null): number {
+    const n = Number(amount ?? 0)
+    if (cadence === 'weekly') return (n * 52) / 12
+    if (cadence === 'annually') return n / 12
+    return n
 }
 
-function fmt(n: number) {
-    return `KES ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function fmt(n: number | string | null) {
+    return `KES ${Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function fmtCompact(n: number) {
-    if (n >= 1_000_000) return `KES ${(n / 1_000_000).toFixed(1)}M`
-    if (n >= 1_000) return `KES ${(n / 1_000).toFixed(1)}K`
-    return `KES ${Math.round(n)}`
+function fmtCompact(n: number | string | null) {
+    const num = Number(n ?? 0)
+    if (num >= 1_000_000) return `KES ${(num / 1_000_000).toFixed(1)}M`
+    if (num >= 1_000) return `KES ${(num / 1_000).toFixed(1)}K`
+    return `KES ${Math.round(num)}`
 }
 
 function monthStart(year: number, monthIdx: number) {
@@ -148,9 +150,9 @@ function SessionDetailView({
         grouped.get(key)!.push(item)
     }
 
-    const totalAllocated = items.reduce((s, i) => s + i.allocated_amount, 0)
-    const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + i.allocated_amount, 0)
-    const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + i.allocated_amount, 0)
+    const totalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalRemaining = totalAllocated - totalPaid - totalReserved
     const paidPct = totalAllocated > 0 ? (totalPaid / totalAllocated) * 100 : 0
     const reservedPct = totalAllocated > 0 ? (totalReserved / totalAllocated) * 100 : 0
@@ -324,7 +326,7 @@ export default function MonthlySession() {
     // Total monthly household income
     const totalIncome = members
         .filter(m => m.contributes_income && m.income_amount)
-        .reduce((sum, m) => sum + toMonthly(m.income_amount!, m.income_cadence), 0)
+        .reduce((sum, m) => sum + toMonthly(m.income_amount, m.income_cadence), 0)
 
     useEffect(() => {
         if (!household) return
@@ -489,8 +491,8 @@ export default function MonthlySession() {
                     }
 
                     // Has session
-                    const allocated = session!.total_allocated ?? 0
-                    const sessionPaid = session!.total_paid ?? 0
+                    const allocated = Number(session!.total_allocated ?? 0)
+                    const sessionPaid = Number(session!.total_paid ?? 0)
                     const sessionPct = allocated > 0 ? Math.round((sessionPaid / allocated) * 100) : 0
 
                     return (
