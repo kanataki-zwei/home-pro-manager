@@ -134,12 +134,14 @@ function SessionDetailView({
     currentMonthStart,
     householdId,
     onBack,
+    onSessionUpdate,
 }: {
     session: SessionDetail
     groups: ExpenseGroup[]
     currentMonthStart: string
     householdId: string
     onBack: () => void
+    onSessionUpdate: (id: string, status: string) => void
 }) {
     const [items, setItems] = useState<SessionItem[]>(session.items)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -150,8 +152,11 @@ function SessionDetailView({
     const [adHocAmount, setAdHocAmount] = useState('')
     const [addingAdHoc, setAddingAdHoc] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [sessionStatus, setSessionStatus] = useState(session.status)
+    const [closingSession, setClosingSession] = useState(false)
 
     const isPast = session.month.slice(0, 10) < currentMonthStart
+    const isReadOnly = isPast || sessionStatus === 'closed'
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
 
     function requiresRef(item: SessionItem): boolean {
@@ -269,9 +274,23 @@ function SessionDetailView({
         }
     }
 
+    async function closeSession() {
+        setClosingSession(true)
+        try {
+            await apiPatch(`/api/households/${householdId}/budget/sessions/${session.id}`, { status: 'closed' })
+            setSessionStatus('closed')
+            onSessionUpdate(session.id, 'closed')
+            toast.success(`${session.name} marked as complete`)
+        } catch {
+            toast.error('Failed to close session')
+        } finally {
+            setClosingSession(false)
+        }
+    }
+
     function renderItemRow(item: SessionItem, isLast: boolean) {
         const isUpdating = updatingId === item.id
-        const disabled = isPast || isUpdating
+        const disabled = isReadOnly || isUpdating
         const isAdHoc = item.expense_id === null
         const displayName = isAdHoc ? (item.ad_hoc_name ?? 'One-time expense') : (item.expense?.name ?? 'Unknown expense')
         const isPendingNa = pendingNa?.itemId === item.id
@@ -316,7 +335,7 @@ function SessionDetailView({
                                 </button>
                             )
                         })}
-                        {isAdHoc && !isPast && (
+                        {isAdHoc && !isReadOnly && (
                             <button
                                 onClick={() => deleteAdHoc(item.id)}
                                 disabled={deletingId === item.id}
@@ -390,7 +409,7 @@ function SessionDetailView({
         )
     }
 
-    const showAdHocSection = adHocItems.length > 0 || (!isPast && showAdHocForm) || freedUp > 0
+    const showAdHocSection = adHocItems.length > 0 || (!isReadOnly && showAdHocForm) || freedUp > 0
 
     return (
         <div className="space-y-6">
@@ -404,10 +423,23 @@ function SessionDetailView({
                 </button>
                 <div className="h-4 w-px bg-slate-200" />
                 <h2 className="text-lg font-bold text-slate-800">{session.name}</h2>
-                {isPast && (
+                {sessionStatus === 'closed' && (
+                    <span className="text-xs font-semibold bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">
+                        Complete
+                    </span>
+                )}
+                {isPast && sessionStatus !== 'closed' && (
                     <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                         Read-only
                     </span>
+                )}
+                {!isReadOnly && (
+                    <button
+                        onClick={closeSession}
+                        disabled={closingSession}
+                        className="ml-auto text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        {closingSession ? 'Saving…' : 'Mark as Complete'}
+                    </button>
                 )}
             </div>
 
@@ -540,7 +572,7 @@ function SessionDetailView({
                             )}
                         </div>
                     )}
-                    {!isPast && showAdHocForm && (
+                    {!isReadOnly && showAdHocForm && (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                             {adHocAvailable <= 0 ? (
                                 <p className="text-xs text-slate-400 italic">
@@ -597,7 +629,7 @@ function SessionDetailView({
             )}
 
             {/* Bottom add button — always accessible when not in form mode */}
-            {!isPast && !showAdHocForm && (
+            {!isReadOnly && !showAdHocForm && (
                 <button
                     onClick={() => setShowAdHocForm(true)}
                     className="w-full text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl py-3 hover:border-slate-300 hover:text-slate-600 transition-colors">
@@ -616,7 +648,7 @@ export default function MonthlySession() {
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null)
     const [loading, setLoading] = useState(true)
-    const [startingSession, setStartingSession] = useState(false)
+    const [startingMonth, setStartingMonth] = useState<string | null>(null)
     const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null)
 
     const today = new Date()
@@ -655,13 +687,13 @@ export default function MonthlySession() {
         }
     }
 
-    async function startSession() {
+    async function startSession(month: string) {
         if (!household) return
-        setStartingSession(true)
+        setStartingMonth(month)
         try {
             const data = await apiPost<SessionDetail>(
                 `/api/households/${household.id}/budget/sessions`,
-                { month: currMonthStart }
+                { month }
             )
             const totalAllocated = data.items.reduce((s, i) => s + i.allocated_amount, 0)
             setSessions(prev => [...prev, {
@@ -672,8 +704,12 @@ export default function MonthlySession() {
         } catch (e: any) {
             toast.error('Failed to start session', { description: e.message })
         } finally {
-            setStartingSession(false)
+            setStartingMonth(null)
         }
+    }
+
+    function handleSessionUpdate(id: string, status: string) {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, status } : s))
     }
 
     if (loading) {
@@ -693,6 +729,7 @@ export default function MonthlySession() {
                 currentMonthStart={currMonthStart}
                 householdId={household!.id}
                 onBack={() => setSelectedSession(null)}
+                onSessionUpdate={handleSessionUpdate}
             />
         )
     }
@@ -755,17 +792,9 @@ export default function MonthlySession() {
                     const isFuture = mStart > currMonthStart
                     const isCurrent = mStart === currMonthStart
                     const isLoading = loadingSessionId === session?.id
+                    const isStarting = startingMonth === mStart
 
-                    if (isFuture) {
-                        return (
-                            <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50 p-4 opacity-40">
-                                <p className="text-sm font-bold text-slate-400">{name}</p>
-                                <p className="text-xs text-slate-300 mt-1">Upcoming</p>
-                            </div>
-                        )
-                    }
-
-                    if (!session && !isCurrent) {
+                    if (!session && !isCurrent && !isFuture) {
                         return (
                             <div key={idx} className="rounded-2xl border border-slate-100 bg-white p-4">
                                 <p className="text-sm font-bold text-slate-500">{name}</p>
@@ -774,18 +803,26 @@ export default function MonthlySession() {
                         )
                     }
 
-                    if (!session && isCurrent) {
+                    if (!session && (isCurrent || isFuture)) {
+                        const borderColor = isCurrent ? 'border-sky-200 bg-sky-50' : 'border-violet-200 bg-violet-50'
+                        const labelColor = isCurrent ? 'text-sky-700' : 'text-violet-700'
+                        const subColor = isCurrent ? 'text-sky-400' : 'text-violet-400'
+                        const btnColor = isCurrent
+                            ? 'bg-sky-500 hover:bg-sky-600'
+                            : 'bg-violet-500 hover:bg-violet-600'
                         return (
-                            <div key={idx} className="rounded-2xl border-2 border-sky-200 bg-sky-50 p-4 flex flex-col gap-3">
+                            <div key={idx} className={`rounded-2xl border-2 ${borderColor} p-4 flex flex-col gap-3`}>
                                 <div>
-                                    <p className="text-sm font-bold text-sky-700">{name}</p>
-                                    <p className="text-xs text-sky-400 mt-0.5">Current month</p>
+                                    <p className={`text-sm font-bold ${labelColor}`}>{name}</p>
+                                    <p className={`text-xs ${subColor} mt-0.5`}>
+                                        {isCurrent ? 'Current month' : 'Future month'}
+                                    </p>
                                 </div>
                                 <button
-                                    onClick={startSession}
-                                    disabled={startingSession}
-                                    className="text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white rounded-xl px-3 py-2 transition-colors disabled:opacity-60">
-                                    {startingSession ? 'Starting…' : "Start this month's budget"}
+                                    onClick={() => startSession(mStart)}
+                                    disabled={isStarting}
+                                    className={`text-xs font-bold ${btnColor} text-white rounded-xl px-3 py-2 transition-colors disabled:opacity-60`}>
+                                    {isStarting ? 'Starting…' : "Start this month's budget"}
                                 </button>
                             </div>
                         )
@@ -795,19 +832,22 @@ export default function MonthlySession() {
                     const allocated = Number(session!.total_allocated ?? 0)
                     const sessionPaid = Number(session!.total_paid ?? 0)
                     const sessionPct = allocated > 0 ? Math.round((sessionPaid / allocated) * 100) : 0
+                    const tileNameColor = isCurrent ? 'text-sky-700' : isFuture ? 'text-violet-700' : 'text-slate-700'
+                    const tileAmtColor = isCurrent ? 'text-sky-800' : isFuture ? 'text-violet-800' : 'text-slate-800'
+                    const tileBorder = isCurrent
+                        ? 'border-sky-200 bg-sky-50 hover:border-sky-300'
+                        : isFuture
+                            ? 'border-violet-200 bg-violet-50 hover:border-violet-300'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
 
                     return (
                         <button
                             key={idx}
                             onClick={() => openSession(session!.id)}
                             disabled={isLoading}
-                            className={`rounded-2xl border p-4 text-left transition-all hover:shadow-md disabled:opacity-70 ${
-                                isCurrent
-                                    ? 'border-sky-200 bg-sky-50 hover:border-sky-300'
-                                    : 'border-slate-200 bg-white hover:border-slate-300'
-                            }`}>
+                            className={`rounded-2xl border p-4 text-left transition-all hover:shadow-md disabled:opacity-70 ${tileBorder}`}>
                             <div className="flex items-start justify-between gap-2">
-                                <p className={`text-sm font-bold ${isCurrent ? 'text-sky-700' : 'text-slate-700'}`}>
+                                <p className={`text-sm font-bold ${tileNameColor}`}>
                                     {name}
                                 </p>
                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
@@ -819,7 +859,8 @@ export default function MonthlySession() {
                                 </span>
                             </div>
                             {isCurrent && <p className="text-xs text-sky-400 mt-0.5">Current month</p>}
-                            <p className={`text-sm font-bold mt-2 ${isCurrent ? 'text-sky-800' : 'text-slate-800'}`}>
+                            {isFuture && <p className="text-xs text-violet-400 mt-0.5">Future month</p>}
+                            <p className={`text-sm font-bold mt-2 ${tileAmtColor}`}>
                                 {fmtCompact(allocated)}
                             </p>
                             {allocated > 0 && (
