@@ -66,21 +66,58 @@ const STATUSES = ['todo', 'paid', 'reserved', 'na'] as const
 type ItemStatus = typeof STATUSES[number]
 
 const STATUS_CONFIG: Record<ItemStatus, { label: string; idle: string; active: string }> = {
-    todo:     { label: 'To Do',    idle: 'text-slate-500 border border-slate-200 hover:bg-slate-50',    active: 'bg-slate-100 text-slate-800 border border-slate-300 font-semibold' },
+    todo:     { label: 'To Do',    idle: 'text-slate-500 border border-slate-200 hover:bg-slate-50',       active: 'bg-slate-100 text-slate-800 border border-slate-300 font-semibold' },
     paid:     { label: 'Paid',     idle: 'text-emerald-600 border border-emerald-200 hover:bg-emerald-50', active: 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold' },
-    reserved: { label: 'Reserved', idle: 'text-amber-600 border border-amber-200 hover:bg-amber-50',    active: 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold' },
-    na:       { label: 'N/A',      idle: 'text-slate-300 border border-slate-100 hover:bg-slate-50',    active: 'bg-slate-50 text-slate-500 border border-slate-200 font-semibold' },
+    reserved: { label: 'Reserved', idle: 'text-amber-600 border border-amber-200 hover:bg-amber-50',       active: 'bg-amber-100 text-amber-800 border border-amber-300 font-semibold' },
+    na:       { label: 'N/A',      idle: 'text-slate-300 border border-slate-100 hover:bg-slate-50',       active: 'bg-slate-50 text-slate-500 border border-slate-200 font-semibold' },
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
+function toMonthly(amount: number, cadence: string | null): number {
+    if (cadence === 'weekly') return (amount * 52) / 12
+    if (cadence === 'annually') return amount / 12
+    return amount
+}
+
 function fmt(n: number) {
-    return `KES ${n.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return `KES ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function fmtCompact(n: number) {
+    if (n >= 1_000_000) return `KES ${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `KES ${(n / 1_000).toFixed(1)}K`
+    return `KES ${Math.round(n)}`
 }
 
 function monthStart(year: number, monthIdx: number) {
-    // Returns "YYYY-MM-01"
     return `${year}-${String(monthIdx + 1).padStart(2, '0')}-01`
+}
+
+// ─── Status card ─────────────────────────────────────────────────
+
+function StatCard({
+    label,
+    value,
+    sub,
+    colorClass,
+    labelClass,
+    valueClass,
+}: {
+    label: string
+    value: string
+    sub?: string
+    colorClass: string
+    labelClass: string
+    valueClass: string
+}) {
+    return (
+        <div className={`rounded-2xl px-5 py-4 ${colorClass}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass}`}>{label}</p>
+            <p className={`text-xl font-black mt-1 ${valueClass}`}>{value}</p>
+            {sub && <p className={`text-xs mt-0.5 ${labelClass} opacity-70`}>{sub}</p>}
+        </div>
+    )
 }
 
 // ─── Detail view ──────────────────────────────────────────────────
@@ -96,7 +133,7 @@ function SessionDetailView({
     groups: ExpenseGroup[]
     currentMonthStart: string
     householdId: string
-    onBack: (updated: SessionDetail) => void
+    onBack: () => void
 }) {
     const [items, setItems] = useState<SessionItem[]>(session.items)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -104,7 +141,6 @@ function SessionDetailView({
 
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
 
-    // Group items by group_id
     const grouped = new Map<string, SessionItem[]>()
     for (const item of items) {
         const key = item.expense.group_id ?? '__none__'
@@ -112,9 +148,12 @@ function SessionDetailView({
         grouped.get(key)!.push(item)
     }
 
-    // Compute totals from item statuses
     const totalAllocated = items.reduce((s, i) => s + i.allocated_amount, 0)
-    const totalPaid = items.filter(i => i.status === 'paid').reduce((s, i) => s + i.allocated_amount, 0)
+    const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + i.allocated_amount, 0)
+    const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + i.allocated_amount, 0)
+    const totalRemaining = totalAllocated - totalPaid - totalReserved
+    const paidPct = totalAllocated > 0 ? (totalPaid / totalAllocated) * 100 : 0
+    const reservedPct = totalAllocated > 0 ? (totalReserved / totalAllocated) * 100 : 0
 
     async function updateStatus(itemId: string, newStatus: ItemStatus) {
         setUpdatingId(itemId)
@@ -136,7 +175,7 @@ function SessionDetailView({
             {/* Header */}
             <div className="flex items-center gap-3">
                 <button
-                    onClick={() => onBack({ ...session, items })}
+                    onClick={onBack}
                     className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors">
                     <ArrowLeft className="h-4 w-4" />
                     All months
@@ -150,21 +189,61 @@ function SessionDetailView({
                 )}
             </div>
 
-            {/* Summary */}
-            <div className="flex gap-3 flex-wrap">
-                <div className="bg-slate-50 rounded-2xl px-5 py-3">
-                    <p className="text-xs text-slate-400 font-medium">Allocated</p>
-                    <p className="text-lg font-black text-slate-800">{fmt(totalAllocated)}</p>
-                </div>
-                <div className="bg-emerald-50 rounded-2xl px-5 py-3">
-                    <p className="text-xs text-emerald-500 font-medium">Paid</p>
-                    <p className="text-lg font-black text-emerald-700">{fmt(totalPaid)}</p>
-                </div>
-                <div className="bg-sky-50 rounded-2xl px-5 py-3">
-                    <p className="text-xs text-sky-500 font-medium">Items</p>
-                    <p className="text-lg font-black text-sky-700">{items.length}</p>
-                </div>
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-3">
+                <StatCard
+                    label="Allocated"
+                    value={fmt(totalAllocated)}
+                    colorClass="bg-slate-50"
+                    labelClass="text-slate-400"
+                    valueClass="text-slate-800"
+                />
+                <StatCard
+                    label="Paid"
+                    value={fmt(totalPaid)}
+                    sub={totalReserved > 0 ? `+ ${fmt(totalReserved)} reserved` : undefined}
+                    colorClass="bg-emerald-50"
+                    labelClass="text-emerald-500"
+                    valueClass="text-emerald-700"
+                />
+                <StatCard
+                    label="Remaining"
+                    value={fmt(Math.max(totalRemaining, 0))}
+                    colorClass="bg-amber-50"
+                    labelClass="text-amber-500"
+                    valueClass="text-amber-700"
+                />
             </div>
+
+            {/* Progress bar */}
+            {totalAllocated > 0 && (
+                <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs text-slate-400 font-medium">
+                        <span>Progress</span>
+                        <span>{Math.round(paidPct + reservedPct)}% settled</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div
+                            className="h-full bg-emerald-400 transition-all duration-500"
+                            style={{ width: `${paidPct}%` }}
+                        />
+                        <div
+                            className="h-full bg-amber-300 transition-all duration-500"
+                            style={{ width: `${reservedPct}%` }}
+                        />
+                    </div>
+                    <div className="flex gap-4 text-xs text-slate-400">
+                        <span className="flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+                            Paid
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="inline-block w-2 h-2 rounded-full bg-amber-300" />
+                            Reserved
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {items.length === 0 && (
                 <div className="flex items-center justify-center h-32 rounded-2xl border-2 border-dashed border-slate-200">
@@ -184,6 +263,7 @@ function SessionDetailView({
                         {groupItems.map((item, idx) => {
                             const isLast = idx === groupItems.length - 1
                             const isUpdating = updatingId === item.id
+                            const disabled = isPast || isUpdating
                             return (
                                 <div
                                     key={item.id}
@@ -198,7 +278,6 @@ function SessionDetailView({
                                         {STATUSES.map(s => {
                                             const cfg = STATUS_CONFIG[s]
                                             const isActive = item.status === s
-                                            const disabled = isPast || isUpdating
                                             return (
                                                 <button
                                                     key={s}
@@ -229,7 +308,7 @@ function SessionDetailView({
 // ─── Main component ───────────────────────────────────────────────
 
 export default function MonthlySession() {
-    const { household } = useHousehold()
+    const { household, members } = useHousehold()
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null)
@@ -239,8 +318,13 @@ export default function MonthlySession() {
 
     const today = new Date()
     const currentYear = today.getFullYear()
-    const currentMonthIdx = today.getMonth()  // 0-based
+    const currentMonthIdx = today.getMonth()
     const currMonthStart = monthStart(currentYear, currentMonthIdx)
+
+    // Total monthly household income
+    const totalIncome = members
+        .filter(m => m.contributes_income && m.income_amount)
+        .reduce((sum, m) => sum + toMonthly(m.income_amount!, m.income_cadence), 0)
 
     useEffect(() => {
         if (!household) return
@@ -311,25 +395,64 @@ export default function MonthlySession() {
     }
 
     // ── Month grid ────────────────────────────────────────────────
-    // Key: "YYYY-MM" → session summary
-    const sessionsByMonth = new Map(
-        sessions.map(s => [s.month.slice(0, 7), s])
-    )
+    const sessionsByMonth = new Map(sessions.map(s => [s.month.slice(0, 7), s]))
+    const currentSession = sessionsByMonth.get(currMonthStart.slice(0, 7))
+
+    const budgeted  = currentSession?.total_allocated ?? null
+    const paid      = currentSession?.total_paid ?? null
+    const remaining = budgeted !== null && paid !== null ? Math.max(budgeted - paid, 0) : null
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
+            {/* ── Status summary ─────────────────────────────────── */}
+            <div className="grid grid-cols-4 gap-3">
+                <StatCard
+                    label="Monthly Income"
+                    value={fmt(totalIncome)}
+                    colorClass="bg-sky-50"
+                    labelClass="text-sky-500"
+                    valueClass="text-sky-800"
+                />
+                <StatCard
+                    label="Budgeted"
+                    value={budgeted !== null ? fmt(budgeted) : '—'}
+                    sub={budgeted !== null && totalIncome > 0
+                        ? `${Math.round((budgeted / totalIncome) * 100)}% of income`
+                        : undefined}
+                    colorClass="bg-slate-50"
+                    labelClass="text-slate-400"
+                    valueClass="text-slate-700"
+                />
+                <StatCard
+                    label="Paid"
+                    value={paid !== null ? fmt(paid) : '—'}
+                    sub={paid !== null && budgeted ? `${Math.round((paid / budgeted) * 100)}% of budget` : undefined}
+                    colorClass="bg-emerald-50"
+                    labelClass="text-emerald-500"
+                    valueClass="text-emerald-700"
+                />
+                <StatCard
+                    label="Remaining"
+                    value={remaining !== null ? fmt(remaining) : '—'}
+                    sub={remaining !== null ? 'still to pay' : 'no session yet'}
+                    colorClass="bg-amber-50"
+                    labelClass="text-amber-500"
+                    valueClass="text-amber-700"
+                />
+            </div>
+
+            {/* ── Year label + grid ──────────────────────────────── */}
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{currentYear}</p>
 
             <div className="grid grid-cols-3 gap-3">
                 {MONTH_NAMES.map((name, idx) => {
                     const mStart = monthStart(currentYear, idx)
-                    const monthKey = mStart.slice(0, 7)  // "YYYY-MM"
+                    const monthKey = mStart.slice(0, 7)
                     const session = sessionsByMonth.get(monthKey)
                     const isFuture = mStart > currMonthStart
                     const isCurrent = mStart === currMonthStart
                     const isLoading = loadingSessionId === session?.id
 
-                    // Future months
                     if (isFuture) {
                         return (
                             <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50 p-4 opacity-40">
@@ -339,7 +462,6 @@ export default function MonthlySession() {
                         )
                     }
 
-                    // Past month, no session
                     if (!session && !isCurrent) {
                         return (
                             <div key={idx} className="rounded-2xl border border-slate-100 bg-white p-4">
@@ -349,7 +471,6 @@ export default function MonthlySession() {
                         )
                     }
 
-                    // Current month, no session
                     if (!session && isCurrent) {
                         return (
                             <div key={idx} className="rounded-2xl border-2 border-sky-200 bg-sky-50 p-4 flex flex-col gap-3">
@@ -361,14 +482,17 @@ export default function MonthlySession() {
                                     onClick={startSession}
                                     disabled={startingSession}
                                     className="text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white rounded-xl px-3 py-2 transition-colors disabled:opacity-60">
-                                    {startingSession ? 'Starting…' : 'Start this month\'s budget'}
+                                    {startingSession ? 'Starting…' : "Start this month's budget"}
                                 </button>
                             </div>
                         )
                     }
 
-                    // Has session (past or current)
+                    // Has session
                     const allocated = session!.total_allocated ?? 0
+                    const sessionPaid = session!.total_paid ?? 0
+                    const sessionPct = allocated > 0 ? Math.round((sessionPaid / allocated) * 100) : 0
+
                     return (
                         <button
                             key={idx}
@@ -379,18 +503,33 @@ export default function MonthlySession() {
                                     ? 'border-sky-200 bg-sky-50 hover:border-sky-300'
                                     : 'border-slate-200 bg-white hover:border-slate-300'
                             }`}>
-                            <p className={`text-sm font-bold ${isCurrent ? 'text-sky-700' : 'text-slate-700'}`}>
-                                {name}
-                            </p>
+                            <div className="flex items-start justify-between gap-2">
+                                <p className={`text-sm font-bold ${isCurrent ? 'text-sky-700' : 'text-slate-700'}`}>
+                                    {name}
+                                </p>
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                                    session!.status === 'closed'
+                                        ? 'bg-emerald-50 text-emerald-600'
+                                        : 'bg-amber-50 text-amber-600'
+                                }`}>
+                                    {session!.status}
+                                </span>
+                            </div>
                             {isCurrent && <p className="text-xs text-sky-400 mt-0.5">Current month</p>}
-                            <p className="text-xs text-slate-400 mt-2">{fmt(allocated)}</p>
-                            <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                session!.status === 'closed'
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : 'bg-amber-50 text-amber-600'
-                            }`}>
-                                {session!.status}
-                            </span>
+                            <p className={`text-sm font-bold mt-2 ${isCurrent ? 'text-sky-800' : 'text-slate-800'}`}>
+                                {fmtCompact(allocated)}
+                            </p>
+                            {allocated > 0 && (
+                                <div className="mt-2 space-y-1">
+                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-emerald-400 rounded-full transition-all"
+                                            style={{ width: `${sessionPct}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400">{sessionPct}% paid</p>
+                                </div>
+                            )}
                             {isLoading && (
                                 <div className="mt-2 w-3 h-3 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
                             )}
