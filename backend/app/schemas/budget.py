@@ -1,5 +1,5 @@
-from pydantic import BaseModel, model_validator
-from typing import Optional, List
+from pydantic import BaseModel, Field, model_validator
+from typing import Optional, List, Literal
 from uuid import UUID
 from datetime import date, datetime
 from decimal import Decimal
@@ -7,15 +7,15 @@ from decimal import Decimal
 
 # ─── Expense Tag ────────────────────────────────────────────────
 class ExpenseTagBase(BaseModel):
-    name: str
-    color: Optional[str] = None
+    name: str = Field(min_length=1, max_length=100)
+    color: Optional[str] = Field(default=None, max_length=20)
 
 class ExpenseTagCreate(ExpenseTagBase):
     pass
 
 class ExpenseTagUpdate(BaseModel):
-    name: Optional[str] = None
-    color: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=100)
+    color: Optional[str] = Field(default=None, max_length=20)
 
 class ExpenseTagResponse(ExpenseTagBase):
     id: UUID
@@ -32,11 +32,11 @@ class ExpenseGroupBase(BaseModel):
     owner_id: Optional[UUID] = None  # null = household group
 
 class ExpenseGroupCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=255)
     personal: bool = False  # True = owned by current_user; resolved to owner_id in the route
 
 class ExpenseGroupUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=255)
 
 class ExpenseGroupResponse(ExpenseGroupBase):
     id: UUID
@@ -54,10 +54,10 @@ class ExpenseCreate(BaseModel):
     personal: bool = False  # True = owned by current_user; resolved to owner_id in the route
     group_id: Optional[UUID] = None
     account_id: Optional[UUID] = None
-    name: str
-    amount: Decimal
-    frequency: str  # daily, weekly, monthly, annual
-    ownership_type: str = "joint"  # husband, wife, joint
+    name: str = Field(min_length=1, max_length=255)
+    amount: Decimal = Field(gt=0)
+    frequency: Literal["daily", "weekly", "monthly", "annual"]
+    ownership_type: Literal["husband", "wife", "joint"] = "joint"
     joint_split_husband: Optional[Decimal] = None  # e.g. 60.00
     joint_split_wife: Optional[Decimal] = None     # e.g. 40.00
     tag_ids: Optional[List[UUID]] = []
@@ -75,10 +75,10 @@ class ExpenseCreate(BaseModel):
 class ExpenseUpdate(BaseModel):
     group_id: Optional[UUID] = None
     account_id: Optional[UUID] = None
-    name: Optional[str] = None
-    amount: Optional[Decimal] = None
-    frequency: Optional[str] = None
-    ownership_type: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=255)
+    amount: Optional[Decimal] = Field(default=None, gt=0)
+    frequency: Optional[Literal["daily", "weekly", "monthly", "annual"]] = None
+    ownership_type: Optional[Literal["husband", "wife", "joint"]] = None
     joint_split_husband: Optional[Decimal] = None
     joint_split_wife: Optional[Decimal] = None
     tag_ids: Optional[List[UUID]] = None
@@ -115,12 +115,12 @@ class ExpenseResponse(BaseModel):
 # ─── Budget Template ─────────────────────────────────────────────
 class BudgetTemplateItemCreate(BaseModel):
     expense_id: UUID
-    allocated_amount: Decimal
-    notes: Optional[str] = None
+    allocated_amount: Decimal = Field(gt=0)
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
 class BudgetTemplateItemUpdate(BaseModel):
-    allocated_amount: Optional[Decimal] = None
-    notes: Optional[str] = None
+    allocated_amount: Optional[Decimal] = Field(default=None, gt=0)
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
 class BudgetTemplateItemResponse(BaseModel):
     id: UUID
@@ -135,13 +135,13 @@ class BudgetTemplateItemResponse(BaseModel):
         from_attributes = True
 
 class BudgetTemplateCreate(BaseModel):
-    name: str
-    net_monthly_income: Decimal
+    name: str = Field(min_length=1, max_length=255)
+    net_monthly_income: Decimal = Field(gt=0)
     items: Optional[List[BudgetTemplateItemCreate]] = []
 
 class BudgetTemplateUpdate(BaseModel):
-    name: Optional[str] = None
-    net_monthly_income: Optional[Decimal] = None
+    name: Optional[str] = Field(default=None, max_length=255)
+    net_monthly_income: Optional[Decimal] = Field(default=None, gt=0)
     is_active: Optional[bool] = None
 
 class BudgetTemplateResponse(BaseModel):
@@ -186,13 +186,13 @@ class BudgetSessionUpdate(BaseModel):
     status: Optional[str] = None  # draft, active, closed
 
 class BudgetSessionItemUpdate(BaseModel):
-    status: str              # todo, paid, reserved, na
-    notes: Optional[str] = None
-    reference_number: Optional[str] = None
+    status: Literal["todo", "paid", "reserved", "na"]
+    notes: Optional[str] = Field(default=None, max_length=1000)
+    reference_number: Optional[str] = Field(default=None, max_length=100)
 
 class AdHocSessionItemCreate(BaseModel):
-    name: str
-    amount: Decimal          # stored directly as allocated_amount
+    name: str = Field(min_length=1, max_length=255)
+    amount: Decimal = Field(gt=0)          # stored directly as allocated_amount
 
 class BudgetSessionItemResponse(BaseModel):
     id: UUID

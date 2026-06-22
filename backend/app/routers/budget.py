@@ -7,7 +7,7 @@ from uuid import UUID
 from decimal import Decimal
 
 from app.core.database import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
 from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
@@ -24,7 +24,11 @@ from app.schemas.budget import (
     BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate
 )
 
-router = APIRouter(prefix="/households/{household_id}/budget", tags=["Budget"])
+router = APIRouter(
+    prefix="/households/{household_id}/budget",
+    tags=["Budget"],
+    dependencies=[Depends(require_household_member)],
+)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────

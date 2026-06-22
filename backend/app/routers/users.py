@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.auth import get_current_user
 from app.models.user import User
 from app.schemas.user import UserResponse, UserCreate
 from supabase import create_client
@@ -20,7 +21,7 @@ def get_supabase():
 
 
 @router.get("/", response_model=list[UserResponse])
-async def list_users(db: AsyncSession = Depends(get_db)):
+async def list_users(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(User).order_by(User.email))
     return result.scalars().all()
 
@@ -45,8 +46,8 @@ async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
                 "user_metadata": {"name": payload.name or payload.email.split("@")[0]}
             }
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Registration failed")
 
     auth_user = auth_response.user
     if not auth_user:
