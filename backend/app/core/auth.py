@@ -1,4 +1,5 @@
 import asyncio
+from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt as pyjwt
@@ -26,16 +27,16 @@ async def get_current_user(
         payload = pyjwt.decode(
             token,
             signing_key.key,
-            algorithms=["ES256", "RS256", "HS256"],
+            algorithms=["ES256"],
             options={"verify_aud": False},
-            leeway=10
+            leeway=5
         )
         user_id: str = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    except pyjwt.PyJWTError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}")
-    except Exception as e:
+    except pyjwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -45,3 +46,33 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     return user
+
+
+async def require_household_member(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    from app.models.household import Household, HouseholdMember
+
+    member_result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == current_user.id,
+            HouseholdMember.is_active == True,
+        )
+    )
+    if member_result.scalar_one_or_none():
+        return current_user
+
+    # Allow access if the user created the household (before being added as a member)
+    household_result = await db.execute(
+        select(Household).where(
+            Household.id == household_id,
+            Household.created_by == current_user.id,
+        )
+    )
+    if household_result.scalar_one_or_none():
+        return current_user
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")

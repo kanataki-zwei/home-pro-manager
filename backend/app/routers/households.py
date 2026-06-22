@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from app.core.database import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
 from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction
 from app.schemas.household import (
@@ -75,7 +75,7 @@ async def create_household(
 
 
 @router.get("/{household_id}", response_model=HouseholdResponse)
-async def get_household(household_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_household(household_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
@@ -88,7 +88,7 @@ async def get_household(household_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{household_id}", response_model=HouseholdResponse)
-async def update_household(household_id: UUID, payload: HouseholdCreate, db: AsyncSession = Depends(get_db)):
+async def update_household(household_id: UUID, payload: HouseholdCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
@@ -110,7 +110,7 @@ async def update_household(household_id: UUID, payload: HouseholdCreate, db: Asy
 # ─── Member Types ───────────────────────────────────────────────
 
 @router.get("/{household_id}/member-types", response_model=list[MemberTypeResponse])
-async def get_member_types(household_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_member_types(household_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(MemberType).where(MemberType.household_id == household_id)
     )
@@ -118,7 +118,7 @@ async def get_member_types(household_id: UUID, db: AsyncSession = Depends(get_db
 
 
 @router.post("/{household_id}/member-types", response_model=MemberTypeResponse, status_code=status.HTTP_201_CREATED)
-async def create_member_type(household_id: UUID, payload: MemberTypeCreate, db: AsyncSession = Depends(get_db)):
+async def create_member_type(household_id: UUID, payload: MemberTypeCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     member_type = MemberType(household_id=household_id, name=payload.name)
     db.add(member_type)
     await db.flush()
@@ -127,7 +127,7 @@ async def create_member_type(household_id: UUID, payload: MemberTypeCreate, db: 
 
 
 @router.delete("/{household_id}/member-types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_member_type(household_id: UUID, type_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_member_type(household_id: UUID, type_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(MemberType).where(MemberType.id == type_id, MemberType.household_id == household_id)
     )
@@ -140,7 +140,7 @@ async def delete_member_type(household_id: UUID, type_id: UUID, db: AsyncSession
 # ─── Household Members ──────────────────────────────────────────
 
 @router.get("/{household_id}/members", response_model=list[HouseholdMemberResponse])
-async def get_members(household_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_members(household_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(HouseholdMember)
         .options(selectinload(HouseholdMember.member_type))
@@ -153,7 +153,7 @@ async def get_members(household_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{household_id}/members", response_model=HouseholdMemberResponse, status_code=status.HTTP_201_CREATED)
-async def create_member(household_id: UUID, payload: HouseholdMemberCreate, db: AsyncSession = Depends(get_db)):
+async def create_member(household_id: UUID, payload: HouseholdMemberCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     member = HouseholdMember(household_id=household_id, **payload.model_dump())
     db.add(member)
     await db.flush()
@@ -166,7 +166,7 @@ async def create_member(household_id: UUID, payload: HouseholdMemberCreate, db: 
 
 
 @router.patch("/{household_id}/members/{member_id}", response_model=HouseholdMemberResponse)
-async def update_member(household_id: UUID, member_id: UUID, payload: HouseholdMemberUpdate, db: AsyncSession = Depends(get_db)):
+async def update_member(household_id: UUID, member_id: UUID, payload: HouseholdMemberUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(HouseholdMember).where(
             HouseholdMember.id == member_id,
@@ -190,7 +190,7 @@ async def update_member(household_id: UUID, member_id: UUID, payload: HouseholdM
 
 
 @router.delete("/{household_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_member(household_id: UUID, member_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_member(household_id: UUID, member_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(HouseholdMember).where(
             HouseholdMember.id == member_id,
@@ -206,7 +206,7 @@ async def delete_member(household_id: UUID, member_id: UUID, db: AsyncSession = 
 # ─── Accounts ───────────────────────────────────────────────────
 
 @router.get("/{household_id}/accounts", response_model=list[AccountResponse])
-async def get_accounts(household_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_accounts(household_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Account).where(
             Account.household_id == household_id,
@@ -217,7 +217,7 @@ async def get_accounts(household_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{household_id}/accounts", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
-async def create_account(household_id: UUID, payload: AccountCreate, db: AsyncSession = Depends(get_db)):
+async def create_account(household_id: UUID, payload: AccountCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     account = Account(household_id=household_id, **payload.model_dump())
     db.add(account)
     await db.flush()
@@ -226,7 +226,7 @@ async def create_account(household_id: UUID, payload: AccountCreate, db: AsyncSe
 
 
 @router.patch("/{household_id}/accounts/{account_id}", response_model=AccountResponse)
-async def update_account(household_id: UUID, account_id: UUID, payload: AccountUpdate, db: AsyncSession = Depends(get_db)):
+async def update_account(household_id: UUID, account_id: UUID, payload: AccountUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Account).where(
             Account.id == account_id,
@@ -246,7 +246,7 @@ async def update_account(household_id: UUID, account_id: UUID, payload: AccountU
 
 
 @router.delete("/{household_id}/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_account(household_id: UUID, account_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_account(household_id: UUID, account_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Account).where(
             Account.id == account_id,
@@ -265,7 +265,7 @@ async def delete_account(household_id: UUID, account_id: UUID, db: AsyncSession 
 async def get_all_household_transactions(
     household_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_household_member)
 ):
     result = await db.execute(
         select(AccountTransaction)
@@ -280,7 +280,7 @@ async def get_account_transactions(
     household_id: UUID,
     account_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_household_member)
 ):
     result = await db.execute(
         select(AccountTransaction)
@@ -300,7 +300,7 @@ async def create_account_transaction(
     account_id: UUID,
     payload: AccountTransactionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_household_member)
 ):
     result = await db.execute(
         select(Account).where(Account.id == account_id, Account.household_id == household_id)
@@ -308,9 +308,6 @@ async def create_account_transaction(
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-
-    if payload.transaction_type not in ('credit', 'debit'):
-        raise HTTPException(status_code=422, detail="transaction_type must be 'credit' or 'debit'")
 
     txn = AccountTransaction(
         account_id=account_id,
