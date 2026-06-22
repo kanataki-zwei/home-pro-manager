@@ -679,6 +679,64 @@ export default function HouseholdPage() {
                     </button>
                 </div>
 
+                {accounts.length > 0 && (() => {
+                    const TYPE_COLORS  = ['bg-sky-400','bg-emerald-400','bg-amber-400','bg-rose-400','bg-slate-400']
+                    const INST_COLORS  = ['bg-sky-500','bg-teal-400','bg-blue-400','bg-purple-400','bg-orange-400','bg-indigo-400','bg-pink-400']
+                    const ownershipItems = [
+                        { label: 'Joint',      color: 'bg-sky-400',    count: accounts.filter(a => a.ownership === 'joint').length },
+                        { label: 'Individual', color: 'bg-violet-400', count: accounts.filter(a => a.ownership === 'individual').length },
+                    ].filter(g => g.count > 0)
+                    const typeItems = ACCOUNT_TYPES.map((t, i) => ({
+                        label: t.label, color: TYPE_COLORS[i] ?? 'bg-slate-300',
+                        count: accounts.filter(a => a.account_type === t.value).length,
+                    })).filter(g => g.count > 0)
+                    const instItems = [
+                        ...INSTITUTION_TYPES.map((t, i) => ({
+                            label: t.label, color: INST_COLORS[i] ?? 'bg-slate-300',
+                            count: accounts.filter(a => a.institution_type === t.value).length,
+                        })).filter(g => g.count > 0),
+                        ...(accounts.filter(a => !a.institution_type).length > 0
+                            ? [{ label: 'Untagged', color: 'bg-slate-200', count: accounts.filter(a => !a.institution_type).length }]
+                            : []),
+                    ]
+                    const Bar = ({ items }: { items: { label: string; count: number; color: string }[] }) => {
+                        const t = items.reduce((s, g) => s + g.count, 0)
+                        return (
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px mb-3">
+                                {items.map(g => <div key={g.label} className={g.color} style={{ width: `${(g.count / t) * 100}%` }} />)}
+                            </div>
+                        )
+                    }
+                    const Legend = ({ items }: { items: { label: string; count: number; color: string }[] }) => (
+                        <div className="space-y-1.5">
+                            {items.map(g => (
+                                <div key={g.label} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${g.color}`} />
+                                        <span className="text-xs text-slate-500">{g.label}</span>
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-800">{g.count}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )
+                    return (
+                        <div className="grid grid-cols-3 gap-3 mb-5">
+                            {[
+                                { title: 'By Ownership',    items: ownershipItems },
+                                { title: 'By Type',         items: typeItems },
+                                { title: 'By Institution',  items: instItems },
+                            ].map(({ title, items }) => (
+                                <div key={title} className="bg-white rounded-2xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">{title}</p>
+                                    <Bar items={items} />
+                                    <Legend items={items} />
+                                </div>
+                            ))}
+                        </div>
+                    )
+                })()}
+
                 {accounts.length === 0 ? (
                     <div onClick={() => setAccountDialog(true)}
                         className="flex flex-col items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-sky-300 hover:bg-sky-50 transition-all">
