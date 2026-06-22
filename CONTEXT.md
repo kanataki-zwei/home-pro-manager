@@ -17,7 +17,6 @@ dependants). Zero-based budgeting model. Currency: **KES** (Kenyan Shilling).
 | Frontend | Next.js 14 App Router, TypeScript |
 | UI | shadcn/ui, Tailwind CSS, Lucide icons |
 | Toasts | Sonner |
-| Forms | react-hook-form + zod |
 | DB client (frontend) | @supabase/ssr (browser client singleton) |
 
 ---
@@ -29,221 +28,190 @@ dependants). Zero-based budgeting model. Currency: **KES** (Kenyan Shilling).
 - The frontend logs in via `supabase.auth.signInWithPassword()` (browser client).
 - Every API call includes the Supabase JWT as a `Bearer` token.
 - The backend verifies the JWT using `PyJWKClient` against the Supabase JWKS endpoint
-  (`{SUPABASE_URL}/auth/v1/.well-known/jwks.json`).
+  (`{SUPABASE_URL}/auth/v1/.well-known/jwks.json`). New Supabase projects use **ES256** (asymmetric), not HS256.
 - **Signup goes through the backend** (`POST /api/users/`), not directly to Supabase.
-  This ensures a corresponding record exists in the `users` table before the user
-  ever tries to call an authenticated endpoint.
-
-### Why signup through backend?
-Supabase Auth and the app's `users` table are separate. If a user is created directly
-in Supabase Auth (e.g., via the dashboard or `supabase.auth.signUp()`), no trigger
-exists to create a `users` row. `get_current_user` queries the `users` table and
-returns 401 "User not found" if the row is missing. The backend signup handler
-creates the Auth user first, then inserts the `users` row atomically.
+  This ensures a `users` row exists before any authenticated endpoint is hit.
 
 ### Why transaction pooler, not direct connection?
-New Supabase projects may only expose a direct connection over IPv6
-(`db.<ref>.supabase.co`). The transaction pooler (`aws-0-eu-west-1.pooler.supabase.com`,
-port 6543) is always IPv4-reachable. The tradeoff: transaction pooler does not support
-prepared statements, so `prepared_statement_cache_size=0` is set on the asyncpg engine
-and `pool_pre_ping` is NOT used (its internal ping also uses a prepared statement that
-fails with PgBouncer transaction mode, causing `InvalidSQLStatementNameError` which
-propagates as a CORS error in the browser).
+New Supabase projects may only expose a direct connection over IPv6. The transaction pooler
+(`aws-0-eu-west-1.pooler.supabase.com`, port 6543) is always IPv4-reachable. Tradeoffs:
+- `prepared_statement_cache_size=0` required on the asyncpg engine
+- `pool_pre_ping=True` must NOT be set (its ping uses a prepared statement that fails with PgBouncer transaction mode, causing `InvalidSQLStatementNameError` surfacing as a CORS error)
+- Must pair `prepared_statement_cache_size=0` with `prepared_statement_name_func: lambda: ""` to use unnamed prepared statements
 
 ### Why asyncio.to_thread / run_in_executor?
-Both the Supabase Python client and PyJWKClient use synchronous HTTP (urllib / requests).
-Calling them inside an `async def` handler blocks the event loop. On cold start this
-takes long enough that the browser times out before CORS headers arrive — Chrome
-misreports this as a CORS policy error. The fix is to run all blocking calls in a
+Both the Supabase Python client and PyJWKClient use synchronous HTTP. Calling them inside
+`async def` handlers blocks the event loop long enough that the browser times out before
+CORS headers arrive — Chrome misreports this as a CORS error. All blocking calls run in a
 thread pool. A lifespan startup hook pre-warms both clients at server boot.
 
 ---
 
 ## Database Schema
 
-### Migration chain
+### Migration chain (current HEAD: `f6c7d8e9a0b1`)
 ```
-b1c2d3e4f5a6_initial_schema            (root)
-        ↓
-a0857efd3031_add_budget_module
-        ↓
-c3f9e2b1a7d4_add_created_by_to_households
-        ↓
-d6e7f8a9b0c1_add_income_to_household_members
-        ↓
-e4a5b6c7d8e9_refactor_sessions_standalone
-        ↓
-f5b6c7d8e9f0_add_adhoc_session_items        ← current HEAD
+b1c2d3e4f5a6  initial_schema
+      ↓
+a0857efd3031  add_budget_module
+      ↓
+c3f9e2b1a7d4  add_created_by_to_households
+      ↓
+d6e7f8a9b0c1  add_income_to_household_members
+      ↓
+e4a5b6c7d8e9  refactor_sessions_standalone
+      ↓
+f5b6c7d8e9f0  add_adhoc_session_items
+      ↓
+b3c4d5e6f7a8  expand_account_types
+      ↓
+c4d5e6f7a8b9  add_institution_type_revert_account_type
+      ↓
+d5e6f7a8b9c0  add_mobile_money_institution_type
+      ↓
+e6f7a8b9c0d1  add_direct_pay_institution_type
+      ↓
+f6c7d8e9a0b1  add_account_transactions           ← HEAD
 ```
 
-### Tables (initial schema)
+When adding a new migration set `down_revision = 'f6c7d8e9a0b1'`.
+
+### Tables
+
+**Core**
 - `users` — app user records, linked to Supabase Auth by UUID primary key
-- `households` — a household entity
+- `households` — a household entity (`created_by` = auth user UUID)
 - `member_types` — e.g., Husband, Wife, Child (per household)
-- `household_members` — members of a household, optionally linked to a `users` row
-- `accounts` — financial accounts (checking, savings, cash, investment, credit)
+- `household_members` — members of a household, optionally linked to a `users` row;
+  carry income fields: `contributes_income`, `income_amount`, `income_currency`, `income_cadence`
+- `accounts` — financial accounts with:
+  - `account_type`: `checking | savings | cash | investment | credit`
+  - `institution_type` (nullable): `bank | money_market | mobile_money | direct_pay | insurance | govt_securities | stocks_shares`
+  - `ownership`: `joint | individual`
+  - `contributes_to_net_worth` (bool, default `true`) — whether balance counts toward household net worth
+  - `current_balance` — updated in real-time by account transactions
+- `account_transactions` — ledger of deposits and withdrawals per account:
+  - `transaction_type`: `credit | debit`
+  - `narration` — description of the entry
+  - `session_item_id` (nullable) — set when auto-created from a budget session item being marked paid
+  - Auto-created on paid, auto-reversed when un-paid (if linked to a net-worth account)
 
-### Tables (budget module)
-- `budget_templates` — reusable budget plans (skipped in UI for now)
+**Budget**
+- `budget_templates` — reusable budget plans (schema exists, UI skipped)
 - `budget_template_items` — line items within a template
-- `budget_sessions` — a monthly budget run (draft → active → closed)
-- `budget_session_items` — actual spending tracked against a session
-- `expense_groups` — grouping of expenses (e.g., Housing, Transport)
-- `expenses` — individual recurring expense definitions
+- `budget_sessions` — a monthly budget run (`draft → active → closed`); standalone (no template required)
+- `budget_session_items` — spending tracked against a session; status: `todo | paid | reserved | na`
+  - `expense_id` nullable (NULL = ad-hoc item)
+  - `ad_hoc_name`, `ad_hoc_amount` — set only for one-time session expenses
+  - `notes` — required when status = `na`
+  - `reference_number` — required for rent items and Education group items when marked paid
+  - `paid_date`
+- `expense_groups` — grouping of expenses (household or personal via `owner_id`)
+- `expenses` — individual recurring expense definitions; carry `account_id` FK (source account)
 - `expense_tags` — optional tags for expenses
 - `expense_tag_assignments` — many-to-many: expenses ↔ tags
 
-### Ownership model
-Expenses carry an `ownership_type`: `husband`, `wife`, or `joint`. Joint expenses
-split by configurable percentages (`joint_split_husband`, `joint_split_wife`).
-`owner_id = null` means household expense; `owner_id = user_id` means personal expense.
+### Ownership / expense attribution model
+Expenses carry `ownership_type`: `husband`, `wife`, or `joint`. Joint expenses split by
+configurable percentages (`joint_split_husband`, `joint_split_wife`). `owner_id = null`
+means household expense; `owner_id = user_id` means personal expense.
 
-The member role is derived via `member_type.name.toLowerCase()` which equals
+The member role is derived via `member_type.name.toLowerCase()` which must equal
 `ownership_type` for household expense attribution. This mapping is load-bearing
-throughout the budget tracker and reports.
+throughout the budget tracker.
 
-### Income model (added d6e7f8a9b0c1)
-`household_members` gained: `contributes_income`, `income_amount`, `income_currency`,
-`income_cadence` (weekly / monthly / annually). Monthly normalisation:
-weekly × 52 / 12, annually ÷ 12.
-
-### Sessions refactor (e4a5b6c7d8e9)
-`budget_sessions.budget_template_id` made nullable (sessions are standalone,
-populated directly from the expense library). `budget_session_items.status` check
-constraint changed from `pending/partial/paid/reserved/skipped` to `todo/paid/reserved/na`.
-
----
-
-## Supabase Project Migration (completed 2026-06-08)
-
-**Reason:** Old Supabase project had an unresolvable issue; migrated to a new project.
-
-**What changed:**
-- New Supabase project ref: `foikjbsfnzqvyrrcegol`
-- Region: `eu-west-1`
-- All env vars updated (DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_JWT_SECRET,
-  NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)
-- New project uses **ES256** JWT algorithm (asymmetric ECDSA), not HS256.
-  Auth.py was rewritten to use PyJWKClient instead of base64-decoded secret.
-- Alembic initial schema migration created from scratch (old project had tables created
-  directly in Supabase, not via Alembic). New project is fully Alembic-managed.
-- Budget migration `down_revision` updated from `None` to `b1c2d3e4f5a6`.
-- Two `drop_constraint` lines removed from budget migration downgrade — those FKs
-  referenced `auth.users` which no longer exists in the new schema.
+### Income normalisation
+`income_cadence` values and monthly conversion: weekly × 52 / 12, annually ÷ 12.
 
 ---
 
 ## Known Constraints
 
-- **No Alembic autogenerate against live DB for downgrade.** The budget migration's
-  downgrade function has manually trimmed `drop_constraint` calls. If generating new
-  migrations, review the downgrade section carefully.
-- **Password rotation needed.** The current test DATABASE_URL password is a placeholder
-  that must be rotated before any production deployment.
-- **Single household per user (current).** The schema supports multiple households
-  but the UI and some queries assume one active household per user.
-- **No email verification flow.** Signup uses `email_confirm: True` on the Supabase
-  admin create call — users are immediately confirmed. A proper email verification
-  flow should be added before production.
+- **No Alembic autogenerate against live DB for downgrade.** Review downgrade sections manually.
+- **Single household per user (current).** Schema supports multiple, but UI and queries assume one active household per user.
+- **No email verification flow.** Signup uses `email_confirm: True` — users are immediately confirmed. Add proper verification before production.
+- **Password rotation needed.** Current DATABASE_URL password is a placeholder for production.
+- **Decimal coercion.** The backend sends `Numeric` fields as strings (Pydantic serialises `Decimal`). Frontend must always wrap with `Number()` before arithmetic or formatting: `Number(e.monthly_amount)`.
 
 ---
 
-## UI Features Built
+## Pages & Features
 
-### Household page (`/household`)
-- Member cards with member type badges and income display.
-- "You" badge on the card of the member linked to the logged-in user (`user_id === currentUserId`).
-- Add/Edit member dialogs prefill name from the selected system user.
-- "Create new system user" dialog prefills the name already typed in the member form.
-- Household income section: per-member income rows showing amount + member type + cadence,
-  plus an SVG donut chart (pure stroke-dasharray technique, no library) showing income share.
-
-### Budget page (`/budget`) — tabs:
-
-**Expense Library tab**
-- Expense groups (household or personal) + per-group expense list.
-- Add/edit/delete expenses with: name, amount, frequency, ownership_type, joint splits,
-  group, tags, account.
-- Budget tracker (household tab): per-member income → allocated breakdown in three
-  buckets per member: `HH · [Type]`, `HH · Joint share`, `Personal`.
-- Budget tracker (personal tab): same three-bucket calculation for the logged-in user only.
-- Remaining income clamped to zero minimum. "Zero budgeted" emerald badge when remaining = 0
-  (this is the goal, not a warning).
-
-**Reports tab**
-- Scope toggle: All Household / Me.
-- Summary cards: monthly total, expense count, active group count.
-- Donut chart (recharts PieChart) — expense breakdown by group.
-- Horizontal bar chart (recharts BarChart) — per-member allocated expenses (All scope only).
-- Detailed group list with proportional bars and per-expense ownership badges.
-- Joint expense in "Me" scope shows the user's percentage share.
-
-**Monthly Sessions tab** ← COMPLETE
-
-**Budget Templates tab** — placeholder, skipped for now.
+### Sidebar navigation
+`/dashboard` · `/household` · `/budget` · `/networth` · `/settings`
 
 ---
 
-## Monthly Sessions — Complete
-
-**Spec implemented:**
-- 12 month tiles (3-col grid) for the current calendar year.
-- Future months: greyed out, not clickable.
-- Past month with no session: shows "No budget" on tile, not clickable.
-- Past month with session: clickable, opens read-only detail view.
-- Current month without session: "Start this month's budget" button → `POST /sessions`.
-- Current month with session: clickable, opens editable detail view.
-- Session detail: items grouped by expense group, status pill buttons (To Do / Paid / Reserved / N/A).
-- Status change calls `PATCH /sessions/{id}/items/{item_id}`.
-- Past sessions render pills as disabled (read-only).
-- `POST /sessions` filters expenses by user role: personal (`owner_id == user`) + HH owned (`ownership_type == role`) + joint.
-- Session name auto-generated server-side (e.g. "June 2026").
-- `total_paid` in summary and detail computed from items with `status == 'paid'` × `allocated_amount`.
-- 4-card status bar above grid: Monthly Income / Budgeted / Paid / Remaining.
-- Number formatting: `en-US` locale, compact format on tiles (KES 150K), full format in detail.
-- Decimal API values coerced to `Number()` before formatting (Pydantic sends Decimal as string).
+### Dashboard (`/dashboard`)
+- Hero dark card: Total Balance (sum of net-worth accounts, respects All/Mine toggle) + Monthly Income (expandable to show contributors with name, member type, amount)
+- 4 stat cards: **Members** (expandable to show name + member type), **Months Tracked**, **Budgeted / mo**, **Amount Not Budgeted**
+- 2-col: Income Breakdown (stacked bar + contributor rows) | Expenses by Tag (stacked bar + tag rows)
+- Budget vs Income allocation progress bar
+- Accounts list with **All / Mine** toggle (Mine = individual accounts owned by current user + all joint accounts)
+- Total Balance and account count only include `contributes_to_net_worth` accounts
 
 ---
 
-## N/A Notes + Ad-hoc Session Items — COMPLETE
+### Household (`/household`)
 
-- Migration `f5b6c7d8e9f0` run: `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount` columns added, check constraint in place.
-- `models/budget.py` — `BudgetSessionItem` has `expense_id` nullable, `ad_hoc_name`, `ad_hoc_amount`, `notes`.
-- `schemas/budget.py` — `BudgetSessionItemUpdate` has `notes`; `BudgetSessionItemResponse` has `expense_id`/`expense` Optional, `notes`, `ad_hoc_name`, `ad_hoc_amount`; `AdHocSessionItemCreate` schema added.
-- `routers/budget.py` — `update_session_item` requires notes on N/A and clears notes on status change away from N/A; `POST /sessions/{id}/items` creates ad-hoc items; `DELETE /sessions/{id}/items/{item_id}` deletes ad-hoc items only.
-- `MonthlySession.tsx` — N/A inline note flow, ad-hoc items section, add/delete one-time expenses.
+**Members section**
+- Member cards with member type badge, "You" badge on the logged-in user's card
+- Income toggle per member: amount, currency, cadence
+- SVG donut chart showing income share (pure stroke-dasharray, no library)
+- Add/Edit member dialogs prefill name from selected system user
+
+**Accounts section**
+- **All / Mine** toggle
+- Visual breakdowns: by ownership, by account type, by institution type (donut charts)
+- Each account card shows:
+  - Green **Net Worth** shield badge if `contributes_to_net_worth = true`
+  - **+** button → "Add Entry" dialog (Deposit / Withdrawal + amount + narration)
+  - **History** icon → expandable transaction log inline on the card (lazy-loaded)
+  - Edit / Delete buttons (hover)
+- Add Account / Edit Account dialogs include:
+  - Account type, institution type, currency, ownership, member owner
+  - **Contributes to Net Worth** toggle (styled pill, defaults on)
+  - Dialogs are scrollable (`max-h-[90vh] overflow-y-auto`) so the footer Save button is always visible
 
 ---
 
-## Payment Reference Numbers — COMPLETE
+### Budget (`/budget`)
 
-Rent expenses (name contains "rent", case-insensitive) and any expense in the **Education** group require a reference number when marked Paid.
+#### Expense Library tab
+- Tab-agnostic visuals (always visible, above tab toggle):
+  - **Income Tracker**: household income vs total budgeted
+  - **Expenses by Tag**: breakdown of all non-deleted expenses
+- Expense groups with header showing: expense count · KES total/mo · % of total budgeted
+- Per-expense rows show source account badge when set
+- Tag filter bar + group/expense list
+- Tags manager: edit (name + colour) and delete tags inline
 
-- `reference_number VARCHAR(255)` column already existed on `budget_session_items` (added in `a0857efd3031`). No new migration needed.
-- `schemas/budget.py` — `BudgetSessionItemUpdate` and `BudgetSessionItemResponse` now include `reference_number: Optional[str]`.
-- `routers/budget.py` — `update_session_item` clears `reference_number` when status moves away from `paid`.
-- `MonthlySession.tsx` — `requiresRef(item)` checks name/group; clicking Paid on a matching item opens an inline ref input (required) instead of immediately patching. The saved ref displays as a green `Ref: …` callout on the item row.
+#### Monthly Sessions tab
+- 12 month tiles (3-col grid) for the current calendar year
+- Session detail: items grouped by expense group, status pills (To Do / Paid / Reserved / N/A)
+- N/A requires a note; reference number required for rent + Education group items on Paid
+- Ad-hoc (one-time) items draw from freed-up N/A budget pool
+- Status distribution bar: stacked (Paid / Reserved / To Do / N/A) + 4-col breakdown
+- **Auto-credit**: when an item is marked Paid and its linked expense has a source account
+  with `contributes_to_net_worth = true`, an `AccountTransaction` (credit) is auto-created
+  and the account balance is incremented. Reversed automatically when un-paying.
+
+#### Reports tab
+- Scope toggle: All Household / Me
+- Donut chart (recharts) — breakdown by group
+- Horizontal bar chart (recharts) — per-member allocated expenses
+- Detailed group list with proportional bars and ownership badges
 
 ---
 
-## Freed-Up Budget for Ad-hoc Items — COMPLETE
-
-### Concept
-When a library expense is marked N/A, its `allocated_amount` becomes "freed up budget".
-Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed total freed-up budget.
-
-- **Freed up** = sum of `allocated_amount` of library items (`expense_id IS NOT NULL`) with `status = 'na'`
-- **Ad-hoc used** = sum of `allocated_amount` of ad-hoc items (`expense_id IS NULL`)
-- **Available** = freed up − ad-hoc used
-
-### What's implemented
-- `routers/budget.py` → `add_adhoc_session_item`: validates that `payload.amount` does not exceed available freed budget; raises HTTP 400 if exceeded.
-- `MonthlySession.tsx` → `SessionDetailView`:
-  - `freedUp`, `adHocUsed`, `adHocAvailable` computed from session items.
-  - **Freed Up (N/A)** and **Available for Ad-hoc** stat cards appear below the main three summary cards whenever `freedUp > 0`.
-  - N/A items remain in their expense group with muted name text and a left-bordered note callout; excluded from `totalAllocated` and the progress bar.
-  - One-time expenses section header shows available/freed amounts when `freedUp > 0`; add form disables inputs and the Add button when no freed budget remains or entered amount exceeds available.
-  - Status distribution replaces the old progress bar: stacked bar (Paid / Reserved / To Do / N/A) + 4-column breakdown with item count and compact amount per status.
+### Net Worth (`/networth`)
+- Hero card: Total Net Worth + Total Deposits + Total Withdrawals, proportional stacked bar
+- 2-col: **Net Worth Accounts** (balance + % of total per account) | **Excluded Accounts** (not counted)
+- **Transaction Log**: all account transactions across the household
+  - Filter by source: All Sources / Manual / Session
+  - Filter by type: All / Deposits / Withdrawals
+  - Each row: date/time · narration · account name · source badge · signed amount
+  - Footer: transaction count + running deposit/withdrawal totals for active filter
 
 ---
 
@@ -258,11 +226,22 @@ Ad-hoc (one-time) expenses draw from this pool. Total ad-hoc cost cannot exceed 
 | 2026-06-08 | DB | Migrated to new Supabase project; full Alembic chain established |
 | 2026-06-08 | DB | Transaction pooler (port 6543) + `prepared_statement_cache_size=0` |
 | 2026-06-08 | Alembic | Fixed env.py to bypass configparser `%` interpolation on passwords |
-| 2026-06-21 | Household | "You" badge, member name prefill from system user, income donut chart |
-| 2026-06-21 | Budget | Per-member expense attribution with 3-bucket model (HH owned/joint/personal) |
+| 2026-06-21 | Household | "You" badge, member name prefill, income donut chart |
+| 2026-06-21 | Budget | Per-member expense attribution with 3-bucket model |
 | 2026-06-21 | Budget | Zero-budgeted callout; remaining clamped to 0 minimum |
-| 2026-06-21 | Budget | Reports tab: recharts donut + horizontal bar charts, scope toggle (All/Me) |
-| 2026-06-22 | Budget | Monthly Sessions: full implementation (migration, schema, router, UI) |
-| 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0, backend endpoints, frontend UI) |
-| 2026-06-22 | Budget | Freed-up budget pool: backend validation, stat cards, N/A callout, status distribution bar |
-| 2026-06-22 | Budget | Payment ref number required for rent + Education group items on Paid status |
+| 2026-06-21 | Budget | Reports tab: recharts donut + bar charts, scope toggle |
+| 2026-06-22 | Budget | Monthly Sessions: full implementation |
+| 2026-06-22 | Budget | N/A notes + ad-hoc session items (migration f5b6c7d8e9f0) |
+| 2026-06-22 | Budget | Freed-up budget pool: backend validation, stat cards, status distribution bar |
+| 2026-06-22 | Budget | Payment ref required for rent + Education group items |
+| 2026-06-22 | Accounts | `institution_type` supplementary field (migrations c4d5e6f7a8b9 → e6f7a8b9c0d1) |
+| 2026-06-22 | Accounts | Visual breakdowns by ownership / type / institution on household page |
+| 2026-06-22 | Accounts | All / Mine toggle on household and dashboard account sections |
+| 2026-06-22 | Budget | Tab-agnostic income tracker + tag breakdown above tab toggle |
+| 2026-06-22 | Budget | Group header shows total amount + % of total budgeted |
+| 2026-06-22 | Budget | Tag edit + delete in tags manager; source account label on expense rows |
+| 2026-06-22 | Dashboard | Overhaul: income breakdown, tag breakdown, expandable Members + Monthly Income cards |
+| 2026-06-22 | Accounts | `contributes_to_net_worth` flag + `account_transactions` table (migration f6c7d8e9a0b1) |
+| 2026-06-22 | Accounts | Manual deposit/withdrawal entries with narration; inline transaction history on card |
+| 2026-06-22 | Budget | Auto-credit account balance on session item paid; reversed on un-pay |
+| 2026-06-22 | Net Worth | New `/networth` page: net worth breakdown + full transaction log with filters |
