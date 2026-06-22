@@ -36,6 +36,7 @@ interface SessionItem {
     expense_id: string | null
     expense: Expense | null
     notes: string | null
+    reference_number: string | null
     ad_hoc_name: string | null
     ad_hoc_amount: number | string | null
     allocated_amount: number
@@ -143,6 +144,7 @@ function SessionDetailView({
     const [items, setItems] = useState<SessionItem[]>(session.items)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [pendingNa, setPendingNa] = useState<{ itemId: string; note: string } | null>(null)
+    const [pendingPaidRef, setPendingPaidRef] = useState<{ itemId: string; ref: string } | null>(null)
     const [showAdHocForm, setShowAdHocForm] = useState(false)
     const [adHocName, setAdHocName] = useState('')
     const [adHocAmount, setAdHocAmount] = useState('')
@@ -151,6 +153,13 @@ function SessionDetailView({
 
     const isPast = session.month.slice(0, 10) < currentMonthStart
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
+
+    function requiresRef(item: SessionItem): boolean {
+        if (!item.expense_id) return false
+        const name = item.expense?.name?.toLowerCase() ?? ''
+        const groupName = groupMap.get(item.expense?.group_id ?? '')?.toLowerCase() ?? ''
+        return name.includes('rent') || groupName === 'education'
+    }
 
     const grouped = new Map<string, SessionItem[]>()
     for (const item of items) {
@@ -204,6 +213,22 @@ function SessionDetailView({
             )
             setItems(prev => prev.map(i => i.id === itemId ? updated : i))
             setPendingNa(null)
+        } catch {
+            toast.error('Failed to update status')
+        } finally {
+            setUpdatingId(null)
+        }
+    }
+
+    async function confirmPaid(itemId: string, ref: string) {
+        setUpdatingId(itemId)
+        try {
+            const updated = await apiPatch<SessionItem>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/items/${itemId}`,
+                { status: 'paid', reference_number: ref }
+            )
+            setItems(prev => prev.map(i => i.id === itemId ? updated : i))
+            setPendingPaidRef(null)
         } catch {
             toast.error('Failed to update status')
         } finally {
@@ -271,8 +296,11 @@ function SessionDetailView({
                                     onClick={() => {
                                         if (isActive || disabled) return
                                         if (pendingNa?.itemId === item.id) setPendingNa(null)
+                                        if (pendingPaidRef?.itemId === item.id) setPendingPaidRef(null)
                                         if (s === 'na') {
                                             setPendingNa({ itemId: item.id, note: '' })
+                                        } else if (s === 'paid' && requiresRef(item)) {
+                                            setPendingPaidRef({ itemId: item.id, ref: '' })
                                         } else {
                                             updateStatus(item.id, s)
                                         }
@@ -301,6 +329,37 @@ function SessionDetailView({
                 {item.status === 'na' && item.notes && !isPendingNa && (
                     <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-slate-100 border-l-2 border-slate-300">
                         <p className="text-xs text-slate-500 italic">{item.notes}</p>
+                    </div>
+                )}
+                {item.status === 'paid' && item.reference_number && (
+                    <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-emerald-50 border-l-2 border-emerald-300">
+                        <p className="text-xs text-emerald-600 font-medium">Ref: {item.reference_number}</p>
+                    </div>
+                )}
+                {pendingPaidRef?.itemId === item.id && (
+                    <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
+                        <p className="text-xs font-medium text-slate-600">Payment reference number <span className="text-red-400">*</span></p>
+                        <input
+                            type="text"
+                            autoFocus
+                            placeholder="e.g. TXN-2026-06-001"
+                            value={pendingPaidRef.ref}
+                            onChange={e => setPendingPaidRef({ ...pendingPaidRef, ref: e.target.value })}
+                            className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                        />
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => confirmPaid(item.id, pendingPaidRef.ref)}
+                                disabled={!pendingPaidRef.ref.trim() || isUpdating}
+                                className="text-xs font-semibold bg-emerald-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-40 hover:bg-emerald-700 transition-colors">
+                                Confirm Paid
+                            </button>
+                            <button
+                                onClick={() => setPendingPaidRef(null)}
+                                className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 )}
                 {isPendingNa && (

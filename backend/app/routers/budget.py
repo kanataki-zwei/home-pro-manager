@@ -827,6 +827,10 @@ async def update_session_item(
     if payload.status != "na":
         item.notes = None
 
+    # Clear reference number when moving away from paid
+    if payload.status != "paid":
+        item.reference_number = None
+
     await db.commit()
 
     result = await db.execute(

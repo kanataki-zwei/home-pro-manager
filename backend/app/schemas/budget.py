@@ -188,6 +188,7 @@ class BudgetSessionUpdate(BaseModel):
 class BudgetSessionItemUpdate(BaseModel):
     status: str              # todo, paid, reserved, na
     notes: Optional[str] = None
+    reference_number: Optional[str] = None
 
 class AdHocSessionItemCreate(BaseModel):
     name: str
@@ -202,6 +203,7 @@ class BudgetSessionItemResponse(BaseModel):
     allocated_amount: Decimal
     status: str
     notes: Optional[str] = None
+    reference_number: Optional[str] = None
     expense: Optional[ExpenseResponse] = None
     created_at: datetime
     updated_at: datetime
