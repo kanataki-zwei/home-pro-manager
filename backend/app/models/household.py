@@ -60,13 +60,15 @@ class Account(Base, TimestampMixin):
     household_member_id = Column(UUID(as_uuid=True), ForeignKey("household_members.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(255), nullable=False)
     account_type = Column(String(50), nullable=False)
+    institution_type = Column(String(50), nullable=True)
     ownership = Column(String(20), nullable=False)
     current_balance = Column(Numeric(15, 2), default=0.00)
     currency = Column(String(10), default="KES")
     is_active = Column(Boolean, default=True)
 
     __table_args__ = (
-        CheckConstraint(account_type.in_(['bank', 'money_market', 'insurance', 'govt_securities', 'stocks_shares', 'cash', 'credit']), name='account_type_check'),
+        CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),
+        CheckConstraint("institution_type IS NULL OR institution_type IN ('bank', 'money_market', 'insurance', 'govt_securities', 'stocks_shares')", name='institution_type_check'),
         CheckConstraint(ownership.in_(['joint', 'individual']), name='ownership_check'),
     )
 

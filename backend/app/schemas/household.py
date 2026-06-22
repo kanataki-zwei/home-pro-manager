@@ -77,6 +77,7 @@ class HouseholdMemberResponse(BaseModel):
 class AccountCreate(BaseModel):
     name: str
     account_type: str
+    institution_type: Optional[str] = None
     ownership: str
     household_member_id: Optional[UUID] = None
     current_balance: float = 0.00
@@ -85,6 +86,7 @@ class AccountCreate(BaseModel):
 class AccountUpdate(BaseModel):
     name: Optional[str] = None
     account_type: Optional[str] = None
+    institution_type: Optional[str] = None
     ownership: Optional[str] = None
     household_member_id: Optional[UUID] = None
     current_balance: Optional[float] = None
@@ -97,6 +99,7 @@ class AccountResponse(BaseModel):
     household_member_id: Optional[UUID]
     name: str
     account_type: str
+    institution_type: Optional[str]
     ownership: str
     current_balance: float
     currency: str

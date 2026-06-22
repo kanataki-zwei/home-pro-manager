@@ -21,23 +21,30 @@ interface Member {
     income_cadence: string | null
 }
 interface Account {
-    id: string; name: string; account_type: string; ownership: string
-    current_balance: number; currency: string; is_active: boolean
+    id: string; name: string; account_type: string; institution_type: string | null
+    ownership: string; current_balance: number; currency: string; is_active: boolean
     household_member_id: string | null
 }
 interface Household { id: string; name: string; member_types: MemberType[] }
 interface SystemUser { id: string; email: string; name: string | null }
 
 const ACCOUNT_TYPES = [
+    { value: 'checking',   icon: '🏧', label: 'Checking' },
+    { value: 'savings',    icon: '💰', label: 'Savings' },
+    { value: 'cash',       icon: '💵', label: 'Cash' },
+    { value: 'investment', icon: '📊', label: 'Investment' },
+    { value: 'credit',     icon: '💳', label: 'Credit' },
+]
+const ACCOUNT_TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map(t => [t.value, t]))
+
+const INSTITUTION_TYPES = [
     { value: 'bank',            icon: '🏦', label: 'Bank Account' },
     { value: 'money_market',    icon: '💹', label: 'Money Market' },
     { value: 'insurance',       icon: '🛡️', label: 'Insurance' },
     { value: 'govt_securities', icon: '🏛️', label: 'Govt Securities' },
     { value: 'stocks_shares',   icon: '📈', label: 'Stocks & Shares' },
-    { value: 'cash',            icon: '💵', label: 'Cash' },
-    { value: 'credit',          icon: '💳', label: 'Credit' },
 ]
-const ACCOUNT_TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map(t => [t.value, t]))
+const INSTITUTION_TYPE_MAP = Object.fromEntries(INSTITUTION_TYPES.map(t => [t.value, t]))
 
 function toMonthly(amount: number, cadence: string): number {
     if (cadence === 'weekly') return (amount * 52) / 12
@@ -134,10 +141,10 @@ export default function HouseholdPage() {
     const [creatingUser, setCreatingUser] = useState(false)
 
     const [accountDialog, setAccountDialog] = useState(false)
-    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
+    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
     const [editAccountDialog, setEditAccountDialog] = useState(false)
     const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
+    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '' })
     const [savingAccount, setSavingAccount] = useState(false)
 
     useEffect(() => {
@@ -270,7 +277,7 @@ export default function HouseholdPage() {
 
     const openEditAccount = (account: Account) => {
         setEditingAccount(account)
-        setEditAccountData({ name: account.name, account_type: account.account_type, ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '' })
+        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '' })
         setEditAccountDialog(true)
     }
 
@@ -281,6 +288,7 @@ export default function HouseholdPage() {
             const payload = {
                 name: editAccountData.name,
                 account_type: editAccountData.account_type,
+                institution_type: editAccountData.institution_type || null,
                 ownership: editAccountData.ownership,
                 current_balance: editAccountData.current_balance,
                 currency: editAccountData.currency,
@@ -686,7 +694,7 @@ export default function HouseholdPage() {
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                                             style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
-                                            {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏦'}
+                                            {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
                                         </div>
                                         <div>
                                             <p className="font-bold text-slate-900">{account.name}</p>
@@ -694,6 +702,11 @@ export default function HouseholdPage() {
                                                 {ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type} · {account.ownership}
                                                 {owner ? ` · ${owner.name}` : ''}
                                             </p>
+                                            {account.institution_type && (
+                                                <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
+                                                    {INSTITUTION_TYPE_MAP[account.institution_type]?.icon} {INSTITUTION_TYPE_MAP[account.institution_type]?.label}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
@@ -898,6 +911,17 @@ export default function HouseholdPage() {
                             </Select>
                         </div>
                         <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Institution Type <span className="text-slate-400 font-normal">(optional)</span></Label>
+                            <Select onValueChange={val => setNewAccount(prev => ({ ...prev, institution_type: val }))}>
+                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="e.g. Bank, Money Market…" /></SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    {INSTITUTION_TYPES.map(t => (
+                                        <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
                             <Label className="text-sm font-bold text-slate-700">Currency</Label>
                             <Select value={newAccount.currency} onValueChange={val => setNewAccount(prev => ({ ...prev, currency: val }))}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
@@ -959,6 +983,17 @@ export default function HouseholdPage() {
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
                                     {ACCOUNT_TYPES.map(t => (
+                                        <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Institution Type <span className="text-slate-400 font-normal">(optional)</span></Label>
+                            <Select value={editAccountData.institution_type || ''} onValueChange={val => setEditAccountData(prev => ({ ...prev, institution_type: val }))}>
+                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="e.g. Bank, Money Market…" /></SelectTrigger>
+                                <SelectContent className="rounded-2xl">
+                                    {INSTITUTION_TYPES.map(t => (
                                         <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
                                     ))}
                                 </SelectContent>
