@@ -100,6 +100,23 @@ function monthStart(year: number, monthIdx: number) {
     return `${year}-${String(monthIdx + 1).padStart(2, '0')}-01`
 }
 
+// ─── Status card ─────────────────────────────────────────────────
+
+function StatCard({
+    label, value, sub, colorClass, labelClass, valueClass,
+}: {
+    label: string; value: string; sub?: string
+    colorClass: string; labelClass: string; valueClass: string
+}) {
+    return (
+        <div className={`rounded-2xl px-5 py-4 ${colorClass}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${labelClass}`}>{label}</p>
+            <p className={`text-xl font-black mt-1 ${valueClass}`}>{value}</p>
+            {sub && <p className={`text-xs mt-0.5 ${labelClass} opacity-70`}>{sub}</p>}
+        </div>
+    )
+}
+
 // ─── Detail view ──────────────────────────────────────────────────
 
 function SessionDetailView({
