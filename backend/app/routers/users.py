@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.core.auth import get_current_user
 from app.core.limiter import limiter
 from app.models.user import User
-from app.schemas.user import UserResponse, UserCreate
+from app.schemas.user import UserResponse, UserCreate, UserUpdate
 from supabase import create_client
 
 router = APIRouter()
@@ -19,6 +19,23 @@ def get_supabase():
     if _supabase_client is None:
         _supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
     return _supabase_client
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    payload: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    current_user.name = payload.name
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
 
 
 @router.get("/", response_model=list[UserResponse])
