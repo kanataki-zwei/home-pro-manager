@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint, DateTime, func, Text
+from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint, DateTime, func, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -95,3 +95,17 @@ class AccountTransaction(Base):
     )
 
     account = relationship("Account", back_populates="transactions")
+
+
+class FxRate(Base):
+    __tablename__ = "fx_rates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    currency = Column(String(10), nullable=False)
+    rate_to_kes = Column(Numeric(15, 6), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('household_id', 'currency', name='uq_fx_rate_household_currency'),
+    )

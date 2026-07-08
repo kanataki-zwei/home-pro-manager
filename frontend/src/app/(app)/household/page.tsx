@@ -118,8 +118,15 @@ function SaveButton({ onClick, loading, label = 'Save' }: { onClick: () => void;
     )
 }
 
+function toKES(amount: number, currency: string, fxRates: { currency: string; rate_to_kes: string }[]): number | null {
+    if (currency === 'KES') return amount
+    const rate = fxRates.find(r => r.currency === currency)
+    if (!rate) return null
+    return amount * Number(rate.rate_to_kes)
+}
+
 export default function HouseholdPage() {
-    const { household, members, accounts, loading: contextLoading, setHousehold, setMembers, setAccounts, currentUserId } = useHousehold()
+    const { household, members, accounts, fxRates, loading: contextLoading, setHousehold, setMembers, setAccounts, currentUserId } = useHousehold()
     const [loading, setLoading] = useState(true)
     const [systemUsers, setSystemUsers] = useState<SystemUser[]>([])
 
@@ -854,9 +861,17 @@ export default function HouseholdPage() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3">
+                                            <div>
                                             <p className="font-black text-slate-900 text-lg" style={{ fontFamily: 'Plus Jakarta Sans' }}>
                                                 {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </p>
+                                            {account.currency !== 'KES' && (() => {
+                                                const kes = toKES(Number(account.current_balance), account.currency, fxRates)
+                                                return kes != null
+                                                    ? <p className="text-xs text-slate-400">≈ KES {kes.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                                    : <p className="text-xs text-amber-500">No FX rate set</p>
+                                            })()}
+                                            </div>
                                             <div className="flex items-center gap-1">
                                                 <button onClick={() => openTxnDialog(account)}
                                                     title="Add entry"
@@ -898,9 +913,17 @@ export default function HouseholdPage() {
                                                                 <p className="text-sm font-medium text-slate-800 truncate">{t.narration}</p>
                                                                 <p className="text-xs text-slate-400">{new Date(t.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                                             </div>
-                                                            <p className={`text-sm font-bold flex-shrink-0 ${t.transaction_type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                                {t.transaction_type === 'credit' ? '+' : '-'}{account.currency} {Number(t.amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
-                                                            </p>
+                                                            <div className="text-right flex-shrink-0">
+                                                                <p className={`text-sm font-bold ${t.transaction_type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                    {t.transaction_type === 'credit' ? '+' : '-'}{account.currency} {Number(t.amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                                                                </p>
+                                                                {account.currency !== 'KES' && (() => {
+                                                                    const kes = toKES(Number(t.amount), account.currency, fxRates)
+                                                                    return kes != null
+                                                                        ? <p className="text-xs text-slate-400">≈ KES {kes.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</p>
+                                                                        : null
+                                                                })()}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>

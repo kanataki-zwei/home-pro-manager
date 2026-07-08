@@ -26,6 +26,7 @@ interface Account {
     id: string
     name: string
     account_type: string
+    institution_type: string | null
     ownership: string
     current_balance: number
     currency: string
@@ -40,18 +41,28 @@ interface Household {
     member_types: MemberType[]
 }
 
+export interface FxRate {
+    id: string
+    currency: string
+    rate_to_kes: string
+    updated_at: string
+}
+
 interface HouseholdContextType {
     household: Household | null
     members: Member[]
     accounts: Account[]
+    fxRates: FxRate[]
     loading: boolean
     currentUserId: string | null
     setHousehold: (h: Household) => void
     setMembers: (m: Member[]) => void
     setAccounts: (a: Account[]) => void
+    setFxRates: (r: FxRate[]) => void
     refreshHousehold: () => Promise<void>
     refreshMembers: () => Promise<void>
     refreshAccounts: () => Promise<void>
+    refreshFxRates: () => Promise<void>
 }
 
 const HouseholdContext = createContext<HouseholdContextType | null>(null)
@@ -60,6 +71,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const [household, setHousehold] = useState<Household | null>(null)
     const [members, setMembers] = useState<Member[]>([])
     const [accounts, setAccounts] = useState<Account[]>([])
+    const [fxRates, setFxRates] = useState<FxRate[]>([])
     const [loading, setLoading] = useState(true)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -77,12 +89,14 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
             const h = await apiGet<Household>('/api/households/mine')
             setHousehold(h)
 
-            const [m, a] = await Promise.all([
+            const [m, a, fx] = await Promise.all([
                 apiGet<Member[]>(`/api/households/${h.id}/members`),
-                apiGet<Account[]>(`/api/households/${h.id}/accounts`)
+                apiGet<Account[]>(`/api/households/${h.id}/accounts`),
+                apiGet<FxRate[]>(`/api/households/${h.id}/fx-rates`)
             ])
             setMembers(m)
             setAccounts(a)
+            setFxRates(fx)
         } catch {
             // 404 means user has no household yet — that's fine
             setHousehold(null)
@@ -116,12 +130,18 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         setAccounts(a)
     }
 
+    const refreshFxRates = async () => {
+        if (!household) return
+        const fx = await apiGet<FxRate[]>(`/api/households/${household.id}/fx-rates`)
+        setFxRates(fx)
+    }
+
     return (
         <HouseholdContext.Provider value={{
-            household, members, accounts, loading, currentUserId,
+            household, members, accounts, fxRates, loading, currentUserId,
             setHousehold: handleSetHousehold,
-            setMembers, setAccounts,
-            refreshHousehold, refreshMembers, refreshAccounts
+            setMembers, setAccounts, setFxRates,
+            refreshHousehold, refreshMembers, refreshAccounts, refreshFxRates
         }}>
             {children}
         </HouseholdContext.Provider>

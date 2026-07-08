@@ -52,8 +52,15 @@ const SEGMENT_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '
 
 // ─── Page ─────────────────────────────────────────────────────────
 
+function toKES(amount: number, currency: string, fxRates: { currency: string; rate_to_kes: string }[]): number | null {
+    if (currency === 'KES') return amount
+    const rate = fxRates.find(r => r.currency === currency)
+    if (!rate) return null
+    return amount * Number(rate.rate_to_kes)
+}
+
 export default function NetWorthPage() {
-    const { household, accounts, loading } = useHousehold()
+    const { household, accounts, fxRates, loading } = useHousehold()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [txnLoading, setTxnLoading] = useState(true)
     const [txnFilter, setTxnFilter] = useState<'all' | 'credit' | 'debit'>('all')
@@ -88,7 +95,13 @@ export default function NetWorthPage() {
 
     const netWorthAccounts = accounts.filter(a => a.contributes_to_net_worth && a.is_active)
     const excludedAccounts = accounts.filter(a => !a.contributes_to_net_worth && a.is_active)
-    const totalNetWorth = netWorthAccounts.reduce((s, a) => s + Number(a.current_balance), 0)
+    const totalNetWorth = netWorthAccounts.reduce((s, a) => {
+        const kes = toKES(Number(a.current_balance), a.currency, fxRates)
+        return s + (kes ?? 0)
+    }, 0)
+    const hasMissingRates = netWorthAccounts.some(
+        a => a.currency !== 'KES' && !fxRates.find(r => r.currency === a.currency)
+    )
 
     const accountMap = Object.fromEntries(accounts.map(a => [a.id, a]))
 
@@ -131,6 +144,9 @@ export default function NetWorthPage() {
                             {fmtCompact(totalNetWorth)}
                         </p>
                         <p className="text-slate-400 text-xs">{netWorthAccounts.length} account{netWorthAccounts.length !== 1 ? 's' : ''} tracked</p>
+                        {hasMissingRates && (
+                            <p className="text-amber-400 text-xs mt-1.5">⚠ Some foreign accounts excluded — add FX rates in Settings</p>
+                        )}
                     </div>
                     <div>
                         <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Deposits</p>
@@ -199,6 +215,12 @@ export default function NetWorthPage() {
                                         </div>
                                         <div className="text-right flex-shrink-0">
                                             <p className="text-sm font-bold text-slate-900">{fmt(Number(a.current_balance), a.currency)}</p>
+                                            {a.currency !== 'KES' && (() => {
+                                                const kes = toKES(Number(a.current_balance), a.currency, fxRates)
+                                                return kes != null
+                                                    ? <p className="text-xs text-slate-400">≈ {fmt(kes)}</p>
+                                                    : <p className="text-xs text-amber-500">No FX rate</p>
+                                            })()}
                                             <p className="text-xs text-slate-400">{pct}% of total</p>
                                         </div>
                                     </div>
@@ -329,9 +351,17 @@ export default function NetWorthPage() {
                                             {t.session_item_id ? 'Session' : 'Manual'}
                                         </span>
                                         {/* Amount */}
-                                        <p className={`text-sm font-bold text-right flex-shrink-0 ${isCredit ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                            {isCredit ? '+' : '−'}{fmt(Number(t.amount), account?.currency ?? 'KES')}
-                                        </p>
+                                        <div className="text-right flex-shrink-0">
+                                            <p className={`text-sm font-bold ${isCredit ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                {isCredit ? '+' : '−'}{fmt(Number(t.amount), account?.currency ?? 'KES')}
+                                            </p>
+                                            {account?.currency && account.currency !== 'KES' && (() => {
+                                                const kes = toKES(Number(t.amount), account.currency, fxRates)
+                                                return kes != null
+                                                    ? <p className="text-xs text-slate-400">≈ {fmt(kes)}</p>
+                                                    : null
+                                            })()}
+                                        </div>
                                     </div>
                                 )
                             })}

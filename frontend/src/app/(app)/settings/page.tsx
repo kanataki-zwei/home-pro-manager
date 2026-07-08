@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
-import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api'
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2 } from 'lucide-react'
+import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,8 +21,17 @@ interface MemberType {
     name: string
 }
 
+interface FxRate {
+    id: string
+    currency: string
+    rate_to_kes: string
+    updated_at: string
+}
+
+const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'UGX', 'ZAR', 'INR', 'AED', 'CAD', 'AUD']
+
 export default function SettingsPage() {
-    const { household, refreshHousehold } = useHousehold()
+    const { household, fxRates, setFxRates, refreshHousehold } = useHousehold()
 
     // Profile state
     const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -39,6 +48,14 @@ export default function SettingsPage() {
     const [addingType, setAddingType] = useState(false)
     const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null)
 
+    // FX rates state
+    const [localFxRates, setLocalFxRates] = useState<FxRate[]>([])
+    const [newCurrency, setNewCurrency] = useState('')
+    const [newRate, setNewRate] = useState('')
+    const [savingRate, setSavingRate] = useState<string | null>(null)
+    const [deletingRate, setDeletingRate] = useState<string | null>(null)
+    const [editRates, setEditRates] = useState<Record<string, string>>({})
+
     useEffect(() => {
         apiGet<UserProfile>('/api/users/me').then((u) => {
             setProfile(u)
@@ -52,6 +69,13 @@ export default function SettingsPage() {
             setMemberTypes(household.member_types ?? [])
         }
     }, [household])
+
+    useEffect(() => {
+        setLocalFxRates(fxRates)
+        const edits: Record<string, string> = {}
+        fxRates.forEach(r => { edits[r.currency] = Number(r.rate_to_kes).toString() })
+        setEditRates(edits)
+    }, [fxRates])
 
     const saveProfile = async () => {
         if (!profileName.trim()) return
@@ -97,6 +121,75 @@ export default function SettingsPage() {
             toast.error('Failed to add member type')
         } finally {
             setAddingType(false)
+        }
+    }
+
+    const saveRate = async (currency: string) => {
+        if (!household) return
+        const rateVal = editRates[currency]
+        if (!rateVal || isNaN(Number(rateVal)) || Number(rateVal) <= 0) {
+            toast.error('Enter a valid rate greater than 0')
+            return
+        }
+        setSavingRate(currency)
+        try {
+            const updated = await apiPut<FxRate>(
+                `/api/households/${household.id}/fx-rates/${currency}`,
+                { rate_to_kes: Number(rateVal) }
+            )
+            setLocalFxRates(prev => prev.map(r => r.currency === currency ? updated : r))
+            setFxRates(localFxRates.map(r => r.currency === currency ? updated : r))
+            toast.success(`${currency} → KES rate saved`)
+        } catch {
+            toast.error('Failed to save rate')
+        } finally {
+            setSavingRate(null)
+        }
+    }
+
+    const addRate = async () => {
+        if (!household || !newCurrency.trim() || !newRate.trim()) return
+        const currency = newCurrency.trim().toUpperCase()
+        const rateVal = Number(newRate)
+        if (isNaN(rateVal) || rateVal <= 0) { toast.error('Enter a valid rate'); return }
+        if (localFxRates.some(r => r.currency === currency)) {
+            toast.error(`Rate for ${currency} already exists — edit it below`)
+            return
+        }
+        setSavingRate(currency)
+        try {
+            const created = await apiPut<FxRate>(
+                `/api/households/${household.id}/fx-rates/${currency}`,
+                { rate_to_kes: rateVal }
+            )
+            const next = [...localFxRates, created]
+            setLocalFxRates(next)
+            setFxRates(next)
+            setEditRates(prev => ({ ...prev, [currency]: rateVal.toString() }))
+            setNewCurrency('')
+            setNewRate('')
+            toast.success(`${currency} → KES rate added`)
+        } catch {
+            toast.error('Failed to add rate')
+        } finally {
+            setSavingRate(null)
+        }
+    }
+
+    const deleteRate = async (currency: string) => {
+        if (!household) return
+        setDeletingRate(currency)
+        try {
+            await apiDelete(`/api/households/${household.id}/fx-rates/${currency}`)
+            const next = localFxRates.filter(r => r.currency !== currency)
+            setLocalFxRates(next)
+            setFxRates(next)
+            setEditRates(prev => { const n = { ...prev }; delete n[currency]; return n })
+            toast.success(`${currency} rate removed`)
+        } catch {
+            toast.error('Failed to remove rate')
+        } finally {
+            setDeletingRate(null)
         }
     }
 
@@ -213,6 +306,99 @@ export default function SettingsPage() {
                             Save
                         </Button>
                     </div>
+                </div>
+            </div>
+
+            {/* FX Rates */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-2 mb-1">
+                    <RefreshCw className="h-4 w-4 text-sky-500" />
+                    <h2 className="text-base font-semibold text-slate-800">Currency & FX Rates</h2>
+                </div>
+                <p className="text-xs text-slate-400 mb-5">
+                    Set exchange rates to KES for foreign currency accounts. Used to compute net worth totals and show KES equivalents.
+                </p>
+
+                {/* Existing rates */}
+                <div className="space-y-2 mb-4">
+                    {localFxRates.length === 0 ? (
+                        <p className="text-sm text-slate-400 py-2">No rates configured yet.</p>
+                    ) : (
+                        localFxRates.map((rate) => (
+                            <div key={rate.currency} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                <span className="text-sm font-bold text-slate-700 w-12 shrink-0">{rate.currency}</span>
+                                <span className="text-xs text-slate-400 shrink-0">=</span>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={editRates[rate.currency] ?? ''}
+                                    onChange={e => setEditRates(prev => ({ ...prev, [rate.currency]: e.target.value }))}
+                                    onKeyDown={e => e.key === 'Enter' && saveRate(rate.currency)}
+                                    className="h-8 rounded-lg border-slate-200 focus:border-sky-400 text-sm"
+                                />
+                                <span className="text-xs text-slate-400 shrink-0">KES</span>
+                                <button
+                                    onClick={() => saveRate(rate.currency)}
+                                    disabled={savingRate === rate.currency}
+                                    className="text-sky-500 hover:text-sky-600 transition-colors disabled:opacity-50 shrink-0"
+                                    title="Save"
+                                >
+                                    {savingRate === rate.currency
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Save className="h-4 w-4" />}
+                                </button>
+                                <button
+                                    onClick={() => deleteRate(rate.currency)}
+                                    disabled={deletingRate === rate.currency}
+                                    className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-50 shrink-0"
+                                    title="Remove"
+                                >
+                                    {deletingRate === rate.currency
+                                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                                        : <Trash2 className="h-4 w-4" />}
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Add new rate */}
+                <div className="flex gap-2">
+                    <Input
+                        value={newCurrency}
+                        onChange={e => setNewCurrency(e.target.value.toUpperCase())}
+                        placeholder="USD"
+                        maxLength={10}
+                        className="rounded-xl border-slate-200 focus:border-sky-400 w-24 shrink-0 uppercase"
+                        list="common-currencies"
+                    />
+                    <datalist id="common-currencies">
+                        {COMMON_CURRENCIES.filter(c => !localFxRates.some(r => r.currency === c)).map(c => (
+                            <option key={c} value={c} />
+                        ))}
+                    </datalist>
+                    <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={newRate}
+                        onChange={e => setNewRate(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addRate()}
+                        placeholder="Rate to KES (e.g. 129.5)"
+                        className="rounded-xl border-slate-200 focus:border-sky-400"
+                    />
+                    <Button
+                        onClick={addRate}
+                        disabled={!!savingRate || !newCurrency.trim() || !newRate.trim()}
+                        className="rounded-xl gap-1.5 shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}
+                    >
+                        {savingRate && newCurrency && savingRate === newCurrency.toUpperCase()
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Plus className="h-4 w-4" />}
+                        Add
+                    </Button>
                 </div>
             </div>
 

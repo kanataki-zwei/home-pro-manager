@@ -6,13 +6,14 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
-from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction
+from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction, FxRate
 from app.schemas.household import (
     HouseholdCreate, HouseholdResponse,
     MemberTypeCreate, MemberTypeResponse,
     HouseholdMemberCreate, HouseholdMemberUpdate, HouseholdMemberResponse,
     AccountCreate, AccountUpdate, AccountResponse,
-    AccountTransactionCreate, AccountTransactionResponse
+    AccountTransactionCreate, AccountTransactionResponse,
+    FxRateUpsert, FxRateResponse
 )
 
 router = APIRouter()
@@ -326,3 +327,56 @@ async def create_account_transaction(
     await db.commit()
     await db.refresh(txn)
     return txn
+
+
+# ─── FX Rates ────────────────────────────────────────────────────
+
+@router.get("/{household_id}/fx-rates", response_model=list[FxRateResponse])
+async def get_fx_rates(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_household_member)
+):
+    result = await db.execute(
+        select(FxRate).where(FxRate.household_id == household_id).order_by(FxRate.currency)
+    )
+    return result.scalars().all()
+
+
+@router.put("/{household_id}/fx-rates/{currency}", response_model=FxRateResponse)
+async def upsert_fx_rate(
+    household_id: UUID,
+    currency: str,
+    payload: FxRateUpsert,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_household_member)
+):
+    currency = currency.upper()
+    result = await db.execute(
+        select(FxRate).where(FxRate.household_id == household_id, FxRate.currency == currency)
+    )
+    rate = result.scalar_one_or_none()
+    if rate:
+        rate.rate_to_kes = payload.rate_to_kes
+    else:
+        rate = FxRate(household_id=household_id, currency=currency, rate_to_kes=payload.rate_to_kes)
+        db.add(rate)
+    await db.commit()
+    await db.refresh(rate)
+    return rate
+
+
+@router.delete("/{household_id}/fx-rates/{currency}", status_code=204)
+async def delete_fx_rate(
+    household_id: UUID,
+    currency: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_household_member)
+):
+    result = await db.execute(
+        select(FxRate).where(FxRate.household_id == household_id, FxRate.currency == currency.upper())
+    )
+    rate = result.scalar_one_or_none()
+    if rate:
+        await db.delete(rate)
+        await db.commit()

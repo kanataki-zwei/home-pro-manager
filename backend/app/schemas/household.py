@@ -117,6 +117,20 @@ class AccountResponse(BaseModel):
         from_attributes = True
 
 
+# ─── FX Rates ───────────────────────────────────────────────────
+class FxRateUpsert(BaseModel):
+    rate_to_kes: Decimal = Field(gt=0)
+
+class FxRateResponse(BaseModel):
+    id: UUID
+    currency: str
+    rate_to_kes: Decimal
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ─── Account Transactions ────────────────────────────────────────
 class AccountTransactionCreate(BaseModel):
     amount: Decimal = Field(gt=0)

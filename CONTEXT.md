@@ -71,10 +71,12 @@ d5e6f7a8b9c0  add_mobile_money_institution_type
       ↓
 e6f7a8b9c0d1  add_direct_pay_institution_type
       ↓
-f6c7d8e9a0b1  add_account_transactions           ← HEAD
+f6c7d8e9a0b1  add_account_transactions
+      ↓
+a8b9c0d1e2f3  add_fx_rates                       ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'f6c7d8e9a0b1'`.
+When adding a new migration set `down_revision = 'a8b9c0d1e2f3'`.
 
 ### Tables
 
@@ -84,6 +86,7 @@ When adding a new migration set `down_revision = 'f6c7d8e9a0b1'`.
 - `member_types` — e.g., Husband, Wife, Child (per household)
 - `household_members` — members of a household, optionally linked to a `users` row;
   carry income fields: `contributes_income`, `income_amount`, `income_currency`, `income_cadence`
+- `fx_rates` — per-household exchange rates to KES; unique per (household_id, currency); used to convert foreign account balances and show "≈ KES" labels throughout
 - `accounts` — financial accounts with:
   - `account_type`: `checking | savings | cash | investment | credit`
   - `institution_type` (nullable): `bank | money_market | mobile_money | direct_pay | insurance | govt_securities | stocks_shares`
@@ -245,3 +248,5 @@ throughout the budget tracker.
 | 2026-06-22 | Budget | Auto-credit account balance on session item paid; reversed on un-pay |
 | 2026-06-22 | Net Worth | New `/networth` page: net worth breakdown + full transaction log with filters |
 | 2026-06-22 | Budget | Tags pill bar: inline edit/delete on hover; replaced hidden Manage Tags dialog |
+| 2026-07-08 | Settings | New /settings page: profile name, household name, member types, FX rates |
+| 2026-07-08 | FX Rates | fx_rates table + PUT/DELETE API; fxRates in HouseholdContext; ≈ KES labels on household + net worth pages; net worth total converts via rates |
