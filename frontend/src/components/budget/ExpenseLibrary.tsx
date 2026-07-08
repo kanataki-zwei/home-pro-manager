@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
@@ -35,7 +35,7 @@ interface Expense {
     is_deleted: boolean
     tag_assignments: TagAssignment[]
 }
-interface Account { id: string; name: string; account_type: string }
+interface Account { id: string; name: string; account_type: string; ownership?: string; household_member_id?: string | null }
 
 const FREQUENCY_LABELS: Record<string, string> = {
     daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', annual: 'Annual'
@@ -80,14 +80,15 @@ function toMonthly(amount: number, cadence: string): number {
 // ─── Main Component ───────────────────────────────────────────────
 
 export default function ExpenseLibrary() {
-    const { household, accounts, members, currentUserId } = useHousehold()
+    const { household, accounts, members, currentUserId, viewMode } = useHousehold()
+    const isMeMode = viewMode === 'me'
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
     const [loading, setLoading] = useState(true)
     const [showDeleted, setShowDeleted] = useState(false)
-    const [activeTab, setActiveTab] = useState<'household' | 'personal'>('household')
+    const [activeTab, setActiveTab] = useState<'household' | 'personal'>(isMeMode ? 'personal' : 'household')
 
     // Group dialog
     const [groupDialog, setGroupDialog] = useState(false)
@@ -115,6 +116,36 @@ export default function ExpenseLibrary() {
         joint_split_husband: '50', joint_split_wife: '50',
         group_id: '', account_id: '', tag_ids: [] as string[]
     })
+
+    // ── Floating panel ────────────────────────────────────────────
+    const [panelVisible, setPanelVisible] = useState(true)
+    const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
+    const dragOffset = useRef({ x: 0, y: 0 })
+
+    useEffect(() => {
+        setPanelPos({ x: window.innerWidth - 288, y: 96 })
+    }, [])
+
+    function startDrag(e: React.MouseEvent) {
+        if (!panelPos) return
+        dragOffset.current = { x: e.clientX - panelPos.x, y: e.clientY - panelPos.y }
+        e.preventDefault()
+
+        function onMove(ev: MouseEvent) {
+            setPanelPos({
+                x: Math.max(0, Math.min(window.innerWidth - 264, ev.clientX - dragOffset.current.x)),
+                y: Math.max(0, Math.min(window.innerHeight - 80, ev.clientY - dragOffset.current.y)),
+            })
+        }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove)
+            document.removeEventListener('mouseup', onUp)
+        }
+        document.addEventListener('mousemove', onMove)
+        document.addEventListener('mouseup', onUp)
+    }
+
+    useEffect(() => { if (isMeMode) setActiveTab('personal') }, [isMeMode])
 
     useEffect(() => { if (household) loadAll() }, [household?.id, showDeleted])
 
@@ -321,6 +352,11 @@ export default function ExpenseLibrary() {
 
     // ─── Derived data ─────────────────────────────────────────────
 
+    const myMember = members.find(m => m.user_id === currentUserId)
+    const formAccounts = isMeMode
+        ? (accounts as Account[]).filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
+        : accounts as Account[]
+
     const visibleGroups = groups.filter(g =>
         (showDeleted || !g.is_deleted) &&
         (activeTab === 'household' ? g.owner_id === null : g.owner_id !== null)
@@ -341,6 +377,40 @@ export default function ExpenseLibrary() {
         .filter(e => !e.is_deleted)
         .reduce((s, e) => s + Number(e.monthly_amount), 0)
 
+    // ── Budget tracker data (shared by income tracker + floating panel) ──
+    const incomeMembers = members.filter(m =>
+        m.contributes_income && m.income_amount &&
+        (!isMeMode || m.user_id === currentUserId)
+    )
+    const refCurrency = (() => {
+        const currencies = [...new Set(incomeMembers.map(m => m.income_currency ?? 'KES'))]
+        return currencies.includes('KES') ? 'KES' : (currencies[0] ?? 'KES')
+    })()
+    const fmtTracker = (n: number) =>
+        `${refCurrency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const hhExpenses = expenses.filter(e => !e.is_deleted && e.owner_id === null)
+    const memberRows = incomeMembers.map(m => {
+        const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+        const role = m.member_type.name.toLowerCase()
+        const hhOwned = hhExpenses.filter(e => e.ownership_type === role)
+            .reduce((s, e) => s + Number(e.monthly_amount), 0)
+        const hhJoint = hhExpenses.filter(e => e.ownership_type === 'joint')
+            .reduce((s, e) => {
+                const split = role === 'husband' ? (e.joint_split_husband ?? 50)
+                            : role === 'wife'    ? (e.joint_split_wife    ?? 50) : 0
+                return s + Number(e.monthly_amount) * split / 100
+            }, 0)
+        const personal = expenses.filter(e => !e.is_deleted && e.owner_id === m.user_id)
+            .reduce((s, e) => s + Number(e.monthly_amount), 0)
+        const allocated = hhOwned + hhJoint + personal
+        return { member: m, income, hhOwned, hhJoint, personal, allocated, remaining: income - allocated }
+    })
+    const totalIncome    = memberRows.reduce((s, r) => s + r.income, 0)
+    const totalAllocated = memberRows.reduce((s, r) => s + r.allocated, 0)
+    const netRemaining   = totalIncome - totalAllocated
+
+    // ── Floating panel state ──────────────────────────────────────
+
     if (loading) return (
         <div className="flex items-center justify-center h-48">
             <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -352,45 +422,8 @@ export default function ExpenseLibrary() {
 
             {/* ── Income vs Budgeted tracker (always visible, all expenses) ── */}
             {(() => {
-                const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
                 if (incomeMembers.length === 0) return null
-
-                // Primary currency: KES if any member uses it, otherwise first found
-                const currencies = [...new Set(incomeMembers.map(m => m.income_currency ?? 'KES'))]
-                const refCurrency = currencies.includes('KES') ? 'KES' : currencies[0]
-                const fmt = (n: number) => `${refCurrency} ${Math.abs(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-                const hhExpenses = expenses.filter(e => !e.is_deleted && e.owner_id === null)
-
-                // Each income member absorbs: HH expenses matching their role + their share of joint HH expenses + personal
-                const memberRows = incomeMembers.map(m => {
-                    const income = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                    const role = m.member_type.name.toLowerCase()
-
-                    const hhOwned = hhExpenses
-                        .filter(e => e.ownership_type === role)
-                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
-
-                    const hhJoint = hhExpenses
-                        .filter(e => e.ownership_type === 'joint')
-                        .reduce((s, e) => {
-                            const split = role === 'husband' ? (e.joint_split_husband ?? 50)
-                                        : role === 'wife'    ? (e.joint_split_wife    ?? 50)
-                                        : 0
-                            return s + Number(e.monthly_amount) * split / 100
-                        }, 0)
-
-                    const personal = expenses
-                        .filter(e => !e.is_deleted && e.owner_id === m.user_id)
-                        .reduce((s, e) => s + Number(e.monthly_amount), 0)
-
-                    const allocated = hhOwned + hhJoint + personal
-                    return { member: m, income, hhOwned, hhJoint, personal, allocated, remaining: income - allocated }
-                })
-
-                const totalIncome = memberRows.reduce((s, r) => s + r.income, 0)
-                const totalAllocated = memberRows.reduce((s, r) => s + r.allocated, 0)
-                const netRemaining = totalIncome - totalAllocated
+                const fmt = fmtTracker
                 const pct = totalIncome > 0 ? Math.min((totalAllocated / totalIncome) * 100, 100) : 0
                 const over = netRemaining < 0
 
@@ -544,16 +577,19 @@ export default function ExpenseLibrary() {
 
             {/* ── Toolbar ── */}
             <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1">
-                    {(['household', 'personal'] as const).map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                            {tab === 'household' ? '🏠 Household' : '👤 Personal'}
-                        </button>
-                    ))}
-                </div>
+                {!isMeMode && (
+                    <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1">
+                        {(['household', 'personal'] as const).map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                {tab === 'household' ? '🏠 Household' : '👤 Personal'}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {isMeMode && <div />}
 
                 <div className="flex items-center gap-2">
                     <button
@@ -720,7 +756,7 @@ export default function ExpenseLibrary() {
                                 <ExpenseRow
                                     key={expense.id}
                                     expense={expense}
-                                    accounts={accounts as Account[]}
+                                    accounts={formAccounts}
                                     onEdit={() => openEditExpense(expense)}
                                     onDelete={() => deleteExpense(expense.id)}
                                     onRestore={() => restoreExpense(expense.id)}
@@ -803,7 +839,7 @@ export default function ExpenseLibrary() {
                         form={expenseForm}
                         setForm={setExpenseForm}
                         groups={visibleGroups.filter(g => !g.is_deleted)}
-                        accounts={accounts as Account[]}
+                        accounts={formAccounts}
                         tags={tags}
                         onToggleTag={toggleTagOnForm}
                     />
@@ -822,7 +858,7 @@ export default function ExpenseLibrary() {
                         form={expenseForm}
                         setForm={setExpenseForm}
                         groups={visibleGroups.filter(g => !g.is_deleted)}
-                        accounts={accounts as Account[]}
+                        accounts={formAccounts}
                         tags={tags}
                         onToggleTag={toggleTagOnForm}
                     />
@@ -832,6 +868,136 @@ export default function ExpenseLibrary() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* ── Floating budget tracker panel ── */}
+            {panelPos !== null && panelVisible && incomeMembers.length > 0 && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        left: panelPos.x,
+                        top: panelPos.y,
+                        zIndex: 50,
+                        width: 264,
+                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                        borderRadius: 20,
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        overflow: 'hidden',
+                        userSelect: 'none',
+                    }}>
+
+                    {/* Drag handle */}
+                    <div
+                        onMouseDown={startDrag}
+                        style={{ cursor: 'grab', padding: '12px 14px 10px', background: 'rgba(255,255,255,0.05)' }}
+                        className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', borderRadius: 8, width: 24, height: 24 }}
+                                className="flex items-center justify-center flex-shrink-0">
+                                <Wallet className="h-3 w-3 text-white" />
+                            </div>
+                            <span className="text-xs font-black text-white tracking-wide">Budget Tracker</span>
+                        </div>
+                        <button
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={() => setPanelVisible(false)}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/10 transition-all">
+                            <X className="h-3 w-3" />
+                        </button>
+                    </div>
+
+                    {/* Household totals */}
+                    <div className="px-4 py-3 border-b border-white/5">
+                        <div className="flex justify-between items-end mb-2">
+                            <div>
+                                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-0.5">Net Income</p>
+                                <p className="text-white text-sm font-black">{fmtTracker(totalIncome)}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-0.5">Remaining</p>
+                                <p className={`text-sm font-black ${netRemaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    {netRemaining < 0 ? '−' : ''}{fmtTracker(Math.abs(netRemaining))}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            {(() => {
+                                const pct = totalIncome > 0 ? Math.min((totalAllocated / totalIncome) * 100, 100) : 0
+                                return (
+                                    <div className={`h-full rounded-full transition-all ${netRemaining < 0 ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                        style={{ width: `${pct}%` }} />
+                                )
+                            })()}
+                        </div>
+                        <p className="text-white/25 text-[10px] mt-1">
+                            {fmtTracker(totalAllocated)} assigned
+                        </p>
+                    </div>
+
+                    {/* Per-member rows */}
+                    <div>
+                        {memberRows.map((row, i) => {
+                            const memberPct = row.income > 0 ? Math.min((row.allocated / row.income) * 100, 100) : 0
+                            const over = row.remaining < 0
+                            const rem = Math.abs(row.remaining)
+                            return (
+                                <div key={row.member.id} className="px-4 py-3 border-b border-white/5 last:border-b-0">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-5 h-5 rounded-lg flex items-center justify-center text-white text-[10px] font-black flex-shrink-0"
+                                                style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                {row.member.name.charAt(0)}
+                                            </div>
+                                            <p className="text-white/80 text-xs font-bold truncate">{row.member.name}</p>
+                                        </div>
+                                        <div className="text-right flex-shrink-0 ml-2">
+                                            <p className={`text-xs font-black ${over ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                {over ? '−' : ''}{fmtTracker(rem)}
+                                            </p>
+                                            <p className="text-white/25 text-[10px]">remaining</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${over ? 'bg-red-400' : memberPct > 85 ? 'bg-amber-400' : 'bg-sky-400'}`}
+                                                style={{ width: `${memberPct}%` }} />
+                                        </div>
+                                        <p className="text-white/30 text-[10px] flex-shrink-0">{memberPct.toFixed(0)}%</p>
+                                    </div>
+                                    <div className="flex justify-between mt-1">
+                                        <p className="text-white/30 text-[10px]">In {fmtTracker(row.income)}</p>
+                                        <p className="text-white/30 text-[10px]">Out {fmtTracker(row.allocated)}</p>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Show pill — appears when panel is hidden */}
+            {panelPos !== null && !panelVisible && incomeMembers.length > 0 && (
+                <button
+                    onClick={() => setPanelVisible(true)}
+                    style={{
+                        position: 'fixed',
+                        right: 24,
+                        bottom: 32,
+                        zIndex: 50,
+                        background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                        borderRadius: 999,
+                        boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
+                        padding: '8px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        userSelect: 'none',
+                    }}
+                    className="text-white text-xs font-black hover:opacity-90 transition-opacity">
+                    <Wallet className="h-3.5 w-3.5" />
+                    Budget Tracker
+                </button>
+            )}
         </div>
     )
 }

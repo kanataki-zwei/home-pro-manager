@@ -55,6 +55,8 @@ interface HouseholdContextType {
     fxRates: FxRate[]
     loading: boolean
     currentUserId: string | null
+    viewMode: 'household' | 'me'
+    setViewMode: (m: 'household' | 'me') => void
     setHousehold: (h: Household) => void
     setMembers: (m: Member[]) => void
     setAccounts: (a: Account[]) => void
@@ -74,6 +76,17 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const [fxRates, setFxRates] = useState<FxRate[]>([])
     const [loading, setLoading] = useState(true)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [viewMode, setViewModeState] = useState<'household' | 'me'>('household')
+
+    useEffect(() => {
+        const stored = localStorage.getItem('hpm_view_mode')
+        if (stored === 'me' || stored === 'household') setViewModeState(stored)
+    }, [])
+
+    const setViewMode = (m: 'household' | 'me') => {
+        setViewModeState(m)
+        localStorage.setItem('hpm_view_mode', m)
+    }
 
     useEffect(() => {
         loadFromAPI()
@@ -139,6 +152,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     return (
         <HouseholdContext.Provider value={{
             household, members, accounts, fxRates, loading, currentUserId,
+            viewMode, setViewMode,
             setHousehold: handleSetHousehold,
             setMembers, setAccounts, setFxRates,
             refreshHousehold, refreshMembers, refreshAccounts, refreshFxRates

@@ -126,7 +126,8 @@ function toKES(amount: number, currency: string, fxRates: { currency: string; ra
 }
 
 export default function HouseholdPage() {
-    const { household, members, accounts, fxRates, loading: contextLoading, setHousehold, setMembers, setAccounts, currentUserId } = useHousehold()
+    const { household, members, accounts, fxRates, loading: contextLoading, setHousehold, setMembers, setAccounts, currentUserId, viewMode } = useHousehold()
+    const isMeMode = viewMode === 'me'
     const [loading, setLoading] = useState(true)
     const [systemUsers, setSystemUsers] = useState<SystemUser[]>([])
 
@@ -449,7 +450,8 @@ export default function HouseholdPage() {
     }
 
     const myMember = members.find(m => m.user_id === currentUserId)
-    const visibleAccounts = myAccountsOnly
+    const visibleMembers = isMeMode ? members.filter(m => m.user_id === currentUserId) : members
+    const visibleAccounts = (isMeMode || myAccountsOnly)
         ? accounts.filter(a =>
             a.ownership === 'joint' ||
             (a.ownership === 'individual' && a.household_member_id === myMember?.id)
@@ -519,7 +521,7 @@ export default function HouseholdPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {members.map((member, i) => (
+                        {visibleMembers.map((member, i) => (
                             <div key={member.id}
                                 className="relative bg-white rounded-3xl p-5 border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
                                 style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -741,16 +743,18 @@ export default function HouseholdPage() {
                         <p className="text-sm text-slate-400">Bank and cash accounts</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center bg-slate-100 rounded-xl p-1">
-                            <button onClick={() => setMyAccountsOnly(false)}
-                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                All
-                            </button>
-                            <button onClick={() => setMyAccountsOnly(true)}
-                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                Mine
-                            </button>
-                        </div>
+                        {!isMeMode && (
+                            <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                                <button onClick={() => setMyAccountsOnly(false)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    All
+                                </button>
+                                <button onClick={() => setMyAccountsOnly(true)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    Mine
+                                </button>
+                            </div>
+                        )}
                         <button onClick={() => setAccountDialog(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
                             <Plus className="h-3.5 w-3.5" /> Add Account

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Wallet, Users, Settings, LogOut, Sparkles, BarChart3 } from 'lucide-react'
+import { Home, Wallet, Users, Settings, LogOut, Sparkles, BarChart3, Building2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
@@ -19,7 +19,7 @@ const navigation = [
 export default function Sidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const { household } = useHousehold()
+    const { household, viewMode, setViewMode } = useHousehold()
 
     const handleSignOut = async () => {
         await signOut()
@@ -44,6 +44,32 @@ export default function Sidebar() {
                 {household && (
                     <p className="text-xs mt-3 px-1" style={{ color: '#94a3b8' }}>{household.name}</p>
                 )}
+                {/* View mode toggle */}
+                <div className="flex mt-3 rounded-lg overflow-hidden border border-white/10 text-xs font-semibold">
+                    <button
+                        onClick={() => setViewMode('household')}
+                        className={cn(
+                            'flex-1 flex items-center justify-center gap-1.5 py-1.5 transition-all',
+                            viewMode === 'household'
+                                ? 'bg-sky-500/20 text-sky-300'
+                                : 'text-slate-500 hover:text-slate-300'
+                        )}>
+                        <Building2 className="h-3 w-3" />
+                        HH
+                    </button>
+                    <div className="w-px bg-white/10" />
+                    <button
+                        onClick={() => setViewMode('me')}
+                        className={cn(
+                            'flex-1 flex items-center justify-center gap-1.5 py-1.5 transition-all',
+                            viewMode === 'me'
+                                ? 'bg-violet-500/20 text-violet-300'
+                                : 'text-slate-500 hover:text-slate-300'
+                        )}>
+                        <User className="h-3 w-3" />
+                        Me
+                    </button>
+                </div>
             </div>
 
             {/* Divider */}

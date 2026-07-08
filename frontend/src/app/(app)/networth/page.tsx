@@ -60,11 +60,12 @@ function toKES(amount: number, currency: string, fxRates: { currency: string; ra
 }
 
 export default function NetWorthPage() {
-    const { household, accounts, fxRates, loading } = useHousehold()
+    const { household, accounts, members, fxRates, loading, currentUserId, viewMode } = useHousehold()
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [txnLoading, setTxnLoading] = useState(true)
     const [txnFilter, setTxnFilter] = useState<'all' | 'credit' | 'debit'>('all')
     const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'session'>('all')
+    const isMeMode = viewMode === 'me'
 
     useEffect(() => {
         if (!household) return
@@ -93,8 +94,15 @@ export default function NetWorthPage() {
 
     // ── Derived ───────────────────────────────────────────────────
 
-    const netWorthAccounts = accounts.filter(a => a.contributes_to_net_worth && a.is_active)
-    const excludedAccounts = accounts.filter(a => !a.contributes_to_net_worth && a.is_active)
+    const myMember = members.find(m => m.user_id === currentUserId)
+    const visibleAccounts = isMeMode
+        ? accounts.filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
+        : accounts
+
+    const netWorthAccounts = visibleAccounts.filter(a => a.contributes_to_net_worth && a.is_active)
+    const excludedAccounts = visibleAccounts.filter(a => !a.contributes_to_net_worth && a.is_active)
+
+    const myAccountIds = new Set(visibleAccounts.map(a => a.id))
     const totalNetWorth = netWorthAccounts.reduce((s, a) => {
         const kes = toKES(Number(a.current_balance), a.currency, fxRates)
         return s + (kes ?? 0)
@@ -105,18 +113,22 @@ export default function NetWorthPage() {
 
     const accountMap = Object.fromEntries(accounts.map(a => [a.id, a]))
 
-    const filteredTxns = transactions.filter(t => {
+    const scopedTransactions = isMeMode
+        ? transactions.filter(t => myAccountIds.has(t.account_id))
+        : transactions
+
+    const filteredTxns = scopedTransactions.filter(t => {
         if (txnFilter !== 'all' && t.transaction_type !== txnFilter) return false
         if (sourceFilter === 'manual' && t.session_item_id !== null) return false
         if (sourceFilter === 'session' && t.session_item_id === null) return false
         return true
     })
 
-    const totalDeposits = transactions
+    const totalDeposits = scopedTransactions
         .filter(t => t.transaction_type === 'credit')
         .reduce((s, t) => s + Number(t.amount), 0)
 
-    const totalWithdrawals = transactions
+    const totalWithdrawals = scopedTransactions
         .filter(t => t.transaction_type === 'debit')
         .reduce((s, t) => s + Number(t.amount), 0)
 
@@ -153,14 +165,14 @@ export default function NetWorthPage() {
                         <p className="text-white font-bold mb-2" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
                             {fmtCompact(totalDeposits)}
                         </p>
-                        <p className="text-slate-400 text-xs">{transactions.filter(t => t.transaction_type === 'credit').length} entries</p>
+                        <p className="text-slate-400 text-xs">{scopedTransactions.filter(t => t.transaction_type === 'credit').length} entries</p>
                     </div>
                     <div>
                         <p className="text-rose-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Withdrawals</p>
                         <p className="text-white font-bold mb-2" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
                             {fmtCompact(totalWithdrawals)}
                         </p>
-                        <p className="text-slate-400 text-xs">{transactions.filter(t => t.transaction_type === 'debit').length} entries</p>
+                        <p className="text-slate-400 text-xs">{scopedTransactions.filter(t => t.transaction_type === 'debit').length} entries</p>
                     </div>
                 </div>
 

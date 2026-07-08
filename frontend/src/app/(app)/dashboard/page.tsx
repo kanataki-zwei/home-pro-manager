@@ -12,6 +12,10 @@ interface Expense {
     id: string
     monthly_amount: number | string
     is_deleted: boolean
+    owner_id: string | null
+    ownership_type: string
+    joint_split_husband: number | null
+    joint_split_wife: number | null
     tag_assignments: { id: string; tag: { id: string; name: string; color: string | null } }[]
 }
 
@@ -49,7 +53,7 @@ const GRADIENTS = [
 // ─── Dashboard ────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-    const { household, members, accounts, loading, currentUserId } = useHousehold()
+    const { household, members, accounts, loading, currentUserId, viewMode } = useHousehold()
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
@@ -57,6 +61,7 @@ export default function DashboardPage() {
     const [membersExpanded, setMembersExpanded] = useState(false)
     const [incomeExpanded, setIncomeExpanded] = useState(false)
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
+    const isMeMode = viewMode === 'me'
 
     useEffect(() => {
         if (!household) return
@@ -95,7 +100,9 @@ export default function DashboardPage() {
     // ── Derived numbers ───────────────────────────────────────────
 
     const myMember = members.find(m => m.user_id === currentUserId)
-    const visibleAccounts = myAccountsOnly
+    const myRole = myMember?.member_type.name.toLowerCase() ?? ''
+
+    const visibleAccounts = (isMeMode || myAccountsOnly)
         ? accounts.filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
         : accounts
 
@@ -104,16 +111,33 @@ export default function DashboardPage() {
         .reduce((s, a) => s + Number(a.current_balance), 0)
     const currency = accounts[0]?.currency || 'KES'
 
-    const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
+    const allIncomeMembers = members.filter(m => m.contributes_income && m.income_amount)
+    const incomeMembers = isMeMode
+        ? allIncomeMembers.filter(m => m.user_id === currentUserId)
+        : allIncomeMembers
     const totalIncome = incomeMembers.reduce((s, m) => s + toMonthly(m.income_amount, m.income_cadence), 0)
 
     const activeExpenses = expenses.filter(e => !e.is_deleted)
-    const totalBudgeted = activeExpenses.reduce((s, e) => s + Number(e.monthly_amount), 0)
+    const totalBudgeted = isMeMode
+        ? activeExpenses.reduce((s, e) => {
+            if (e.owner_id === currentUserId) return s + Number(e.monthly_amount)
+            if (e.owner_id !== null) return s
+            if (e.ownership_type === myRole) return s + Number(e.monthly_amount)
+            if (e.ownership_type === 'joint') {
+                const split = myRole === 'husband' ? (e.joint_split_husband ?? 50)
+                            : myRole === 'wife'    ? (e.joint_split_wife    ?? 50) : 0
+                return s + Number(e.monthly_amount) * split / 100
+            }
+            return s
+        }, 0)
+        : activeExpenses.reduce((s, e) => s + Number(e.monthly_amount), 0)
     const netRemaining = totalIncome - totalBudgeted
     const budgetPct = totalIncome > 0 ? Math.min((totalBudgeted / totalIncome) * 100, 100) : 0
     const isOver = netRemaining < 0
 
     const monthsTracked = sessions.length
+
+    const visibleMembers = isMeMode ? members.filter(m => m.user_id === currentUserId) : members
 
     // ── Tag breakdown ─────────────────────────────────────────────
     const tagRows = tags.map(tag => ({
@@ -219,15 +243,15 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-end justify-between">
                             <div>
-                                <p className="text-xl font-black text-slate-900">{members.length}</p>
+                                <p className="text-xl font-black text-slate-900">{visibleMembers.length}</p>
                                 <p className="text-xs text-slate-400 mt-1">{membersExpanded ? 'Hide members' : 'Show members'}</p>
                             </div>
                             {membersExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 mb-0.5" /> : <ChevronDown className="h-4 w-4 text-slate-400 mb-0.5" />}
                         </div>
                     </button>
-                    {membersExpanded && members.length > 0 && (
+                    {membersExpanded && visibleMembers.length > 0 && (
                         <div className="border-t border-slate-100 divide-y divide-slate-50">
-                            {members.map((m, i) => (
+                            {visibleMembers.map((m, i) => (
                                 <div key={m.id} className="flex items-center gap-2 px-5 py-2.5">
                                     <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                                         style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
@@ -241,7 +265,7 @@ export default function DashboardPage() {
                             ))}
                         </div>
                     )}
-                    {membersExpanded && members.length === 0 && (
+                    {membersExpanded && visibleMembers.length === 0 && (
                         <p className="px-5 pb-4 text-xs text-slate-400">No members yet.</p>
                     )}
                 </div>
@@ -424,16 +448,18 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="font-bold text-slate-900 text-lg">Accounts</h2>
                     <div className="flex items-center gap-3">
-                        <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
-                            <button
-                                onClick={() => setMyAccountsOnly(false)}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${!myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >All</button>
-                            <button
-                                onClick={() => setMyAccountsOnly(true)}
-                                className={`px-3 py-1.5 rounded-lg transition-all ${myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >Mine</button>
-                        </div>
+                        {!isMeMode && (
+                            <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                                <button
+                                    onClick={() => setMyAccountsOnly(false)}
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${!myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >All</button>
+                                <button
+                                    onClick={() => setMyAccountsOnly(true)}
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >Mine</button>
+                            </div>
+                        )}
                         <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
                             Manage <ArrowUpRight className="h-3 w-3" />
                         </Link>

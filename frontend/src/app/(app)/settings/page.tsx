@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw } from 'lucide-react'
+import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,7 +31,7 @@ interface FxRate {
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'UGX', 'ZAR', 'INR', 'AED', 'CAD', 'AUD']
 
 export default function SettingsPage() {
-    const { household, fxRates, setFxRates, refreshHousehold } = useHousehold()
+    const { household, fxRates, setFxRates, refreshHousehold, viewMode, setViewMode } = useHousehold()
 
     // Profile state
     const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -220,6 +220,51 @@ export default function SettingsPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
                     <p className="text-sm text-slate-500">Manage your profile and household preferences</p>
+                </div>
+            </div>
+
+            {/* View Mode */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-2 mb-1">
+                    <Eye className="h-4 w-4 text-sky-500" />
+                    <h2 className="text-base font-semibold text-slate-800">View Mode</h2>
+                </div>
+                <p className="text-xs text-slate-400 mb-5">
+                    Switch between seeing all household data or just your personal view. Applies across all pages — accounts, expenses, budgets, and net worth.
+                </p>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setViewMode('household')}
+                        className={`flex-1 flex flex-col items-center gap-2.5 p-5 rounded-2xl border-2 transition-all ${
+                            viewMode === 'household'
+                                ? 'border-sky-400 bg-sky-50'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}>
+                        <Building2 className={`h-6 w-6 ${viewMode === 'household' ? 'text-sky-500' : 'text-slate-400'}`} />
+                        <div className="text-center">
+                            <p className={`text-sm font-bold ${viewMode === 'household' ? 'text-sky-700' : 'text-slate-600'}`}>Household</p>
+                            <p className="text-xs text-slate-400 mt-0.5">All data across the household</p>
+                        </div>
+                        {viewMode === 'household' && (
+                            <span className="text-xs font-bold text-sky-600 bg-sky-100 px-3 py-0.5 rounded-full">Active</span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setViewMode('me')}
+                        className={`flex-1 flex flex-col items-center gap-2.5 p-5 rounded-2xl border-2 transition-all ${
+                            viewMode === 'me'
+                                ? 'border-violet-400 bg-violet-50'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}>
+                        <User className={`h-6 w-6 ${viewMode === 'me' ? 'text-violet-500' : 'text-slate-400'}`} />
+                        <div className="text-center">
+                            <p className={`text-sm font-bold ${viewMode === 'me' ? 'text-violet-700' : 'text-slate-600'}`}>Just Me</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Your personal data only</p>
+                        </div>
+                        {viewMode === 'me' && (
+                            <span className="text-xs font-bold text-violet-600 bg-violet-100 px-3 py-0.5 rounded-full">Active</span>
+                        )}
+                    </button>
                 </div>
             </div>
 
