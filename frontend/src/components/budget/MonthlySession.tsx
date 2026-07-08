@@ -147,6 +147,7 @@ function SessionDetailView({
     const [closingSession, setClosingSession] = useState(false)
     const [resetting, setResetting] = useState(false)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
+    const [syncing, setSyncing] = useState(false)
 
     const isPast = session.month.slice(0, 10) < currentMonthStart
     const isReadOnly = isPast || sessionStatus === 'closed'
@@ -298,6 +299,22 @@ function SessionDetailView({
         }
     }
 
+    async function syncExpenses() {
+        setSyncing(true)
+        try {
+            const data = await apiPost<SessionDetail>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/sync-expenses`,
+                {}
+            )
+            setItems(data.items)
+            toast.success('Expenses synced from library')
+        } catch {
+            toast.error('Failed to sync expenses')
+        } finally {
+            setSyncing(false)
+        }
+    }
+
     function renderItemRow(item: SessionItem, isLast: boolean) {
         const isUpdating = updatingId === item.id
         const disabled = isReadOnly || isUpdating
@@ -445,6 +462,19 @@ function SessionDetailView({
                 )}
                 {!isReadOnly && (
                     <div className="ml-auto flex items-center gap-2">
+                        {sessionStatus === 'draft' && (
+                            <button
+                                onClick={syncExpenses}
+                                disabled={syncing}
+                                title="Update amounts from current expense library and add any new expenses"
+                                className="text-xs font-semibold text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-300 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                                {syncing
+                                    ? <span className="w-3 h-3 rounded-full border-2 border-sky-400 border-t-transparent animate-spin inline-block" />
+                                    : <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4s1-2 5-2a6 6 0 0 1 6 6"/><path d="M15 12s-1 2-5 2a6 6 0 0 1-6-6"/><polyline points="1 1 1 4 4 4"/><polyline points="15 15 15 12 12 12"/></svg>
+                                }
+                                {syncing ? 'Syncing…' : 'Sync from Library'}
+                            </button>
+                        )}
                         {showResetConfirm ? (
                             <>
                                 <span className="text-xs text-slate-500">Reset all items to default?</span>

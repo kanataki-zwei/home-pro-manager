@@ -829,6 +829,87 @@ async def reset_session(
     return result.scalar_one()
 
 
+@router.post("/sessions/{session_id}/sync-expenses", response_model=BudgetSessionResponse)
+async def sync_session_expenses(
+    household_id: UUID,
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(BudgetSession).where(
+            BudgetSession.id == session_id,
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft sessions can be synced")
+
+    # Determine caller's household role (same logic as session creation)
+    member_result = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
+        .where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == current_user.id,
+            HouseholdMember.is_active == True
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    role = member.member_type.name.lower() if member else None
+
+    # Fetch all current, non-deleted expenses relevant to this user
+    expense_result = await db.execute(
+        select(Expense)
+        .options(selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .where(Expense.household_id == household_id, Expense.is_deleted == False)
+    )
+    all_expenses = expense_result.scalars().all()
+    relevant = [
+        exp for exp in all_expenses
+        if exp.owner_id == current_user.id
+        or (exp.owner_id is None and (exp.ownership_type == role or exp.ownership_type == "joint"))
+    ]
+
+    # Build map of existing library items: expense_id → item
+    existing_result = await db.execute(
+        select(BudgetSessionItem).where(
+            BudgetSessionItem.session_id == session_id,
+            BudgetSessionItem.expense_id != None
+        )
+    )
+    existing_map = {str(item.expense_id): item for item in existing_result.scalars().all()}
+
+    for exp in relevant:
+        key = str(exp.id)
+        if key in existing_map:
+            # Update amount snapshot — only if status is still todo (don't disturb paid/reserved/na items)
+            existing_map[key].allocated_amount = exp.monthly_amount
+        else:
+            # New expense added to library since session was created
+            db.add(BudgetSessionItem(
+                session_id=session_id,
+                expense_id=exp.id,
+                allocated_amount=exp.monthly_amount,
+                amount_paid=Decimal("0.00"),
+                status="todo"
+            ))
+
+    await db.commit()
+
+    result = await db.execute(
+        select(BudgetSession)
+        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .where(BudgetSession.id == session_id)
+    )
+    return result.scalar_one()
+
+
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     household_id: UUID,
