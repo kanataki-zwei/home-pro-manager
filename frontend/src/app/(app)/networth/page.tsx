@@ -1,10 +1,14 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
+import {
+    ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
+    ReferenceLine,
+} from 'recharts'
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -132,6 +136,67 @@ export default function NetWorthPage() {
         .filter(t => t.transaction_type === 'debit')
         .reduce((s, t) => s + Number(t.amount), 0)
 
+    // Reconstruct monthly net worth trajectory from transaction history
+    const netWorthTrajectory = (() => {
+        const nwAccountIds = new Set(netWorthAccounts.map(a => a.id))
+        const nwTxns = scopedTransactions.filter(t => nwAccountIds.has(t.account_id))
+        if (nwTxns.length === 0) return []
+
+        const today = new Date()
+        const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+        const twelveMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 11, 1)
+        const cutoffKey = `${twelveMonthsAgo.getFullYear()}-${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`
+
+        const earliestTxnMonth = nwTxns.reduce((min, t) => {
+            const m = t.created_at.slice(0, 7)
+            return m < min ? m : min
+        }, currentMonthKey)
+        const startKey = earliestTxnMonth > cutoffKey ? earliestTxnMonth : cutoffKey
+
+        const months: string[] = []
+        let cur = new Date(startKey + '-01T00:00:00')
+        const end = new Date(currentMonthKey + '-01T00:00:00')
+        while (cur <= end) {
+            months.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`)
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1)
+        }
+        if (months.length < 2) return []
+
+        // Monthly net worth delta (credit to asset / debit from liability = +nw)
+        const monthlyDelta = new Map<string, number>()
+        for (const t of nwTxns) {
+            const month = t.created_at.slice(0, 7)
+            if (month < startKey) continue
+            const acct = accountMap[t.account_id]
+            if (!acct) continue
+            const isLiability = acct.account_type === 'credit'
+            const amount = toKES(Number(t.amount), acct.currency, fxRates) ?? Number(t.amount)
+            const impact = isLiability
+                ? (t.transaction_type === 'debit' ? amount : -amount)
+                : (t.transaction_type === 'credit' ? amount : -amount)
+            monthlyDelta.set(month, (monthlyDelta.get(month) ?? 0) + impact)
+        }
+
+        // Build snapshots: current nw is latest, subtract deltas backwards
+        const snapshots: { label: string; nw: number }[] = []
+        let running = totalNetWorth
+        for (const month of [...months].reverse()) {
+            const d = new Date(month + '-01T00:00:00')
+            const label = d.toLocaleDateString('en-KE', { month: 'short', year: '2-digit' })
+            snapshots.unshift({ label, nw: Math.round(running) })
+            running -= (monthlyDelta.get(month) ?? 0)
+        }
+        return snapshots
+    })()
+
+    const trajectoryDelta = netWorthTrajectory.length >= 2
+        ? netWorthTrajectory[netWorthTrajectory.length - 1].nw - netWorthTrajectory[0].nw
+        : 0
+    const trajectoryDeltaPct = netWorthTrajectory.length >= 2 && netWorthTrajectory[0].nw !== 0
+        ? (trajectoryDelta / Math.abs(netWorthTrajectory[0].nw)) * 100
+        : 0
+    const trajectoryColor = trajectoryDelta >= 0 ? '#10b981' : '#f43f5e'
+
     return (
         <div className="space-y-6 max-w-5xl">
 
@@ -191,6 +256,68 @@ export default function NetWorthPage() {
                     </div>
                 )}
             </div>
+
+            {/* Net Worth Trajectory */}
+            {netWorthTrajectory.length >= 2 && (
+                <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Net Worth Trajectory</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`text-sm font-black ${trajectoryDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                    {trajectoryDelta >= 0 ? '+' : '−'}{fmtCompact(Math.abs(trajectoryDelta))}
+                                </span>
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${trajectoryDelta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                    {trajectoryDelta >= 0 ? '▲' : '▼'} {Math.abs(trajectoryDeltaPct).toFixed(1)}%
+                                </span>
+                                <span className="text-xs text-slate-400">over {netWorthTrajectory.length} months</span>
+                            </div>
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={180}>
+                        <LineChart data={netWorthTrajectory} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="nwGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={trajectoryColor} stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor={trajectoryColor} stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="label"
+                                tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+                                axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={v => {
+                                if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+                                if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+                                return String(Math.round(v))
+                            }}
+                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                axisLine={false} tickLine={false} width={52} />
+                            <ReTooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null
+                                    return (
+                                        <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2 shadow-lg text-xs">
+                                            <p className="font-bold text-slate-500 mb-1">{label}</p>
+                                            <p className="font-black text-slate-900">{fmt(payload[0].value as number)}</p>
+                                        </div>
+                                    )
+                                }}
+                                cursor={{ stroke: trajectoryColor, strokeWidth: 1, strokeDasharray: '4 4' }}
+                            />
+                            <ReferenceLine y={netWorthTrajectory[0].nw}
+                                stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth={1} />
+                            <Line type="monotone" dataKey="nw"
+                                stroke={trajectoryColor} strokeWidth={2.5}
+                                dot={{ fill: trajectoryColor, r: 3, strokeWidth: 0 }}
+                                activeDot={{ r: 5, fill: trajectoryColor, strokeWidth: 2, stroke: '#fff' }}
+                                fill="url(#nwGradient)"
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
 
             {/* Account breakdown */}
             <div className="grid grid-cols-2 gap-4">
