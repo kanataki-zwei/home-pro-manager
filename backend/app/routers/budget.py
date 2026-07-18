@@ -23,6 +23,7 @@ from app.schemas.budget import (
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
     BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate,
     SessionMonthStats, BudgetStatsResponse,
+    GroupTrend, SessionTrend, BudgetTrendResponse,
 )
 
 router = APIRouter(
@@ -694,6 +695,60 @@ async def get_budget_stats(
         monthly_history=history,
         current_session=current_session,
     )
+
+
+# ─── Budget Trend ─────────────────────────────────────────────────
+
+@router.get("/trend", response_model=BudgetTrendResponse)
+async def get_budget_trend(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    sessions_q = await db.execute(
+        select(BudgetSession)
+        .options(
+            selectinload(BudgetSession.items)
+            .selectinload(BudgetSessionItem.expense)
+            .selectinload(Expense.group)
+        )
+        .where(
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False,
+        )
+        .order_by(BudgetSession.month.desc())
+        .limit(6)
+    )
+    sessions = list(reversed(sessions_q.scalars().all()))
+
+    result: list[SessionTrend] = []
+    for s in sessions:
+        group_totals_map: dict[str | None, tuple[str, Decimal]] = {}
+        for item in s.items:
+            exp = item.expense
+            if exp is None:
+                gid, gname = None, "Ungrouped"
+            elif exp.group is None:
+                gid, gname = None, "Ungrouped"
+            else:
+                gid, gname = str(exp.group.id), exp.group.name
+            prev = group_totals_map.get(gid, (gname, Decimal("0")))
+            group_totals_map[gid] = (gname, prev[1] + item.allocated_amount)
+
+        group_totals = [
+            GroupTrend(group_id=gid, group_name=name, total=total)
+            for gid, (name, total) in group_totals_map.items()
+        ]
+        result.append(SessionTrend(
+            session_id=str(s.id),
+            month=s.month.isoformat(),
+            status=s.status,
+            group_totals=group_totals,
+            session_total=sum(gt.total for gt in group_totals),
+        ))
+
+    return BudgetTrendResponse(sessions=result)
 
 
 # ─── Budget Sessions ──────────────────────────────────────────────

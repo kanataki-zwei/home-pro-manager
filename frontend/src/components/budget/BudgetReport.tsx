@@ -7,11 +7,13 @@ import { toast } from 'sonner'
 import { Layers, Receipt } from 'lucide-react'
 import {
     ResponsiveContainer, PieChart, Pie, Cell, Tooltip as ReTooltip,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
 } from 'recharts'
 
 interface ExpenseTag { id: string; name: string; color: string | null }
 interface ExpenseGroup { id: string; name: string; owner_id: string | null; is_deleted: boolean }
+interface GroupTrend { group_id: string | null; group_name: string; total: number }
+interface SessionTrend { session_id: string; month: string; status: string; group_totals: GroupTrend[]; session_total: number }
 interface TagAssignment { id: string; tag: ExpenseTag }
 interface Expense {
     id: string; name: string; amount: number; frequency: string
@@ -72,6 +74,7 @@ export default function BudgetReport() {
     const { household, members, currentUserId } = useHousehold()
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [expenses, setExpenses] = useState<Expense[]>([])
+    const [trendSessions, setTrendSessions] = useState<SessionTrend[]>([])
     const [loading, setLoading] = useState(true)
     const [scope, setScope] = useState<'all' | 'me'>('all')
 
@@ -81,9 +84,11 @@ export default function BudgetReport() {
         Promise.all([
             apiGet<ExpenseGroup[]>(`/api/households/${household.id}/budget/groups`),
             apiGet<Expense[]>(`/api/households/${household.id}/budget/expenses`),
-        ]).then(([g, e]) => {
+            apiGet<{ sessions: SessionTrend[] }>(`/api/households/${household.id}/budget/trend`),
+        ]).then(([g, e, t]) => {
             setGroups(g.filter(g => !g.is_deleted))
             setExpenses(e.filter(e => !e.is_deleted))
+            setTrendSessions(t.sessions)
         }).catch(() => toast.error('Failed to load report'))
         .finally(() => setLoading(false))
     }, [household?.id])
@@ -175,6 +180,27 @@ export default function BudgetReport() {
 
     const totalAllocated = memberRows.reduce((s, r) => s + r.allocated, 0)
     const barData = memberRows.map(r => ({ name: r.member.name, allocated: r.allocated, color: r.color }))
+
+    // Month-over-month trend chart data
+    const { trendChartData, trendGroupNames } = useMemo(() => {
+        if (trendSessions.length < 2) return { trendChartData: [], trendGroupNames: [] }
+        const allGroupNames = new Set<string>()
+        for (const s of trendSessions) {
+            for (const g of s.group_totals) allGroupNames.add(g.group_name)
+        }
+        const groupNames = Array.from(allGroupNames)
+        const chartData = trendSessions.map(s => {
+            const d: Record<string, number | string> = {
+                month: new Date(s.month + 'T00:00:00').toLocaleDateString('en-KE', { month: 'short', year: '2-digit' }),
+            }
+            for (const name of groupNames) {
+                const found = s.group_totals.find(g => g.group_name === name)
+                d[name] = found ? Number(found.total) : 0
+            }
+            return d
+        })
+        return { trendChartData: chartData, trendGroupNames: groupNames }
+    }, [trendSessions])
 
     if (loading) return (
         <div className="flex items-center justify-center h-48">
@@ -432,6 +458,63 @@ export default function BudgetReport() {
                                 </div>
                             )
                         })}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Month-over-month trend ── */}
+            {scope === 'all' && trendChartData.length >= 2 && (
+                <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-4">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Monthly Budget Trend</p>
+                        <p className="text-xs text-slate-400">{trendSessions.length} months</p>
+                    </div>
+                    <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={trendChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barSize={28}>
+                            <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                            <YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} />
+                            <ReTooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null
+                                    const total = (payload as any[]).reduce((s: number, p: any) => s + (p.value || 0), 0)
+                                    return (
+                                        <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2.5 shadow-lg text-xs min-w-[160px]">
+                                            <p className="font-black text-slate-700 mb-2">{label}</p>
+                                            {(payload as any[]).filter(p => p.value > 0).map((p: any, i: number) => (
+                                                <div key={i} className="flex items-center justify-between gap-4 mb-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill }} />
+                                                        <span className="text-slate-500 truncate max-w-[90px]">{p.name}</span>
+                                                    </div>
+                                                    <span className="font-bold text-slate-700 flex-shrink-0">{fmtK(p.value)}</span>
+                                                </div>
+                                            ))}
+                                            <div className="border-t border-slate-100 pt-1 mt-1 flex items-center justify-between">
+                                                <span className="text-slate-400">Total</span>
+                                                <span className="font-black text-slate-900">{fmtK(total)}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                }}
+                                cursor={{ fill: '#f8fafc' }}
+                            />
+                            {trendGroupNames.map((name, i) => (
+                                <Bar key={name} dataKey={name} stackId="a"
+                                    fill={CHART_COLORS[i % CHART_COLORS.length]}
+                                    radius={i === trendGroupNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                                />
+                            ))}
+                        </BarChart>
+                    </ResponsiveContainer>
+                    {/* Group legend */}
+                    <div className="flex flex-wrap gap-3 mt-3">
+                        {trendGroupNames.map((name, i) => (
+                            <div key={name} className="flex items-center gap-1.5">
+                                <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                <span className="text-xs text-slate-500">{name}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}

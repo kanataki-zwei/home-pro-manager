@@ -265,3 +265,21 @@ class BudgetStatsResponse(BaseModel):
     total_income: Decimal
     monthly_history: List[SessionMonthStats]   # up to 6, newest-first
     current_session: Optional[SessionMonthStats] = None
+
+
+# ─── Budget Trend ──────────────────────────────────────────────────
+
+class GroupTrend(BaseModel):
+    group_id: Optional[str]
+    group_name: str
+    total: Decimal
+
+class SessionTrend(BaseModel):
+    session_id: str
+    month: str
+    status: str
+    group_totals: List[GroupTrend]
+    session_total: Decimal
+
+class BudgetTrendResponse(BaseModel):
+    sessions: List[SessionTrend]   # chronological, up to 6
