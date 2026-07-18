@@ -189,6 +189,7 @@ class BudgetSessionItemUpdate(BaseModel):
     status: Literal["todo", "paid", "reserved", "na"]
     notes: Optional[str] = Field(default=None, max_length=1000)
     reference_number: Optional[str] = Field(default=None, max_length=100)
+    amount_paid: Optional[Decimal] = Field(default=None, ge=0)
 
 class AdHocSessionItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
@@ -201,6 +202,7 @@ class BudgetSessionItemResponse(BaseModel):
     ad_hoc_name: Optional[str] = None
     ad_hoc_amount: Optional[Decimal] = None
     allocated_amount: Decimal
+    amount_paid: Decimal = Decimal("0")
     status: str
     notes: Optional[str] = None
     reference_number: Optional[str] = None
@@ -283,3 +285,30 @@ class SessionTrend(BaseModel):
 
 class BudgetTrendResponse(BaseModel):
     sessions: List[SessionTrend]   # chronological, up to 6
+
+
+# ─── Budget Variance ──────────────────────────────────────────────
+
+class VarianceItem(BaseModel):
+    item_id: str
+    name: str
+    budgeted: Decimal
+    paid: Decimal
+    variance: Decimal          # paid - budgeted; negative = under, positive = over
+
+class VarianceGroup(BaseModel):
+    group_id: Optional[str]
+    group_name: str
+    budgeted: Decimal
+    paid: Decimal
+    variance: Decimal
+    items: List[VarianceItem]
+
+class VarianceResponse(BaseModel):
+    session_id: str
+    month: str
+    status: str
+    total_budgeted: Decimal
+    total_paid: Decimal
+    total_variance: Decimal
+    groups: List[VarianceGroup]

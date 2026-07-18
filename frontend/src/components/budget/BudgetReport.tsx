@@ -14,6 +14,9 @@ interface ExpenseTag { id: string; name: string; color: string | null }
 interface ExpenseGroup { id: string; name: string; owner_id: string | null; is_deleted: boolean }
 interface GroupTrend { group_id: string | null; group_name: string; total: number }
 interface SessionTrend { session_id: string; month: string; status: string; group_totals: GroupTrend[]; session_total: number }
+interface VarianceItem { item_id: string; name: string; budgeted: number; paid: number; variance: number }
+interface VarianceGroup { group_id: string | null; group_name: string; budgeted: number; paid: number; variance: number; items: VarianceItem[] }
+interface VarianceData { session_id: string; month: string; status: string; total_budgeted: number; total_paid: number; total_variance: number; groups: VarianceGroup[] }
 interface TagAssignment { id: string; tag: ExpenseTag }
 interface Expense {
     id: string; name: string; amount: number; frequency: string
@@ -75,8 +78,10 @@ export default function BudgetReport() {
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [trendSessions, setTrendSessions] = useState<SessionTrend[]>([])
+    const [variance, setVariance] = useState<VarianceData | null>(null)
     const [loading, setLoading] = useState(true)
     const [scope, setScope] = useState<'all' | 'me'>('all')
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
     useEffect(() => {
         if (!household) return
@@ -85,10 +90,12 @@ export default function BudgetReport() {
             apiGet<ExpenseGroup[]>(`/api/households/${household.id}/budget/groups`),
             apiGet<Expense[]>(`/api/households/${household.id}/budget/expenses`),
             apiGet<{ sessions: SessionTrend[] }>(`/api/households/${household.id}/budget/trend`),
-        ]).then(([g, e, t]) => {
+            apiGet<VarianceData>(`/api/households/${household.id}/budget/variance`).catch(() => null),
+        ]).then(([g, e, t, v]) => {
             setGroups(g.filter(g => !g.is_deleted))
             setExpenses(e.filter(e => !e.is_deleted))
             setTrendSessions(t.sessions)
+            setVariance(v)
         }).catch(() => toast.error('Failed to load report'))
         .finally(() => setLoading(false))
     }, [household?.id])
@@ -518,6 +525,125 @@ export default function BudgetReport() {
                     </div>
                 </div>
             )}
+
+            {/* ── Budget vs Actual Variance ── */}
+            {scope === 'all' && variance && variance.total_paid > 0 && (() => {
+                const monthLabel = new Date(variance.month + 'T00:00:00').toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })
+                const totalSaved = -variance.total_variance
+                const groups = variance.groups.filter(g => g.paid > 0 || g.budgeted > 0)
+                return (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget vs Actual · {monthLabel}</p>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                totalSaved >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'
+                            }`}>
+                                {totalSaved >= 0 ? `${fmt(totalSaved)} under budget` : `${fmt(Math.abs(totalSaved))} over budget`}
+                            </span>
+                        </div>
+
+                        {/* Summary bar */}
+                        <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="text-center">
+                                    <p className="text-xs text-slate-400 font-medium">Budgeted</p>
+                                    <p className="text-sm font-black text-slate-900 mt-0.5">{fmt(variance.total_budgeted)}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xs text-slate-400 font-medium">Paid</p>
+                                    <p className="text-sm font-black text-slate-900 mt-0.5">{fmt(variance.total_paid)}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-xs text-slate-400 font-medium">Variance</p>
+                                    <p className={`text-sm font-black mt-0.5 ${totalSaved >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        {totalSaved >= 0 ? '−' : '+'}{fmt(Math.abs(variance.total_variance))}
+                                    </p>
+                                </div>
+                            </div>
+                            {/* Dual bar: budgeted vs paid */}
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-400 w-14 flex-shrink-0">Budget</span>
+                                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-slate-300 rounded-full" style={{ width: '100%' }} />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-400 w-14 flex-shrink-0">Paid</span>
+                                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all ${totalSaved >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                                            style={{ width: `${Math.min((variance.total_paid / variance.total_budgeted) * 100, 100)}%` }} />
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-500 flex-shrink-0 w-9 text-right">
+                                        {((variance.total_paid / variance.total_budgeted) * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Per-group rows */}
+                        <div className="space-y-2">
+                            {groups.map((g, gi) => {
+                                const gSaved = -g.variance
+                                const isExpanded = expandedGroups.has(g.group_name)
+                                const paidPct = g.budgeted > 0 ? Math.min((g.paid / g.budgeted) * 100, 120) : 0
+                                return (
+                                    <div key={g.group_name} className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                                        style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                                        <button
+                                            className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
+                                            onClick={() => setExpandedGroups(prev => {
+                                                const next = new Set(prev)
+                                                next.has(g.group_name) ? next.delete(g.group_name) : next.add(g.group_name)
+                                                return next
+                                            })}>
+                                            <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                                                style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
+                                                {g.group_name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <p className="text-sm font-bold text-slate-800">{g.group_name}</p>
+                                                    <span className={`text-xs font-bold flex-shrink-0 ${gSaved >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                        {gSaved >= 0 ? '−' : '+'}{fmt(Math.abs(g.variance))}
+                                                    </span>
+                                                </div>
+                                                <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 gap-px">
+                                                    <div className={`h-full rounded-full ${gSaved >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`}
+                                                        style={{ width: `${Math.min(paidPct, 100)}%` }} />
+                                                </div>
+                                            </div>
+                                            <span className="text-xs text-slate-300 flex-shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                                        </button>
+                                        {isExpanded && (
+                                            <div className="border-t border-slate-50 divide-y divide-slate-50">
+                                                {g.items.filter(it => it.paid > 0 || it.budgeted > 0).map(it => {
+                                                    const iSaved = -it.variance
+                                                    return (
+                                                        <div key={it.item_id} className="flex items-center justify-between px-5 py-2.5 pl-16">
+                                                            <p className="text-xs text-slate-600 truncate flex-1 min-w-0">{it.name}</p>
+                                                            <div className="flex items-center gap-3 flex-shrink-0 text-xs">
+                                                                <span className="text-slate-400">{fmt(it.budgeted)}</span>
+                                                                <span className="text-slate-300">→</span>
+                                                                <span className="font-bold text-slate-700">{fmt(it.paid)}</span>
+                                                                {it.variance !== 0 && (
+                                                                    <span className={`font-bold ${iSaved >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                                        {iSaved >= 0 ? '−' : '+'}{fmt(Math.abs(it.variance))}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )
+            })()}
 
             {/* ── Group breakdown list ── */}
             <div className="space-y-3">

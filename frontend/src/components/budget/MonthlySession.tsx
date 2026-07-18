@@ -40,6 +40,7 @@ interface SessionItem {
     ad_hoc_name: string | null
     ad_hoc_amount: number | string | null
     allocated_amount: number
+    amount_paid: number
     status: string   // todo | paid | reserved | na
     created_at: string
     updated_at: string
@@ -137,7 +138,7 @@ function SessionDetailView({
     const [items, setItems] = useState<SessionItem[]>(session.items)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [pendingNa, setPendingNa] = useState<{ itemId: string; note: string } | null>(null)
-    const [pendingPaidRef, setPendingPaidRef] = useState<{ itemId: string; ref: string } | null>(null)
+    const [pendingPaidRef, setPendingPaidRef] = useState<{ itemId: string; ref: string; amountPaid: string } | null>(null)
     const [showAdHocForm, setShowAdHocForm] = useState(false)
     const [adHocName, setAdHocName] = useState('')
     const [adHocAmount, setAdHocAmount] = useState('')
@@ -219,12 +220,15 @@ function SessionDetailView({
         }
     }
 
-    async function confirmPaid(itemId: string, ref: string) {
+    async function confirmPaid(itemId: string, ref: string, amountPaid: string) {
         setUpdatingId(itemId)
         try {
+            const body: Record<string, unknown> = { status: 'paid', reference_number: ref || undefined }
+            const parsed = parseFloat(amountPaid)
+            if (!isNaN(parsed) && parsed > 0) body.amount_paid = parsed
             const updated = await apiPatch<SessionItem>(
                 `/api/households/${householdId}/budget/sessions/${session.id}/items/${itemId}`,
-                { status: 'paid', reference_number: ref }
+                body
             )
             setItems(prev => prev.map(i => i.id === itemId ? updated : i))
             setPendingPaidRef(null)
@@ -345,8 +349,8 @@ function SessionDetailView({
                                         if (pendingPaidRef?.itemId === item.id) setPendingPaidRef(null)
                                         if (s === 'na') {
                                             setPendingNa({ itemId: item.id, note: '' })
-                                        } else if (s === 'paid' && requiresRef(item)) {
-                                            setPendingPaidRef({ itemId: item.id, ref: '' })
+                                        } else if (s === 'paid') {
+                                            setPendingPaidRef({ itemId: item.id, ref: '', amountPaid: '' })
                                         } else {
                                             updateStatus(item.id, s)
                                         }
@@ -377,26 +381,56 @@ function SessionDetailView({
                         <p className="text-xs text-slate-500 italic">{item.notes}</p>
                     </div>
                 )}
-                {item.status === 'paid' && item.reference_number && (
-                    <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-emerald-50 border-l-2 border-emerald-300">
-                        <p className="text-xs text-emerald-600 font-medium">Ref: {item.reference_number}</p>
+                {item.status === 'paid' && (
+                    <div className="mx-5 mb-3 flex items-center gap-2 flex-wrap">
+                        {item.reference_number && (
+                            <div className="px-3 py-1.5 rounded-lg bg-emerald-50 border-l-2 border-emerald-300">
+                                <p className="text-xs text-emerald-600 font-medium">Ref: {item.reference_number}</p>
+                            </div>
+                        )}
+                        {item.amount_paid > 0 && item.amount_paid !== item.allocated_amount && (() => {
+                            const diff = item.amount_paid - item.allocated_amount
+                            const over = diff > 0
+                            return (
+                                <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${over ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                                    {over ? `+${fmt(diff)} over` : `${fmt(Math.abs(diff))} saved`}
+                                </span>
+                            )
+                        })()}
                     </div>
                 )}
                 {pendingPaidRef?.itemId === item.id && (
-                    <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
-                        <p className="text-xs font-medium text-slate-600">Payment reference number <span className="text-red-400">*</span></p>
-                        <input
-                            type="text"
-                            autoFocus
-                            placeholder="e.g. TXN-2026-06-001"
-                            value={pendingPaidRef.ref}
-                            onChange={e => setPendingPaidRef({ ...pendingPaidRef, ref: e.target.value })}
-                            className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
-                        />
+                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 pt-3">
+                        <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-slate-600">
+                                Actual amount paid
+                                <span className="text-slate-400 font-normal ml-1">(leave blank to use budgeted {fmt(item.allocated_amount)})</span>
+                            </p>
+                            <input
+                                type="number"
+                                autoFocus
+                                placeholder={String(Number(item.allocated_amount))}
+                                value={pendingPaidRef.amountPaid}
+                                onChange={e => setPendingPaidRef({ ...pendingPaidRef, amountPaid: e.target.value })}
+                                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                            />
+                        </div>
+                        {requiresRef(item) && (
+                            <div className="space-y-1.5">
+                                <p className="text-xs font-medium text-slate-600">Reference number <span className="text-red-400">*</span></p>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. TXN-2026-06-001"
+                                    value={pendingPaidRef.ref}
+                                    onChange={e => setPendingPaidRef({ ...pendingPaidRef, ref: e.target.value })}
+                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                                />
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => confirmPaid(item.id, pendingPaidRef.ref)}
-                                disabled={!pendingPaidRef.ref.trim() || isUpdating}
+                                onClick={() => confirmPaid(item.id, pendingPaidRef.ref, pendingPaidRef.amountPaid)}
+                                disabled={(requiresRef(item) && !pendingPaidRef.ref.trim()) || isUpdating}
                                 className="text-xs font-semibold bg-emerald-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-40 hover:bg-emerald-700 transition-colors">
                                 Confirm Paid
                             </button>

@@ -24,6 +24,7 @@ from app.schemas.budget import (
     BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate,
     SessionMonthStats, BudgetStatsResponse,
     GroupTrend, SessionTrend, BudgetTrendResponse,
+    VarianceItem, VarianceGroup, VarianceResponse,
 )
 
 router = APIRouter(
@@ -751,6 +752,83 @@ async def get_budget_trend(
     return BudgetTrendResponse(sessions=result)
 
 
+# ─── Budget Variance ──────────────────────────────────────────────
+
+@router.get("/variance", response_model=VarianceResponse)
+async def get_budget_variance(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Load the most recent session (active preferred, else latest closed)
+    sessions_q = await db.execute(
+        select(BudgetSession)
+        .options(
+            selectinload(BudgetSession.items)
+            .selectinload(BudgetSessionItem.expense)
+            .selectinload(Expense.group)
+        )
+        .where(
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False,
+        )
+        .order_by(BudgetSession.month.desc())
+        .limit(1)
+    )
+    session = sessions_q.scalars().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="No budget sessions found")
+
+    # Group items by expense group
+    group_map: dict[str | None, tuple[str, list[BudgetSessionItem]]] = {}
+    for item in session.items:
+        exp = item.expense
+        if exp is None:
+            gid, gname = None, "One-time"
+        elif exp.group is None:
+            gid, gname = None, "Ungrouped"
+        else:
+            gid, gname = str(exp.group.id), exp.group.name
+        if gid not in group_map:
+            group_map[gid] = (gname, [])
+        group_map[gid][1].append(item)
+
+    variance_groups: list[VarianceGroup] = []
+    for gid, (gname, g_items) in group_map.items():
+        v_items: list[VarianceItem] = []
+        for it in g_items:
+            budgeted = it.allocated_amount
+            paid = it.amount_paid if it.amount_paid > Decimal("0") else (
+                it.allocated_amount if it.status == "paid" else Decimal("0")
+            )
+            name = it.expense.name if it.expense else (it.ad_hoc_name or "One-time")
+            v_items.append(VarianceItem(
+                item_id=str(it.id), name=name,
+                budgeted=budgeted, paid=paid, variance=paid - budgeted,
+            ))
+        g_budgeted = sum(i.budgeted for i in v_items)
+        g_paid = sum(i.paid for i in v_items)
+        variance_groups.append(VarianceGroup(
+            group_id=gid, group_name=gname,
+            budgeted=g_budgeted, paid=g_paid, variance=g_paid - g_budgeted,
+            items=v_items,
+        ))
+
+    total_budgeted = sum(g.budgeted for g in variance_groups)
+    total_paid = sum(g.paid for g in variance_groups)
+
+    return VarianceResponse(
+        session_id=str(session.id),
+        month=session.month.isoformat(),
+        status=session.status,
+        total_budgeted=total_budgeted,
+        total_paid=total_paid,
+        total_variance=total_paid - total_budgeted,
+        groups=variance_groups,
+    )
+
+
 # ─── Budget Sessions ──────────────────────────────────────────────
 
 @router.get("/sessions", response_model=List[BudgetSessionSummaryResponse])
@@ -1107,9 +1185,15 @@ async def update_session_item(
     if payload.status != "na":
         item.notes = None
 
-    # Clear reference number when moving away from paid
+    # Clear reference number and reset amount_paid when un-paying
     if payload.status != "paid":
         item.reference_number = None
+        item.amount_paid = Decimal("0")
+    elif item.amount_paid == Decimal("0"):
+        # Auto-set amount_paid to allocated_amount if not explicitly provided
+        item.amount_paid = item.allocated_amount
+
+    effective_paid = item.amount_paid if item.amount_paid > Decimal("0") else item.allocated_amount
 
     # ── Auto-credit account on paid ──────────────────────────────
     if payload.status == "paid" and old_status != "paid":
@@ -1122,13 +1206,13 @@ async def update_session_item(
                 txn = AccountTransaction(
                     account_id=account.id,
                     household_id=household_id,
-                    amount=item.allocated_amount,
-                    narration=f"{expense_name}",
+                    amount=effective_paid,
+                    narration=expense_name,
                     transaction_type="credit",
                     session_item_id=item.id,
                 )
                 db.add(txn)
-                account.current_balance = (account.current_balance or 0) + item.allocated_amount
+                account.current_balance = (account.current_balance or Decimal("0")) + effective_paid
 
     # ── Reverse auto-credit when un-paying ───────────────────────
     elif old_status == "paid" and payload.status != "paid":
@@ -1140,7 +1224,7 @@ async def update_session_item(
             acc_result = await db.execute(select(Account).where(Account.id == auto_txn.account_id))
             account = acc_result.scalar_one_or_none()
             if account:
-                account.current_balance = (account.current_balance or 0) - auto_txn.amount
+                account.current_balance = (account.current_balance or Decimal("0")) - auto_txn.amount
             await db.delete(auto_txn)
 
     await db.commit()
