@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func, case as sa_case
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
@@ -21,7 +21,8 @@ from app.schemas.budget import (
     BudgetTemplateCreate, BudgetTemplateUpdate, BudgetTemplateResponse, BudgetTemplateSummaryResponse,
     BudgetTemplateItemCreate, BudgetTemplateItemUpdate, BudgetTemplateItemResponse,
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
-    BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate
+    BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate,
+    SessionMonthStats, BudgetStatsResponse,
 )
 
 router = APIRouter(
@@ -607,6 +608,92 @@ async def delete_template_item(
         raise HTTPException(status_code=404, detail="Item not found")
     await db.delete(item)
     await db.commit()
+
+
+# ─── Budget Stats ─────────────────────────────────────────────────
+
+@router.get("/stats", response_model=BudgetStatsResponse)
+async def get_budget_stats(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from datetime import date as date_type
+
+    # Total monthly income across all active contributing members
+    income_q = await db.execute(
+        select(
+            func.coalesce(
+                func.sum(
+                    sa_case(
+                        (HouseholdMember.income_cadence == "weekly",
+                         HouseholdMember.income_amount * Decimal("52") / Decimal("12")),
+                        (HouseholdMember.income_cadence == "annually",
+                         HouseholdMember.income_amount / Decimal("12")),
+                        else_=HouseholdMember.income_amount,
+                    )
+                ),
+                0,
+            )
+        ).where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.contributes_income == True,
+            HouseholdMember.income_amount.isnot(None),
+            HouseholdMember.is_active == True,
+        )
+    )
+    total_income = Decimal(str(income_q.scalar() or "0"))
+
+    # Last 6 sessions with their items
+    sessions_q = await db.execute(
+        select(BudgetSession)
+        .options(selectinload(BudgetSession.items))
+        .where(
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False,
+        )
+        .order_by(BudgetSession.month.desc())
+        .limit(6)
+    )
+    sessions = sessions_q.scalars().all()
+
+    today = date_type.today()
+    current_month_start = today.replace(day=1)
+
+    history: list[SessionMonthStats] = []
+    current_session: SessionMonthStats | None = None
+
+    for s in sessions:
+        total_budgeted = Decimal(str(sum(i.allocated_amount for i in s.items)))
+        paid_count = sum(1 for i in s.items if i.status == "paid")
+        paid_amount = Decimal(str(sum(i.allocated_amount for i in s.items if i.status == "paid")))
+        item_count = len(s.items)
+
+        if total_income > 0:
+            savings_rate = ((total_income - total_budgeted) / total_income * 100).quantize(Decimal("0.1"))
+        else:
+            savings_rate = Decimal("0")
+
+        stats = SessionMonthStats(
+            session_id=str(s.id),
+            month=s.month.isoformat(),
+            status=s.status,
+            total_budgeted=total_budgeted,
+            item_count=item_count,
+            paid_count=paid_count,
+            paid_amount=paid_amount,
+            savings_rate=savings_rate,
+        )
+        history.append(stats)
+        if s.month == current_month_start:
+            current_session = stats
+
+    return BudgetStatsResponse(
+        total_income=total_income,
+        monthly_history=history,
+        current_session=current_session,
+    )
 
 
 # ─── Budget Sessions ──────────────────────────────────────────────

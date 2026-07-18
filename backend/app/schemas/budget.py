@@ -247,3 +247,21 @@ class BudgetSessionSummaryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ─── Budget Stats ─────────────────────────────────────────────────
+
+class SessionMonthStats(BaseModel):
+    session_id: str
+    month: str            # ISO "2026-07-01"
+    status: str
+    total_budgeted: Decimal
+    item_count: int
+    paid_count: int
+    paid_amount: Decimal
+    savings_rate: Decimal  # (income − total_budgeted) / income × 100
+
+class BudgetStatsResponse(BaseModel):
+    total_income: Decimal
+    monthly_history: List[SessionMonthStats]   # up to 6, newest-first
+    current_session: Optional[SessionMonthStats] = None

@@ -507,6 +507,45 @@ function SessionDetailView({
                 )}
             </div>
 
+            {/* Velocity indicator — current month active session only */}
+            {sessionStatus === 'active' && session.month.slice(0, 7) === new Date().toISOString().slice(0, 7) && (() => {
+                const today = new Date()
+                const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                const daysElapsed = today.getDate()
+                const timePct = daysElapsed / daysInMonth
+                const paidPct = totalOriginalAllocated > 0 ? totalPaid / totalOriginalAllocated : 0
+                const pace = paidPct - timePct
+                const isAhead = pace > 0.1
+                const isBehind = pace < -0.15
+                const paceLabel = isAhead ? 'Ahead of pace' : isBehind ? 'Behind pace' : 'On track'
+                const barColor = isAhead ? 'bg-emerald-400' : isBehind ? 'bg-red-400' : 'bg-sky-400'
+                const textColor = isAhead ? 'text-emerald-600' : isBehind ? 'text-red-500' : 'text-sky-600'
+                const bgColor = isAhead ? 'bg-emerald-50 border-emerald-100' : isBehind ? 'bg-red-50 border-red-100' : 'bg-sky-50 border-sky-100'
+
+                return (
+                    <div className={`rounded-2xl border px-5 py-4 ${bgColor}`}>
+                        <div className="flex items-center justify-between mb-2.5">
+                            <p className="text-xs font-semibold text-slate-500">
+                                Day {daysElapsed} of {daysInMonth} &middot; {(timePct * 100).toFixed(0)}% through the month
+                            </p>
+                            <span className={`text-xs font-black ${textColor}`}>{paceLabel}</span>
+                        </div>
+                        <div className="relative h-2 bg-white/60 rounded-full overflow-hidden">
+                            {/* Ghost: time elapsed */}
+                            <div className="absolute inset-y-0 left-0 bg-slate-200 rounded-full"
+                                style={{ width: `${(timePct * 100).toFixed(1)}%` }} />
+                            {/* Paid bar */}
+                            <div className={`absolute inset-y-0 left-0 rounded-full transition-all ${barColor}`}
+                                style={{ width: `${Math.min(paidPct * 100, 100).toFixed(1)}%` }} />
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5 text-xs text-slate-400">
+                            <span>{fmt(totalPaid)} paid of {fmt(totalOriginalAllocated)}</span>
+                            <span>{(paidPct * 100).toFixed(0)}% budget paid</span>
+                        </div>
+                    </div>
+                )
+            })()}
+
             {/* Summary stats */}
             <div className="grid grid-cols-3 gap-3">
                 <StatCard

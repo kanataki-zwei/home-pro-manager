@@ -22,6 +22,22 @@ interface Expense {
 interface SessionSummary { id: string; month: string; status: string }
 interface ExpenseTag { id: string; name: string; color: string | null }
 
+interface SessionMonthStats {
+    session_id: string
+    month: string
+    status: string
+    total_budgeted: number
+    item_count: number
+    paid_count: number
+    paid_amount: number
+    savings_rate: number
+}
+interface BudgetStats {
+    total_income: number
+    monthly_history: SessionMonthStats[]
+    current_session: SessionMonthStats | null
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────
 
 function toMonthly(amount: number | string | null, cadence: string | null): number {
@@ -57,6 +73,7 @@ export default function DashboardPage() {
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
+    const [budgetStats, setBudgetStats] = useState<BudgetStats | null>(null)
     const [budgetLoading, setBudgetLoading] = useState(true)
     const [membersExpanded, setMembersExpanded] = useState(false)
     const [incomeExpanded, setIncomeExpanded] = useState(false)
@@ -70,8 +87,9 @@ export default function DashboardPage() {
             apiGet<Expense[]>(`/api/households/${household.id}/budget/expenses`),
             apiGet<SessionSummary[]>(`/api/households/${household.id}/budget/sessions`),
             apiGet<ExpenseTag[]>(`/api/households/${household.id}/budget/tags`),
+            apiGet<BudgetStats>(`/api/households/${household.id}/budget/stats`),
         ])
-            .then(([e, s, t]) => { setExpenses(e); setSessions(s); setTags(t) })
+            .then(([e, s, t, stats]) => { setExpenses(e); setSessions(s); setTags(t); setBudgetStats(stats) })
             .catch(() => {})
             .finally(() => setBudgetLoading(false))
     }, [household?.id])
@@ -222,6 +240,185 @@ export default function DashboardPage() {
                     )}
                 </div>
             </div>
+
+            {/* ── Financial Pulse row ── */}
+            {budgetStats && (
+                <div className="grid grid-cols-2 gap-4">
+
+                    {/* Savings Rate */}
+                    {(() => {
+                        const history = [...budgetStats.monthly_history].reverse() // oldest→newest
+                        const current = budgetStats.current_session ?? history[history.length - 1]
+                        const prev = history[history.length - 2]
+                        const rate = Number(current?.savings_rate ?? 0)
+                        const delta = prev ? rate - Number(prev.savings_rate) : null
+                        const isPositive = delta !== null && delta >= 0
+
+                        // Sparkline
+                        const sparkW = 96, sparkH = 36
+                        const rates = history.map(h => Number(h.savings_rate))
+                        const minR = Math.min(...rates, 0)
+                        const maxR = Math.max(...rates, rate + 5, 10)
+                        const rRange = Math.max(maxR - minR, 5)
+                        const pts = rates.map((r, i) => {
+                            const x = rates.length > 1 ? (i / (rates.length - 1)) * sparkW : sparkW / 2
+                            const y = sparkH - ((r - minR) / rRange) * sparkH * 0.85 - sparkH * 0.075
+                            return `${x.toFixed(1)},${y.toFixed(1)}`
+                        }).join(' ')
+                        const areaPath = rates.length > 1
+                            ? `M0,${sparkH} ` + rates.map((r, i) => {
+                                const x = (i / (rates.length - 1)) * sparkW
+                                const y = sparkH - ((r - minR) / rRange) * sparkH * 0.85 - sparkH * 0.075
+                                return `L${x.toFixed(1)},${y.toFixed(1)}`
+                            }).join(' ') + ` L${sparkW},${sparkH} Z`
+                            : ''
+
+                        const color = rate >= 20 ? '#10b981' : rate >= 10 ? '#f59e0b' : '#ef4444'
+
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Savings Rate</p>
+                                        <p className="text-3xl font-black" style={{ color }}>{rate.toFixed(1)}%</p>
+                                        {delta !== null && (
+                                            <p className={`text-xs font-semibold mt-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                {isPositive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}pp vs last month
+                                            </p>
+                                        )}
+                                        {delta === null && history.length === 1 && (
+                                            <p className="text-xs text-slate-400 mt-1">First month tracked</p>
+                                        )}
+                                    </div>
+                                    {rates.length > 0 && (
+                                        <svg width={sparkW} height={sparkH} className="mt-1 flex-shrink-0">
+                                            <defs>
+                                                <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+                                                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                                                </linearGradient>
+                                            </defs>
+                                            {areaPath && <path d={areaPath} fill="url(#spark-fill)" />}
+                                            {rates.length > 1 && (
+                                                <polyline
+                                                    points={pts}
+                                                    fill="none"
+                                                    stroke={color}
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            )}
+                                            {rates.map((r, i) => {
+                                                const x = rates.length > 1 ? (i / (rates.length - 1)) * sparkW : sparkW / 2
+                                                const y = sparkH - ((r - minR) / rRange) * sparkH * 0.85 - sparkH * 0.075
+                                                return (
+                                                    <circle key={i} cx={x} cy={y} r={i === rates.length - 1 ? 3.5 : 2}
+                                                        fill={i === rates.length - 1 ? color : 'white'}
+                                                        stroke={color} strokeWidth="1.5" />
+                                                )
+                                            })}
+                                        </svg>
+                                    )}
+                                </div>
+                                <div className="mt-3 flex items-center gap-3">
+                                    {history.slice(-6).map((h, i) => {
+                                        const r = Number(h.savings_rate)
+                                        const c = r >= 20 ? '#10b981' : r >= 10 ? '#f59e0b' : '#ef4444'
+                                        const monthLabel = new Date(h.month).toLocaleDateString('en-KE', { month: 'short' })
+                                        return (
+                                            <div key={h.month} className="flex-1 text-center">
+                                                <p className="text-[10px] text-slate-400">{monthLabel}</p>
+                                                <p className="text-xs font-bold" style={{ color: c }}>{r.toFixed(0)}%</p>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )
+                    })()}
+
+                    {/* Active Month Progress */}
+                    {(() => {
+                        const cs = budgetStats.current_session
+                        const today = new Date()
+                        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                        const daysElapsed = today.getDate()
+                        const timePct = daysElapsed / daysInMonth
+                        const monthName = today.toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })
+
+                        if (!cs) return (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col justify-center items-center gap-2"
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{monthName}</p>
+                                <p className="text-sm text-slate-500 font-medium">No session started yet</p>
+                                <Link href="/budget" className="text-xs font-bold text-sky-500 hover:text-sky-600 flex items-center gap-1">
+                                    Start {today.toLocaleDateString('en-KE', { month: 'long' })} <ArrowUpRight className="h-3 w-3" />
+                                </Link>
+                            </div>
+                        )
+
+                        const paidPct = cs.total_budgeted > 0 ? cs.paid_amount / cs.total_budgeted : 0
+                        const remaining = cs.item_count - cs.paid_count
+                        const pace = paidPct - timePct
+                        const paceLabel = pace > 0.1 ? 'Ahead of pace' : pace < -0.15 ? 'Behind pace' : 'On track'
+                        const paceColor = pace > 0.1 ? 'text-emerald-500' : pace < -0.15 ? 'text-red-500' : 'text-sky-500'
+                        const paceArrow = pace > 0.1 ? '↑' : pace < -0.15 ? '↓' : '→'
+
+                        const statusColors: Record<string, string> = {
+                            draft: 'bg-slate-100 text-slate-600',
+                            active: 'bg-emerald-100 text-emerald-700',
+                            closed: 'bg-violet-100 text-violet-700',
+                        }
+
+                        return (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{monthName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-xl font-black text-slate-900">{cs.paid_count}/{cs.item_count} paid</p>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[cs.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                                                {cs.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <Link href="/budget" className="text-xs text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1 mt-1">
+                                        View <ArrowUpRight className="h-3 w-3" />
+                                    </Link>
+                                </div>
+
+                                {/* Paid progress bar */}
+                                <div className="mb-2">
+                                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                        <span>{fmt(cs.paid_amount)} paid</span>
+                                        <span>{fmt(cs.total_budgeted)} budgeted</span>
+                                    </div>
+                                    <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                        {/* Time elapsed ghost bar */}
+                                        <div className="absolute inset-y-0 left-0 bg-slate-200 rounded-full"
+                                            style={{ width: `${(timePct * 100).toFixed(1)}%` }} />
+                                        {/* Paid bar on top */}
+                                        <div className={`absolute inset-y-0 left-0 rounded-full transition-all ${paidPct > timePct + 0.1 ? 'bg-emerald-400' : paidPct < timePct - 0.15 ? 'bg-red-400' : 'bg-sky-400'}`}
+                                            style={{ width: `${Math.min(paidPct * 100, 100).toFixed(1)}%` }} />
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between text-xs mt-2">
+                                    <span className="text-slate-400">Day {daysElapsed} of {daysInMonth} · {(timePct * 100).toFixed(0)}% through month</span>
+                                    <span className={`font-bold ${paceColor}`}>{paceArrow} {paceLabel}</span>
+                                </div>
+                                {remaining > 0 && (
+                                    <p className="text-xs text-slate-400 mt-1">{remaining} item{remaining !== 1 ? 's' : ''} still to do — {fmt(cs.total_budgeted - cs.paid_amount)} remaining</p>
+                                )}
+                            </div>
+                        )
+                    })()}
+                </div>
+            )}
 
             {/* Key stats row */}
             <div className="grid grid-cols-4 gap-4 items-start">
