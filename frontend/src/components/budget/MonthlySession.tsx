@@ -781,6 +781,8 @@ function SessionDetailView({
 
 export default function MonthlySession() {
     const { household, members } = useHousehold()
+    const financialStartMonth = household?.financial_start_month?.slice(0, 7) ?? null  // "YYYY-MM"
+    const payDay = household?.pay_day ?? null
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null)
@@ -875,8 +877,44 @@ export default function MonthlySession() {
     const sessionsByMonth = new Map(sessions.map(s => [s.month.slice(0, 7), s]))
     const currentSession = sessionsByMonth.get(currMonthStart.slice(0, 7))
 
+    // Payday banner: show when today >= pay_day and next month has no session
+    const nextMonthStart = monthStart(
+        currentMonthIdx === 11 ? currentYear + 1 : currentYear,
+        currentMonthIdx === 11 ? 0 : currentMonthIdx + 1
+    )
+    const nextMonthKey = nextMonthStart.slice(0, 7)
+    const nextMonthName = MONTH_NAMES[currentMonthIdx === 11 ? 0 : currentMonthIdx + 1]
+    const showPaydayBanner = payDay !== null
+        && today.getDate() >= payDay
+        && !sessionsByMonth.has(nextMonthKey)
+
     return (
         <div className="space-y-6">
+
+            {/* ── Payday banner ─────────────────────────────────── */}
+            {showPaydayBanner && (
+                <div className="flex items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg">💰</span>
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-emerald-800">It's payday — time to plan ahead</p>
+                            <p className="text-xs text-emerald-600 mt-0.5">
+                                You set the {payDay}{payDay === 1 ? 'st' : payDay === 2 ? 'nd' : payDay === 3 ? 'rd' : 'th'} as your pay day.
+                                Set up your <span className="font-semibold">{nextMonthName}</span> budget now.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => startSession(nextMonthStart)}
+                        disabled={startingMonth === nextMonthStart}
+                        className="flex-shrink-0 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-60">
+                        {startingMonth === nextMonthStart ? 'Starting…' : `Start ${nextMonthName} Budget`}
+                    </button>
+                </div>
+            )}
+
             {/* ── Year label + grid ──────────────────────────────── */}
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{currentYear}</p>
 
@@ -887,6 +925,11 @@ export default function MonthlySession() {
                     const session = sessionsByMonth.get(monthKey)
                     const isFuture = mStart > currMonthStart
                     const isCurrent = mStart === currMonthStart
+
+                    // Hide months before financial start month
+                    if (financialStartMonth && monthKey < financialStartMonth && !session) {
+                        return null
+                    }
                     const isLoading = loadingSessionId === session?.id
                     const isStarting = startingMonth === mStart
 

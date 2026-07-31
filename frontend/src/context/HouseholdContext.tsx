@@ -38,6 +38,8 @@ interface Account {
 interface Household {
     id: string
     name: string
+    financial_start_month: string | null
+    pay_day: number | null
     member_types: MemberType[]
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye } from 'lucide-react'
+import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +42,11 @@ export default function SettingsPage() {
     const [householdName, setHouseholdName] = useState('')
     const [savingHousehold, setSavingHousehold] = useState(false)
 
+    // Budget calendar state
+    const [startMonth, setStartMonth] = useState('')   // "YYYY-MM" for input[type=month]
+    const [payDay, setPayDay] = useState('')
+    const [savingCalendar, setSavingCalendar] = useState(false)
+
     // Member types state
     const [memberTypes, setMemberTypes] = useState<MemberType[]>([])
     const [newTypeName, setNewTypeName] = useState('')
@@ -67,6 +72,8 @@ export default function SettingsPage() {
         if (household) {
             setHouseholdName(household.name)
             setMemberTypes(household.member_types ?? [])
+            setStartMonth(household.financial_start_month ? household.financial_start_month.slice(0, 7) : '')
+            setPayDay(household.pay_day != null ? String(household.pay_day) : '')
         }
     }, [household])
 
@@ -103,6 +110,25 @@ export default function SettingsPage() {
             toast.error('Failed to update household name')
         } finally {
             setSavingHousehold(false)
+        }
+    }
+
+    const saveCalendar = async () => {
+        if (!household) return
+        setSavingCalendar(true)
+        try {
+            const body: Record<string, unknown> = {}
+            if (startMonth) body.financial_start_month = `${startMonth}-01`
+            else body.financial_start_month = null
+            const pd = parseInt(payDay)
+            body.pay_day = !isNaN(pd) && pd >= 1 && pd <= 28 ? pd : null
+            await apiPatch(`/api/households/${household.id}`, body)
+            await refreshHousehold()
+            toast.success('Budget calendar saved')
+        } catch {
+            toast.error('Failed to save calendar settings')
+        } finally {
+            setSavingCalendar(false)
         }
     }
 
@@ -265,6 +291,76 @@ export default function SettingsPage() {
                             <span className="text-xs font-bold text-violet-600 bg-violet-100 px-3 py-0.5 rounded-full">Active</span>
                         )}
                     </button>
+                </div>
+            </div>
+
+            {/* Budget Calendar */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-2 mb-1">
+                    <CalendarDays className="h-4 w-4 text-emerald-500" />
+                    <h2 className="text-base font-semibold text-slate-800">Budget Calendar</h2>
+                </div>
+                <p className="text-xs text-slate-400 mb-5">
+                    Set when you started tracking finances and when you get paid each month.
+                </p>
+
+                <div className="space-y-5">
+                    {/* Start month */}
+                    <div className="space-y-1.5">
+                        <Label className="text-sm text-slate-600">
+                            Tracking start month
+                        </Label>
+                        <p className="text-xs text-slate-400">Months before this date will be hidden from your budget history.</p>
+                        <input
+                            type="month"
+                            value={startMonth}
+                            onChange={e => setStartMonth(e.target.value)}
+                            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800"
+                        />
+                        {startMonth && (
+                            <button
+                                onClick={() => setStartMonth('')}
+                                className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                                Clear (show all history)
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Pay day */}
+                    <div className="space-y-1.5">
+                        <Label className="text-sm text-slate-600">
+                            Pay day
+                        </Label>
+                        <p className="text-xs text-slate-400">
+                            Day of month you get paid. From this day onwards you'll be prompted to prepare next month's budget.
+                        </p>
+                        <div className="flex items-center gap-3">
+                            <select
+                                value={payDay}
+                                onChange={e => setPayDay(e.target.value)}
+                                className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-36">
+                                <option value="">Not set</option>
+                                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                                    <option key={d} value={d}>
+                                        {d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'} of the month
+                                    </option>
+                                ))}
+                            </select>
+                            {payDay && (
+                                <p className="text-xs text-slate-500">
+                                    Next month's budget prompt appears on the <span className="font-semibold text-emerald-600">{payDay}{Number(payDay) === 1 ? 'st' : Number(payDay) === 2 ? 'nd' : Number(payDay) === 3 ? 'rd' : 'th'}</span>
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <Button
+                        onClick={saveCalendar}
+                        disabled={savingCalendar}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl">
+                        {savingCalendar ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                        Save Calendar Settings
+                    </Button>
                 </div>
             </div>
 

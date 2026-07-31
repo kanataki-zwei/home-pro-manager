@@ -8,7 +8,7 @@ from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
 from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction, FxRate
 from app.schemas.household import (
-    HouseholdCreate, HouseholdResponse,
+    HouseholdCreate, HouseholdUpdate, HouseholdResponse,
     MemberTypeCreate, MemberTypeResponse,
     HouseholdMemberCreate, HouseholdMemberUpdate, HouseholdMemberResponse,
     AccountCreate, AccountUpdate, AccountResponse,
@@ -89,7 +89,7 @@ async def get_household(household_id: UUID, db: AsyncSession = Depends(get_db), 
 
 
 @router.patch("/{household_id}", response_model=HouseholdResponse)
-async def update_household(household_id: UUID, payload: HouseholdCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
+async def update_household(household_id: UUID, payload: HouseholdUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     result = await db.execute(
         select(Household)
         .options(selectinload(Household.member_types))
@@ -98,7 +98,8 @@ async def update_household(household_id: UUID, payload: HouseholdCreate, db: Asy
     household = result.scalar_one_or_none()
     if not household:
         raise HTTPException(status_code=404, detail="Household not found")
-    household.name = payload.name
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(household, key, value)
     await db.flush()
     result = await db.execute(
         select(Household)

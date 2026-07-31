@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Literal
 from uuid import UUID
 from datetime import date, datetime
@@ -25,9 +25,16 @@ class MemberTypeResponse(MemberTypeBase):
 class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
+class HouseholdUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    financial_start_month: Optional[date] = None   # store as first day of chosen month
+    pay_day: Optional[int] = Field(default=None, ge=1, le=28)
+
 class HouseholdResponse(BaseModel):
     id: UUID
     name: str
+    financial_start_month: Optional[date] = None
+    pay_day: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     member_types: list[MemberTypeResponse] = []

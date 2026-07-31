@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint, DateTime, func, Text, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, Date, Numeric, ForeignKey, CheckConstraint, DateTime, func, Text, UniqueConstraint, SmallInteger
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -11,7 +11,9 @@ class Household(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=True)  # auth user id of creator
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+    financial_start_month = Column(Date(), nullable=True)
+    pay_day = Column(SmallInteger(), nullable=True)  # 1–28, day of month payday falls on
 
     members = relationship("HouseholdMember", back_populates="household")
     member_types = relationship("MemberType", back_populates="household")
