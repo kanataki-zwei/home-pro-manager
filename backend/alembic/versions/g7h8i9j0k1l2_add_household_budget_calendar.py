@@ -1,7 +1,7 @@
 """add financial_start_month and pay_day to households
 
 Revision ID: g7h8i9j0k1l2
-Revises: f6c7d8e9a0b1
+Revises: a8b9c0d1e2f3
 Create Date: 2026-07-18 10:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = 'g7h8i9j0k1l2'
-down_revision: Union[str, None] = 'f6c7d8e9a0b1'
+down_revision: Union[str, None] = 'a8b9c0d1e2f3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
