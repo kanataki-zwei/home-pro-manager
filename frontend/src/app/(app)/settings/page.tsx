@@ -301,16 +301,14 @@ export default function SettingsPage() {
                     <h2 className="text-base font-semibold text-slate-800">Budget Calendar</h2>
                 </div>
                 <p className="text-xs text-slate-400 mb-5">
-                    Set when you started tracking finances and when you get paid each month.
+                    Control when your budget history starts and configure your pay cycle.
                 </p>
 
-                <div className="space-y-5">
+                <div className="space-y-6">
                     {/* Start month */}
                     <div className="space-y-1.5">
-                        <Label className="text-sm text-slate-600">
-                            Tracking start month
-                        </Label>
-                        <p className="text-xs text-slate-400">Months before this date will be hidden from your budget history.</p>
+                        <Label className="text-sm text-slate-600">Tracking start month</Label>
+                        <p className="text-xs text-slate-400">Months before this date will be hidden from your budget grid.</p>
                         <input
                             type="month"
                             value={startMonth}
@@ -327,18 +325,33 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Pay day */}
-                    <div className="space-y-1.5">
-                        <Label className="text-sm text-slate-600">
-                            Pay day
-                        </Label>
-                        <p className="text-xs text-slate-400">
-                            Day of month you get paid. From this day onwards you'll be prompted to prepare next month's budget.
-                        </p>
-                        <div className="flex items-center gap-3">
+                    <div className="space-y-2">
+                        <Label className="text-sm text-slate-600">Last pay day of the month</Label>
+
+                        {/* Explanation box */}
+                        <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 space-y-2">
+                            <p className="text-xs font-semibold text-emerald-700">How forward-looking budgeting works</p>
+                            <p className="text-xs text-emerald-700 leading-relaxed">
+                                This app treats each month's salary as the funding for <span className="font-semibold">next month's</span> budget.
+                                For example, the salary you receive in July is what you use to plan August.
+                            </p>
+                            <p className="text-xs text-emerald-700 leading-relaxed">
+                                Once your pay day arrives, you'll see a prompt to start planning next month's budget.
+                                You have a <span className="font-semibold">5-day window</span> from your pay day to finalise it —
+                                during this window the current month's session also stays editable for any last-minute adjustments.
+                            </p>
+                            <p className="text-xs text-emerald-600 leading-relaxed border-t border-emerald-100 pt-2 mt-1">
+                                <span className="font-semibold">For households:</span> if different people get paid on different dates (e.g. the 20th and the 25th),
+                                enter the <span className="font-semibold">latest date</span> — the day the last salary lands.
+                                That's when the full household income is available to plan with.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-1">
                             <select
                                 value={payDay}
                                 onChange={e => setPayDay(e.target.value)}
-                                className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-36">
+                                className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44">
                                 <option value="">Not set</option>
                                 {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                                     <option key={d} value={d}>
@@ -348,7 +361,10 @@ export default function SettingsPage() {
                             </select>
                             {payDay && (
                                 <p className="text-xs text-slate-500">
-                                    Next month's budget prompt appears on the <span className="font-semibold text-emerald-600">{payDay}{Number(payDay) === 1 ? 'st' : Number(payDay) === 2 ? 'nd' : Number(payDay) === 3 ? 'rd' : 'th'}</span>
+                                    Budget prompt + 5-day editing window starts on the{' '}
+                                    <span className="font-semibold text-emerald-600">
+                                        {payDay}{Number(payDay) === 1 ? 'st' : Number(payDay) === 2 ? 'nd' : Number(payDay) === 3 ? 'rd' : 'th'}
+                                    </span>
                                 </p>
                             )}
                         </div>

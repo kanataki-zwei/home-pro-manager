@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -123,14 +123,14 @@ function StatCard({
 function SessionDetailView({
     session,
     groups,
-    currentMonthStart,
+    pastCutoff,
     householdId,
     onBack,
     onSessionUpdate,
 }: {
     session: SessionDetail
     groups: ExpenseGroup[]
-    currentMonthStart: string
+    pastCutoff: string
     householdId: string
     onBack: () => void
     onSessionUpdate: (id: string, status: string) => void
@@ -150,7 +150,7 @@ function SessionDetailView({
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [syncing, setSyncing] = useState(false)
 
-    const isPast = session.month.slice(0, 10) < currentMonthStart
+    const isPast = session.month.slice(0, 10) < pastCutoff
     const isReadOnly = isPast || sessionStatus === 'closed'
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
 
@@ -769,8 +769,9 @@ function SessionDetailView({
             {!isReadOnly && !showAdHocForm && (
                 <button
                     onClick={() => setShowAdHocForm(true)}
-                    className="w-full text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl py-3 hover:border-slate-300 hover:text-slate-600 transition-colors">
-                    + Add one-time expense
+                    className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-violet-700 bg-violet-50 border-2 border-violet-200 rounded-2xl py-3 hover:bg-violet-100 hover:border-violet-300 transition-colors">
+                    <Plus className="h-4 w-4" />
+                    Add one-time expense
                 </button>
             )}
         </div>
@@ -794,6 +795,32 @@ export default function MonthlySession() {
     const currentYear = today.getFullYear()
     const currentMonthIdx = today.getMonth()
     const currMonthStart = monthStart(currentYear, currentMonthIdx)
+
+    const prevMonthStart = monthStart(
+        currentMonthIdx === 0 ? currentYear - 1 : currentYear,
+        currentMonthIdx === 0 ? 11 : currentMonthIdx - 1
+    )
+
+    // Grace period: the previous month stays editable for 5 days after the most recent pay day.
+    // Logic: pay day is when salary lands; from that day you have 5 days to plan next month's
+    // budget, and the current month stays open for last-minute adjustments during that window.
+    // Falls back to a fixed 5-day window from the 1st if no pay day is configured.
+    let pastCutoff: string
+    if (payDay) {
+        const todayDay = today.getDate()
+        const lastPayDate = todayDay >= payDay
+            ? new Date(currentYear, currentMonthIdx, payDay)
+            : new Date(
+                currentMonthIdx === 0 ? currentYear - 1 : currentYear,
+                currentMonthIdx === 0 ? 11 : currentMonthIdx - 1,
+                payDay
+              )
+        const graceEnd = new Date(lastPayDate)
+        graceEnd.setDate(graceEnd.getDate() + 5)
+        pastCutoff = today <= graceEnd ? prevMonthStart : currMonthStart
+    } else {
+        pastCutoff = today.getDate() <= 5 ? prevMonthStart : currMonthStart
+    }
 
     // Total monthly household income
     const totalIncome = members
@@ -865,7 +892,7 @@ export default function MonthlySession() {
             <SessionDetailView
                 session={selectedSession}
                 groups={groups}
-                currentMonthStart={currMonthStart}
+                pastCutoff={pastCutoff}
                 householdId={household!.id}
                 onBack={() => setSelectedSession(null)}
                 onSessionUpdate={handleSessionUpdate}
