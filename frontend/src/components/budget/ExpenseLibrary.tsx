@@ -243,19 +243,18 @@ export default function ExpenseLibrary() {
         }
 
         try {
-            const results = await Promise.all(
-                groupExps.map(e => {
-                    const existingIds = e.tag_assignments.map(ta => ta.tag.id)
-                    if (existingIds.includes(tagId)) return Promise.resolve(e)
-                    return apiPatch<Expense>(
+            const toUpdate = groupExps.filter(e => !e.tag_assignments.some(ta => ta.tag.id === tagId))
+            await Promise.all(
+                toUpdate.map(e =>
+                    apiPatch<Expense>(
                         `/api/households/${household.id}/budget/expenses/${e.id}`,
-                        { tag_ids: [...existingIds, tagId] }
+                        { tag_ids: [...e.tag_assignments.map(ta => ta.tag.id), tagId] }
                     )
-                })
+                )
             )
-            setExpenses(prev => prev.map(e => results.find(r => r.id === e.id) ?? e))
-            const changed = results.filter(r => r.tag_assignments.some(ta => ta.tag.id === tagId)).length
-            toast.success(`Tag applied to ${changed} expense${changed !== 1 ? 's' : ''}`)
+            const fresh = await apiGet<Expense[]>(`/api/households/${household.id}/budget/expenses?include_deleted=${showDeleted}`)
+            setExpenses(fresh)
+            toast.success(`Tag applied to ${toUpdate.length} expense${toUpdate.length !== 1 ? 's' : ''}`)
         } catch {
             toast.error('Failed to apply tag to group')
         } finally {
@@ -277,7 +276,7 @@ export default function ExpenseLibrary() {
         }))
 
         try {
-            const results = await Promise.all(
+            await Promise.all(
                 groupExps.map(e =>
                     apiPatch<Expense>(
                         `/api/households/${household.id}/budget/expenses/${e.id}`,
@@ -285,8 +284,9 @@ export default function ExpenseLibrary() {
                     )
                 )
             )
-            setExpenses(prev => prev.map(e => results.find(r => r.id === e.id) ?? e))
-            toast.success(`Tag removed from ${results.length} expense${results.length !== 1 ? 's' : ''}`)
+            const fresh = await apiGet<Expense[]>(`/api/households/${household.id}/budget/expenses?include_deleted=${showDeleted}`)
+            setExpenses(fresh)
+            toast.success(`Tag removed from ${groupExps.length} expense${groupExps.length !== 1 ? 's' : ''}`)
         } catch {
             toast.error('Failed to remove tag from group')
         } finally {
