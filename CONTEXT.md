@@ -49,7 +49,7 @@ thread pool. A lifespan startup hook pre-warms both clients at server boot.
 
 ## Database Schema
 
-### Migration chain (current HEAD: `f6c7d8e9a0b1`)
+### Migration chain (current HEAD: `g7h8i9j0k1l2`)
 ```
 b1c2d3e4f5a6  initial_schema
       ↓
@@ -73,16 +73,20 @@ e6f7a8b9c0d1  add_direct_pay_institution_type
       ↓
 f6c7d8e9a0b1  add_account_transactions
       ↓
-a8b9c0d1e2f3  add_fx_rates                       ← HEAD
+a8b9c0d1e2f3  add_fx_rates
+      ↓
+g7h8i9j0k1l2  add_household_budget_calendar      ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'a8b9c0d1e2f3'`.
+When adding a new migration set `down_revision = 'g7h8i9j0k1l2'`.
 
 ### Tables
 
 **Core**
 - `users` — app user records, linked to Supabase Auth by UUID primary key
-- `households` — a household entity (`created_by` = auth user UUID)
+- `households` — a household entity (`created_by` = auth user UUID); also carries:
+  - `financial_start_month` (Date, nullable) — first month the household started tracking; months before this are hidden from the session grid unless a session already exists
+  - `pay_day` (SmallInteger 1–28, nullable) — day of month salary lands; used to compute the grace-period cutoff in Monthly Sessions
 - `member_types` — e.g., Husband, Wife, Child (per household)
 - `household_members` — members of a household, optionally linked to a `users` row;
   carry income fields: `contributes_income`, `income_amount`, `income_currency`, `income_cadence`
@@ -108,6 +112,7 @@ When adding a new migration set `down_revision = 'a8b9c0d1e2f3'`.
   - `ad_hoc_name`, `ad_hoc_amount` — set only for one-time session expenses
   - `notes` — required when status = `na`
   - `reference_number` — required for rent items and Education group items when marked paid
+  - `amount_paid` (Decimal, default 0) — actual amount paid; may differ from `allocated_amount`; drives paid-vs-budgeted variance
   - `paid_date`
 - `expense_groups` — grouping of expenses (household or personal via `owner_id`)
 - `expenses` — individual recurring expense definitions; carry `account_id` FK (source account)
@@ -189,11 +194,16 @@ throughout the budget tracker.
 - Tags pill bar: each tag shows pencil (inline edit: name + colour) and × (delete) on hover; dashed "+ Add tag" button at end of row opens a create dialog
 
 #### Monthly Sessions tab
-- 12 month tiles (3-col grid) for the current calendar year
+- Month grid for the current calendar year; months before `financial_start_month` are hidden unless a session exists for that month
+- **Payday banner**: appears when today ≥ `pay_day` and the next month has no session yet — one-click "Start [Month] Budget" action
+- **Grace-period cutoff**: the previous month remains editable for 5 days after the most recent pay day (falls back to a fixed 5-day window from the 1st if `pay_day` is not set)
 - Session detail: items grouped by expense group, status pills (To Do / Paid / Reserved / N/A)
 - N/A requires a note; reference number required for rent + Education group items on Paid
+- **`amount_paid`**: each item records the actual amount paid (may differ from allocated); shown alongside allocated in the item row
+- **Paid-vs-budgeted variance**: session-level variance panel (`GET /budget/sessions/{id}/variance`) — per-group and per-item breakdown of budgeted vs paid vs variance
 - Ad-hoc (one-time) items draw from freed-up N/A budget pool
 - Status distribution bar: stacked (Paid / Reserved / To Do / N/A) + 4-col breakdown
+- **Drag-to-reorder**: grip handles on expense groups and items within each group; order persisted in `localStorage` per session (`hpm_session_order_<id>`); handles hidden in read-only sessions
 - **Auto-credit**: when an item is marked Paid and its linked expense has a source account
   with `contributes_to_net_worth = true`, an `AccountTransaction` (credit) is auto-created
   and the account balance is incremented. Reversed automatically when un-paying.
@@ -203,12 +213,14 @@ throughout the budget tracker.
 - Donut chart (recharts) — breakdown by group
 - Horizontal bar chart (recharts) — per-member allocated expenses
 - Detailed group list with proportional bars and ownership badges
+- **Variance column**: paid vs budgeted delta shown per group
 
 ---
 
 ### Net Worth (`/networth`)
 - Hero card: Total Net Worth + Total Deposits + Total Withdrawals, proportional stacked bar
 - 2-col: **Net Worth Accounts** (balance + % of total per account) | **Excluded Accounts** (not counted)
+- **Net Worth Trajectory**: recharts line chart showing net worth over time derived from cumulative account transactions
 - **Transaction Log**: all account transactions across the household
   - Filter by source: All Sources / Manual / Session
   - Filter by type: All / Deposits / Withdrawals
@@ -250,3 +262,8 @@ throughout the budget tracker.
 | 2026-06-22 | Budget | Tags pill bar: inline edit/delete on hover; replaced hidden Manage Tags dialog |
 | 2026-07-08 | Settings | New /settings page: profile name, household name, member types, FX rates |
 | 2026-07-08 | FX Rates | fx_rates table + PUT/DELETE API; fxRates in HouseholdContext; ≈ KES labels on household + net worth pages; net worth total converts via rates |
+| 2026-07-31 | Net Worth | Net worth trajectory recharts line chart on /networth page |
+| 2026-07-31 | Budget | `amount_paid` field on session items; paid-vs-budgeted variance API (`GET /budget/sessions/{id}/variance`) + variance panel in session detail and reports |
+| 2026-07-31 | Budget | Budget calendar settings: `financial_start_month` + `pay_day` on households (migration g7h8i9j0k1l2); Settings card to configure both |
+| 2026-07-31 | Budget | Monthly Sessions: hide pre-tracking months, payday banner, pay-day-aware 5-day grace period for previous month |
+| 2026-08-25 | Budget | Drag-to-reorder expense groups and items in session detail (@dnd-kit); order persisted in localStorage |

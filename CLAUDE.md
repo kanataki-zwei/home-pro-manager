@@ -84,12 +84,8 @@ The `alembic/env.py` reads `DATABASE_URL` directly from the environment — do n
 pass it through `config.set_main_option()`, which breaks on `%` characters.
 
 ### Alembic Migration Chain
-```
-b1c2d3e4f5a6_initial_schema.py   ← root (down_revision = None)
-        ↓
-a0857efd3031_add_budget_module.py
-```
-When adding a new migration, set `down_revision` to `a0857efd3031`.
+See `CONTEXT.md` for the full chain. Current HEAD: `g7h8i9j0k1l2` (`add_household_budget_calendar`).
+When adding a new migration, set `down_revision` to `'g7h8i9j0k1l2'`.
 
 ### Frontend API Calls
 All authenticated calls go through `src/lib/api.ts` (`apiGet`, `apiPost`, `apiPatch`,
