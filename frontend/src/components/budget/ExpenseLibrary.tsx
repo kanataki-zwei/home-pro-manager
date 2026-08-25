@@ -231,6 +231,17 @@ export default function ExpenseLibrary() {
         setApplyingTagToGroup(groupId)
         const groupExps = expenses.filter(e => e.group_id === groupId && !e.is_deleted)
         if (groupExps.length === 0) { setApplyingTagToGroup(null); return }
+        const matchedTag = tags.find(t => t.id === tagId)
+
+        // Optimistic update
+        if (matchedTag) {
+            setExpenses(prev => prev.map(e => {
+                if (e.group_id !== groupId || e.is_deleted) return e
+                if (e.tag_assignments.some(ta => ta.tag.id === tagId)) return e
+                return { ...e, tag_assignments: [...e.tag_assignments, { id: `temp-${tagId}-${e.id}`, tag: matchedTag }] }
+            }))
+        }
+
         try {
             const results = await Promise.all(
                 groupExps.map(e => {
@@ -258,6 +269,13 @@ export default function ExpenseLibrary() {
         setApplyingTagToGroup(groupId)
         const groupExps = expenses.filter(e => e.group_id === groupId && !e.is_deleted && e.tag_assignments.some(ta => ta.tag.id === tagId))
         if (groupExps.length === 0) { setApplyingTagToGroup(null); return }
+
+        // Optimistic update
+        setExpenses(prev => prev.map(e => {
+            if (e.group_id !== groupId || e.is_deleted) return e
+            return { ...e, tag_assignments: e.tag_assignments.filter(ta => ta.tag.id !== tagId) }
+        }))
+
         try {
             const results = await Promise.all(
                 groupExps.map(e =>
@@ -281,11 +299,24 @@ export default function ExpenseLibrary() {
         const exp = expenses.find(e => e.id === expenseId)
         if (!exp) return
         const currentIds = exp.tag_assignments.map(ta => ta.tag.id)
-        const newIds = currentIds.includes(tagId) ? currentIds.filter(id => id !== tagId) : [...currentIds, tagId]
+        const isRemoving = currentIds.includes(tagId)
+        const newIds = isRemoving ? currentIds.filter(id => id !== tagId) : [...currentIds, tagId]
+
+        // Optimistic update
+        const matchedTag = tags.find(t => t.id === tagId)
+        setExpenses(prev => prev.map(e => {
+            if (e.id !== expenseId) return e
+            const newAssignments = isRemoving
+                ? e.tag_assignments.filter(ta => ta.tag.id !== tagId)
+                : matchedTag ? [...e.tag_assignments, { id: `temp-${tagId}`, tag: matchedTag }] : e.tag_assignments
+            return { ...e, tag_assignments: newAssignments }
+        }))
+
         try {
             const updated = await apiPatch<Expense>(`/api/households/${household.id}/budget/expenses/${expenseId}`, { tag_ids: newIds })
             setExpenses(prev => prev.map(e => e.id === expenseId ? updated : e))
         } catch {
+            setExpenses(prev => prev.map(e => e.id === expenseId ? exp : e))
             toast.error('Failed to update tag')
         }
     }
