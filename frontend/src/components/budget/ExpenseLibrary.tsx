@@ -520,9 +520,12 @@ export default function ExpenseLibrary() {
                 )
             })()}
 
-            {/* ── Tag breakdown (always visible, all expenses) ── */}
+            {/* ── Tag breakdown ── */}
             {(() => {
-                const visibleExpenses = expenses.filter(e => !e.is_deleted)
+                const visibleExpenses = expenses.filter(e =>
+                    !e.is_deleted &&
+                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                )
                 if (visibleExpenses.length === 0 || tags.length === 0) return null
 
                 const totalMonthly = visibleExpenses.reduce((s, e) => s + Number(e.monthly_amount), 0)
@@ -578,7 +581,10 @@ export default function ExpenseLibrary() {
 
             {/* ── Expenses by Account ── */}
             {(() => {
-                const visibleExpenses = expenses.filter(e => !e.is_deleted)
+                const visibleExpenses = expenses.filter(e =>
+                    !e.is_deleted &&
+                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                )
                 if (visibleExpenses.length === 0) return null
 
                 const allAccounts = accounts as Account[]

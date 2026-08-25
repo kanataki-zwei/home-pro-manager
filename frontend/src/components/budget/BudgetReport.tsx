@@ -74,14 +74,16 @@ function ChartTooltip({ active, payload }: any) {
 }
 
 export default function BudgetReport() {
-    const { household, members, currentUserId } = useHousehold()
+    const { household, members, currentUserId, viewMode } = useHousehold()
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [trendSessions, setTrendSessions] = useState<SessionTrend[]>([])
     const [variance, setVariance] = useState<VarianceData | null>(null)
     const [loading, setLoading] = useState(true)
-    const [scope, setScope] = useState<'all' | 'me'>('all')
+    const [scope, setScope] = useState<'all' | 'me'>(() => viewMode === 'me' ? 'me' : 'all')
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+    useEffect(() => { setScope(viewMode === 'me' ? 'me' : 'all') }, [viewMode])
 
     useEffect(() => {
         if (!household) return

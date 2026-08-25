@@ -705,7 +705,10 @@ export default function HouseholdPage() {
 
             {/* Income Summary */}
             {(() => {
-                const incomeMembers = members.filter(m => m.contributes_income && m.income_amount)
+                const incomeMembers = members.filter(m =>
+                    m.contributes_income && m.income_amount &&
+                    (!isMeMode || m.user_id === currentUserId)
+                )
                 if (incomeMembers.length === 0) return null
 
                 // Group totals by currency
