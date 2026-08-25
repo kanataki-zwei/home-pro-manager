@@ -4,7 +4,24 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, GripVertical } from 'lucide-react'
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    KeyboardSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+    arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -118,6 +135,60 @@ function StatCard({
     )
 }
 
+// ─── DnD helpers ──────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type HandleProps = Record<string, any>
+
+function applyOrder<T>(arr: T[], order: string[], getId: (item: T) => string): T[] {
+    if (order.length === 0) return arr
+    const map = new Map(arr.map(item => [getId(item), item]))
+    return [
+        ...order.filter(id => map.has(id)).map(id => map.get(id)!),
+        ...arr.filter(item => !order.includes(getId(item))),
+    ]
+}
+
+function SortableGroupWrapper({
+    id,
+    disabled,
+    children,
+}: {
+    id: string
+    disabled: boolean
+    children: (handleProps: HandleProps | undefined, isDragging: boolean) => React.ReactNode
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+    return (
+        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
+            {children(disabled ? undefined : { ...listeners, ...attributes }, isDragging)}
+        </div>
+    )
+}
+
+function SortableItemWrapper({
+    id,
+    disabled,
+    isLast,
+    render,
+}: {
+    id: string
+    disabled: boolean
+    isLast: boolean
+    render: (isLast: boolean, handleProps: HandleProps | undefined) => React.ReactNode
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+    return (
+        <div
+            ref={setNodeRef}
+            style={{ transform: CSS.Transform.toString(transform), transition }}
+            className={isDragging ? 'opacity-40' : ''}
+        >
+            {render(isLast, disabled ? undefined : { ...listeners, ...attributes })}
+        </div>
+    )
+}
+
 // ─── Detail view ──────────────────────────────────────────────────
 
 function SessionDetailView({
@@ -150,6 +221,24 @@ function SessionDetailView({
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [syncing, setSyncing] = useState(false)
 
+    // ── Drag-to-reorder state (persisted in localStorage per session) ──
+    const storageKey = `hpm_session_order_${session.id}`
+    const [groupOrder, setGroupOrder] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem(storageKey) ?? '{}').groups ?? [] } catch { return [] }
+    })
+    const [itemOrders, setItemOrders] = useState<Record<string, string[]>>(() => {
+        try { return JSON.parse(localStorage.getItem(storageKey) ?? '{}').items ?? {} } catch { return {} }
+    })
+
+    function persistOrder(groups: string[], items: Record<string, string[]>) {
+        localStorage.setItem(storageKey, JSON.stringify({ groups, items }))
+    }
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    )
+
     const isPast = session.month.slice(0, 10) < pastCutoff
     const isReadOnly = isPast || sessionStatus === 'closed'
     const groupMap = new Map(groups.map(g => [g.id, g.name]))
@@ -171,6 +260,31 @@ function SessionDetailView({
     }
     const adHocItems = grouped.get('__adhoc__') ?? []
     const libraryGroups = [...grouped.entries()].filter(([k]) => k !== '__adhoc__')
+
+    const orderedLibraryGroups = applyOrder(libraryGroups, groupOrder, ([id]) => id)
+
+    function orderedItemsForGroup(groupId: string, groupItems: SessionItem[]): SessionItem[] {
+        return applyOrder(groupItems, itemOrders[groupId] ?? [], i => i.id)
+    }
+
+    function handleGroupDragEnd(event: DragEndEvent) {
+        const { active, over } = event
+        if (!over || active.id === over.id) return
+        const ids = orderedLibraryGroups.map(([id]) => id)
+        const newOrder = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
+        setGroupOrder(newOrder)
+        persistOrder(newOrder, itemOrders)
+    }
+
+    function handleItemDragEnd(groupId: string, groupItems: SessionItem[], event: DragEndEvent) {
+        const { active, over } = event
+        if (!over || active.id === over.id) return
+        const ids = orderedItemsForGroup(groupId, groupItems).map(i => i.id)
+        const newItemOrder = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
+        const newItemOrders = { ...itemOrders, [groupId]: newItemOrder }
+        setItemOrders(newItemOrders)
+        persistOrder(groupOrder, newItemOrders)
+    }
 
     const freedUp = items
         .filter(i => i.expense_id !== null && i.status === 'na')
@@ -319,7 +433,7 @@ function SessionDetailView({
         }
     }
 
-    function renderItemRow(item: SessionItem, isLast: boolean) {
+    function renderItemRow(item: SessionItem, isLast: boolean, dragHandleProps?: HandleProps) {
         const isUpdating = updatingId === item.id
         const disabled = isReadOnly || isUpdating
         const isAdHoc = item.expense_id === null
@@ -328,7 +442,16 @@ function SessionDetailView({
 
         return (
             <div key={item.id} className={!isLast ? 'border-b border-slate-100' : ''}>
-                <div className="flex items-center gap-4 px-5 py-4">
+                <div className="flex items-center gap-3 px-4 py-4">
+                    {dragHandleProps && (
+                        <button
+                            type="button"
+                            className="cursor-grab active:cursor-grabbing touch-none shrink-0 text-slate-300 hover:text-slate-400 transition-colors"
+                            {...dragHandleProps}
+                        >
+                            <GripVertical className="h-4 w-4" />
+                        </button>
+                    )}
                     <div className="flex-1 min-w-0">
                         <p className={`text-sm font-semibold truncate ${item.status === 'na' ? 'text-slate-400' : 'text-slate-800'}`}>
                             {displayName}
@@ -673,21 +796,57 @@ function SessionDetailView({
                 </div>
             )}
 
-            {/* Library item groups */}
-            {libraryGroups.map(([groupId, groupItems]) => (
-                <div key={groupId} className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        {groupId === '__none__'
-                            ? 'Uncategorized'
-                            : (groupMap.get(groupId) ?? 'Unknown group')}
-                    </p>
-                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                        {groupItems.map((item, idx) =>
-                            renderItemRow(item, idx === groupItems.length - 1)
-                        )}
+            {/* Library item groups — drag to reorder sections and items */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+                <SortableContext items={orderedLibraryGroups.map(([id]) => id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-6">
+                        {orderedLibraryGroups.map(([groupId, groupItems]) => {
+                            const ordered = orderedItemsForGroup(groupId, groupItems)
+                            return (
+                                <SortableGroupWrapper key={groupId} id={groupId} disabled={isReadOnly}>
+                                    {(groupHandleProps, isDraggingGroup) => (
+                                        <div className={`space-y-2 ${isDraggingGroup ? 'opacity-40' : ''}`}>
+                                            <div className="flex items-center gap-2">
+                                                {!isReadOnly && groupHandleProps && (
+                                                    <button
+                                                        type="button"
+                                                        className="cursor-grab active:cursor-grabbing touch-none text-slate-300 hover:text-slate-500 transition-colors"
+                                                        {...groupHandleProps}
+                                                    >
+                                                        <GripVertical className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                                                    {groupId === '__none__' ? 'Uncategorized' : (groupMap.get(groupId) ?? 'Unknown group')}
+                                                </p>
+                                            </div>
+                                            <DndContext
+                                                sensors={sensors}
+                                                collisionDetection={closestCenter}
+                                                onDragEnd={(e) => handleItemDragEnd(groupId, groupItems, e)}
+                                            >
+                                                <SortableContext items={ordered.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                                        {ordered.map((item, idx) => (
+                                                            <SortableItemWrapper
+                                                                key={item.id}
+                                                                id={item.id}
+                                                                disabled={isReadOnly}
+                                                                isLast={idx === ordered.length - 1}
+                                                                render={(isLast, hp) => renderItemRow(item, isLast, hp)}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </SortableContext>
+                                            </DndContext>
+                                        </div>
+                                    )}
+                                </SortableGroupWrapper>
+                            )
+                        })}
                     </div>
-                </div>
-            ))}
+                </SortableContext>
+            </DndContext>
 
             {/* Ad-hoc section */}
             {showAdHocSection && (
