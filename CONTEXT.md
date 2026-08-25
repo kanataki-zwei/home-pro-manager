@@ -217,6 +217,21 @@ throughout the budget tracker.
 
 ---
 
+### Settings (`/settings`) — continued
+
+#### Danger Zone (household owner only)
+- "Clear Data" button opens a confirmation dialog
+- 4 clearance levels (each is a strict superset of the previous):
+  - **Budget Sessions** — sessions + session items + session-linked account transactions; account balances corrected via SQL UPDATE
+  - **Full Budget** — above + expense library (groups, expenses, tags, templates)
+  - **Account History** — above + all account transactions (manual too); all account balances reset to 0
+  - **Everything** — above + hard-deletes all accounts, household members, and member types
+- Backend: `DELETE /api/households/{id}/data?level=sessions|budget|accounts|everything`; 403 if requester is not `created_by`
+- Frontend: Supabase `signInWithPassword` re-auth + type `DELETE` confirmation required before the request is sent
+- `created_by` is now exposed on `HouseholdResponse` so the frontend can gate the card to the owner
+
+---
+
 ### Net Worth (`/networth`)
 - Hero card: Total Net Worth + Total Deposits + Total Withdrawals, proportional stacked bar
 - 2-col: **Net Worth Accounts** (balance + % of total per account) | **Excluded Accounts** (not counted)
@@ -267,3 +282,4 @@ throughout the budget tracker.
 | 2026-07-31 | Budget | Budget calendar settings: `financial_start_month` + `pay_day` on households (migration g7h8i9j0k1l2); Settings card to configure both |
 | 2026-07-31 | Budget | Monthly Sessions: hide pre-tracking months, payday banner, pay-day-aware 5-day grace period for previous month |
 | 2026-08-25 | Budget | Drag-to-reorder expense groups and items in session detail (@dnd-kit); order persisted in localStorage |
+| 2026-08-25 | Settings | Danger Zone: owner-only data clearance with 4 levels; Supabase re-auth + DELETE confirmation required |
