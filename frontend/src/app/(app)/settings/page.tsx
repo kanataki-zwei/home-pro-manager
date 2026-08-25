@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { signIn } from '@/lib/auth'
+import { createClient } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye, CalendarDays } from 'lucide-react'
+import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,7 +33,7 @@ interface FxRate {
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'UGX', 'ZAR', 'INR', 'AED', 'CAD', 'AUD']
 
 export default function SettingsPage() {
-    const { household, fxRates, setFxRates, refreshHousehold, viewMode, setViewMode } = useHousehold()
+    const { household, fxRates, setFxRates, refreshHousehold, viewMode, setViewMode, currentUserId } = useHousehold()
 
     // Profile state
     const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -52,6 +54,14 @@ export default function SettingsPage() {
     const [newTypeName, setNewTypeName] = useState('')
     const [addingType, setAddingType] = useState(false)
     const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null)
+
+    // Clear data state
+    const [showClearDialog, setShowClearDialog] = useState(false)
+    const [clearLevel, setClearLevel] = useState<'sessions' | 'budget' | 'accounts' | 'everything'>('sessions')
+    const [clearPassword, setClearPassword] = useState('')
+    const [clearConfirm, setClearConfirm] = useState('')
+    const [clearPasswordError, setClearPasswordError] = useState('')
+    const [clearing, setClearing] = useState(false)
 
     // FX rates state
     const [localFxRates, setLocalFxRates] = useState<FxRate[]>([])
@@ -233,7 +243,84 @@ export default function SettingsPage() {
         }
     }
 
+    const openClearDialog = () => {
+        setClearLevel('sessions')
+        setClearPassword('')
+        setClearConfirm('')
+        setClearPasswordError('')
+        setShowClearDialog(true)
+    }
+
+    const closeClearDialog = () => {
+        if (clearing) return
+        setShowClearDialog(false)
+    }
+
+    const clearLevelMeta = {
+        sessions: {
+            label: 'Budget Sessions',
+            color: 'yellow',
+            description: 'Removes all monthly budget sessions and their items. Account balances are corrected to remove any session-paid credits.',
+            impact: ['Budget sessions', 'Session items', 'Session-linked account transactions'],
+        },
+        budget: {
+            label: 'Full Budget',
+            color: 'orange',
+            description: 'Clears all budget sessions plus the entire expense library — groups, expenses, tags, and templates.',
+            impact: ['Budget sessions', 'Session items', 'Session-linked account transactions', 'Expense groups', 'Expenses', 'Tags', 'Budget templates'],
+        },
+        accounts: {
+            label: 'Account History',
+            color: 'red',
+            description: 'Clears all budget data and the complete account transaction history. All account balances are reset to zero.',
+            impact: ['Everything in Full Budget', 'All manual account transactions', 'Account balances reset to 0'],
+        },
+        everything: {
+            label: 'Everything',
+            color: 'rose',
+            description: 'Full household reset. Clears all data including accounts and members. Only your household name and profile remain.',
+            impact: ['Everything in Account History', 'All accounts', 'All household members', 'Member types'],
+        },
+    } as const
+
+    const handleClearData = async () => {
+        if (clearConfirm !== 'DELETE') return
+        if (!clearPassword) { setClearPasswordError('Password is required'); return }
+        if (!household || !profile) return
+
+        setClearing(true)
+        setClearPasswordError('')
+
+        // Re-authenticate to verify identity
+        const supabase = createClient()
+        const { error: authErr } = await supabase.auth.signInWithPassword({
+            email: profile.email,
+            password: clearPassword,
+        })
+        if (authErr) {
+            setClearPasswordError('Incorrect password. Please try again.')
+            setClearing(false)
+            return
+        }
+
+        try {
+            await apiDelete(`/api/households/${household.id}/data?level=${clearLevel}`)
+            toast.success('Data cleared successfully')
+            setShowClearDialog(false)
+            // Refresh all context
+            await refreshHousehold()
+            window.location.reload()
+        } catch {
+            toast.error('Failed to clear data. Please try again.')
+        } finally {
+            setClearing(false)
+        }
+    }
+
+    const isOwner = household && currentUserId && household.created_by === currentUserId
+
     return (
+        <>
         <div className="max-w-2xl mx-auto space-y-6">
             {/* Page header */}
             <div className="flex items-center gap-3 mb-2">
@@ -559,6 +646,27 @@ export default function SettingsPage() {
                 </div>
             </div>
 
+            {/* Danger Zone — owner only */}
+            {isOwner && (
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-red-100">
+                    <div className="flex items-center gap-2 mb-1">
+                        <ShieldAlert className="h-4 w-4 text-red-500" />
+                        <h2 className="text-base font-semibold text-slate-800">Danger Zone</h2>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-5">
+                        Permanently delete household data. These actions cannot be undone.
+                        Only the household owner can perform these operations.
+                    </p>
+                    <button
+                        onClick={openClearDialog}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        Clear Data
+                    </button>
+                </div>
+            )}
+
             {/* Member Types */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
                 <div className="flex items-center gap-2 mb-1">
@@ -621,5 +729,122 @@ export default function SettingsPage() {
                 </div>
             </div>
         </div>
+
+        {/* Clear Data Dialog */}
+        {showClearDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeClearDialog} />
+                <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                    {/* Header */}
+                    <div className="flex items-center gap-3 p-6 border-b border-slate-100">
+                        <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="h-5 w-5 text-red-500" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900">Clear Household Data</h2>
+                            <p className="text-xs text-slate-400">Choose what to clear. This cannot be undone.</p>
+                        </div>
+                    </div>
+
+                    <div className="p-6 space-y-6">
+                        {/* Level selector */}
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Clearance level</p>
+                            {(Object.entries(clearLevelMeta) as [typeof clearLevel, typeof clearLevelMeta[typeof clearLevel]][]).map(([key, meta]) => {
+                                const colorMap = {
+                                    yellow: { border: 'border-yellow-300 bg-yellow-50', badge: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
+                                    orange: { border: 'border-orange-300 bg-orange-50', badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
+                                    red: { border: 'border-red-300 bg-red-50', badge: 'bg-red-100 text-red-700', dot: 'bg-red-400' },
+                                    rose: { border: 'border-rose-400 bg-rose-50', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500' },
+                                }
+                                const c = colorMap[meta.color]
+                                const isSelected = clearLevel === key
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => setClearLevel(key)}
+                                        className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${isSelected ? c.border : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? c.dot : 'bg-slate-300'}`} />
+                                            <span className="text-sm font-semibold text-slate-800">{meta.label}</span>
+                                            {key === 'everything' && (
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.badge}`}>Most destructive</span>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-slate-500 ml-5 leading-relaxed">{meta.description}</p>
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {/* Impact list */}
+                        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Will be deleted</p>
+                            <ul className="space-y-1">
+                                {clearLevelMeta[clearLevel].impact.map((item) => (
+                                    <li key={item} className="flex items-center gap-2 text-xs text-slate-600">
+                                        <Trash2 className="h-3 w-3 text-red-400 shrink-0" />
+                                        {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+
+                        {/* Confirmation inputs */}
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-sm text-slate-600">Your password</Label>
+                                <Input
+                                    type="password"
+                                    value={clearPassword}
+                                    onChange={e => { setClearPassword(e.target.value); setClearPasswordError('') }}
+                                    placeholder="Enter your account password"
+                                    className="rounded-xl border-slate-200 focus:border-red-400 focus:ring-red-400"
+                                    autoComplete="current-password"
+                                />
+                                {clearPasswordError && (
+                                    <p className="text-xs text-red-500">{clearPasswordError}</p>
+                                )}
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-sm text-slate-600">
+                                    Type <span className="font-bold text-red-500">DELETE</span> to confirm
+                                </Label>
+                                <Input
+                                    value={clearConfirm}
+                                    onChange={e => setClearConfirm(e.target.value)}
+                                    placeholder="DELETE"
+                                    className="rounded-xl border-slate-200 focus:border-red-400 focus:ring-red-400 font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={closeClearDialog}
+                                disabled={clearing}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleClearData}
+                                disabled={clearing || clearConfirm !== 'DELETE' || !clearPassword}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {clearing ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" /> Clearing…</>
+                                ) : (
+                                    <><Trash2 className="h-4 w-4" /> Clear {clearLevelMeta[clearLevel].label}</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     )
 }

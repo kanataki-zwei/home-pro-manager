@@ -33,6 +33,7 @@ class HouseholdUpdate(BaseModel):
 class HouseholdResponse(BaseModel):
     id: UUID
     name: str
+    created_by: Optional[UUID] = None
     financial_start_month: Optional[date] = None
     pay_day: Optional[int] = None
     created_at: datetime

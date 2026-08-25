@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete, update, text
 from sqlalchemy.orm import selectinload
+from typing import Literal
 from uuid import UUID
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
 from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction, FxRate
+from app.models.budget import (
+    ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
+    BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem,
+)
 from app.schemas.household import (
     HouseholdCreate, HouseholdUpdate, HouseholdResponse,
     MemberTypeCreate, MemberTypeResponse,
@@ -381,3 +386,87 @@ async def delete_fx_rate(
     if rate:
         await db.delete(rate)
         await db.commit()
+
+
+# ─── Data Clearance ──────────────────────────────────────────────
+
+@router.delete("/{household_id}/data", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_household_data(
+    household_id: UUID,
+    level: Literal["sessions", "budget", "accounts", "everything"] = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Household).where(Household.id == household_id))
+    household = result.scalar_one_or_none()
+    if not household:
+        raise HTTPException(status_code=404, detail="Household not found")
+    if household.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the household owner can clear data")
+
+    hid = str(household_id)
+
+    # ── Level 1: sessions ─────────────────────────────────────────
+    # Reverse session-linked transaction effects on account balances, then delete.
+    await db.execute(text("""
+        UPDATE accounts
+        SET current_balance = current_balance - COALESCE((
+            SELECT SUM(
+                CASE WHEN at.transaction_type = 'credit' THEN at.amount ELSE -at.amount END
+            )
+            FROM account_transactions at
+            WHERE at.account_id = accounts.id AND at.session_item_id IS NOT NULL
+        ), 0)
+        WHERE household_id = :hid
+    """), {"hid": hid})
+
+    session_id_rows = (await db.execute(
+        select(BudgetSession.id).where(BudgetSession.household_id == household_id)
+    )).fetchall()
+    session_ids = [r[0] for r in session_id_rows]
+
+    if session_ids:
+        item_id_rows = (await db.execute(
+            select(BudgetSessionItem.id).where(BudgetSessionItem.session_id.in_(session_ids))
+        )).fetchall()
+        item_ids = [r[0] for r in item_id_rows]
+        if item_ids:
+            await db.execute(delete(AccountTransaction).where(AccountTransaction.session_item_id.in_(item_ids)))
+        await db.execute(delete(BudgetSessionItem).where(BudgetSessionItem.session_id.in_(session_ids)))
+
+    await db.execute(delete(BudgetSession).where(BudgetSession.household_id == household_id))
+
+    if level in ("budget", "accounts", "everything"):
+        # ── Level 2: expense library + templates ──────────────────
+        expense_id_rows = (await db.execute(
+            select(Expense.id).where(Expense.household_id == household_id)
+        )).fetchall()
+        expense_ids = [r[0] for r in expense_id_rows]
+        if expense_ids:
+            await db.execute(delete(ExpenseTagAssignment).where(ExpenseTagAssignment.expense_id.in_(expense_ids)))
+        await db.execute(delete(Expense).where(Expense.household_id == household_id))
+        await db.execute(delete(ExpenseTag).where(ExpenseTag.household_id == household_id))
+        await db.execute(delete(ExpenseGroup).where(ExpenseGroup.household_id == household_id))
+
+        template_id_rows = (await db.execute(
+            select(BudgetTemplate.id).where(BudgetTemplate.household_id == household_id)
+        )).fetchall()
+        template_ids = [r[0] for r in template_id_rows]
+        if template_ids:
+            await db.execute(delete(BudgetTemplateItem).where(BudgetTemplateItem.template_id.in_(template_ids)))
+        await db.execute(delete(BudgetTemplate).where(BudgetTemplate.household_id == household_id))
+
+    if level in ("accounts", "everything"):
+        # ── Level 3: all account transactions + reset balances ────
+        await db.execute(delete(AccountTransaction).where(AccountTransaction.household_id == household_id))
+        await db.execute(
+            update(Account).where(Account.household_id == household_id).values(current_balance=0)
+        )
+
+    if level == "everything":
+        # ── Level 4: members, member types, accounts ──────────────
+        await db.execute(delete(HouseholdMember).where(HouseholdMember.household_id == household_id))
+        await db.execute(delete(MemberType).where(MemberType.household_id == household_id))
+        await db.execute(delete(Account).where(Account.household_id == household_id))
+
+    await db.commit()
