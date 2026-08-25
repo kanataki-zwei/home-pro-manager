@@ -6,7 +6,7 @@ import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
 import {
     Plus, Trash2, Pencil, ChevronDown, ChevronRight, Layers,
-    Wallet, RotateCcw, X
+    Wallet, RotateCcw, X, Tag
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -118,6 +118,16 @@ export default function ExpenseLibrary() {
         group_id: '', account_id: '', tag_ids: [] as string[]
     })
 
+    // Group tag picker
+    const [groupTagPickerOpen, setGroupTagPickerOpen] = useState<string | null>(null)
+    const [applyingTagToGroup, setApplyingTagToGroup] = useState<string | null>(null)
+    useEffect(() => {
+        if (!groupTagPickerOpen) return
+        const close = () => setGroupTagPickerOpen(null)
+        document.addEventListener('mousedown', close)
+        return () => document.removeEventListener('mousedown', close)
+    }, [groupTagPickerOpen])
+
     // ── Floating panel ────────────────────────────────────────────
     const [panelVisible, setPanelVisible] = useState(true)
     const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
@@ -213,6 +223,33 @@ export default function ExpenseLibrary() {
             setGroups(prev => prev.map(g => g.id === id ? { ...g, is_deleted: true } : g))
             toast.success('Group removed')
         } catch { toast.error('Failed') }
+    }
+
+    const applyTagToGroup = async (groupId: string, tagId: string) => {
+        if (!household) return
+        setGroupTagPickerOpen(null)
+        setApplyingTagToGroup(groupId)
+        const groupExps = expenses.filter(e => e.group_id === groupId && !e.is_deleted)
+        if (groupExps.length === 0) { setApplyingTagToGroup(null); return }
+        try {
+            const results = await Promise.all(
+                groupExps.map(e => {
+                    const existingIds = e.tag_assignments.map(ta => ta.tag.id)
+                    if (existingIds.includes(tagId)) return Promise.resolve(e)
+                    return apiPatch<Expense>(
+                        `/api/households/${household.id}/budget/expenses/${e.id}`,
+                        { tag_ids: [...existingIds, tagId] }
+                    )
+                })
+            )
+            setExpenses(prev => prev.map(e => results.find(r => r.id === e.id) ?? e))
+            const changed = results.filter(r => r.tag_assignments.some(ta => ta.tag.id === tagId)).length
+            toast.success(`Tag applied to ${changed} expense${changed !== 1 ? 's' : ''}`)
+        } catch {
+            toast.error('Failed to apply tag to group')
+        } finally {
+            setApplyingTagToGroup(null)
+        }
     }
 
     const restoreGroup = async (id: string) => {
@@ -806,6 +843,37 @@ export default function ExpenseLibrary() {
                                         </button>
                                     ) : (
                                         <>
+                                            {/* Tag group button + dropdown */}
+                                            {tags.length > 0 && (
+                                                <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
+                                                        disabled={applyingTagToGroup === group.id}
+                                                        title="Apply a tag to all expenses in this group"
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
+                                                        {applyingTagToGroup === group.id
+                                                            ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                                                            : <Tag className="h-3.5 w-3.5" />}
+                                                    </button>
+                                                    {groupTagPickerOpen === group.id && (
+                                                        <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 min-w-max">
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Apply tag to all expenses</p>
+                                                            <div className="space-y-0.5">
+                                                                {tags.map(tag => (
+                                                                    <button
+                                                                        key={tag.id}
+                                                                        onClick={() => applyTagToGroup(group.id, tag.id)}
+                                                                        className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left">
+                                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                                            style={{ background: tag.color || '#6366f1' }} />
+                                                                        <span className="text-sm font-semibold text-slate-700">{tag.name}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                             <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
                                                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
                                                 <Pencil className="h-3.5 w-3.5" />
