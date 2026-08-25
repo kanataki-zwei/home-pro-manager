@@ -12,22 +12,23 @@ not visible from the code alone. Acting without it risks undoing deliberate choi
 home-pro-manager/
 ├── backend/          # FastAPI, Python, SQLAlchemy async, Alembic
 │   ├── app/
-│   │   ├── core/     # config.py, database.py, auth.py
+│   │   ├── core/     # config.py, database.py, auth.py, security.py
 │   │   ├── models/   # SQLAlchemy ORM models
-│   │   ├── routers/  # FastAPI route handlers
+│   │   ├── routers/  # FastAPI route handlers (auth.py, users.py, households.py, budget.py)
 │   │   └── schemas/  # Pydantic request/response schemas
 │   ├── alembic/      # Migrations (env.py, versions/)
 │   ├── venv/         # Python virtual environment
 │   ├── .env          # Backend secrets (never commit)
 │   └── main.py       # App entry point + lifespan hook
-└── frontend/         # Next.js 14 App Router, TypeScript, shadcn/ui
+└── frontend/         # Next.js 16 App Router, TypeScript, shadcn/ui
     ├── src/
     │   ├── app/
     │   │   ├── (app)/    # Authenticated routes: dashboard, household, budget
     │   │   └── auth/     # Public routes: login, signup
     │   ├── components/
     │   ├── context/
-    │   └── lib/          # api.ts, supabase.ts, auth.ts
+    │   ├── proxy.ts      # Next.js 16 route protection (replaces middleware.ts)
+    │   └── lib/          # api.ts, auth.ts
     └── .env.local        # Frontend secrets (never commit)
 ```
 
@@ -55,23 +56,13 @@ npm run dev
 ## Critical Patterns
 
 ### Async — never block the event loop
-The backend is fully async (FastAPI + asyncpg). Any synchronous I/O **must** run in a thread:
-
-```python
-# Supabase Python client is synchronous
-result = await asyncio.to_thread(supabase.auth.admin.some_method, args)
-
-# PyJWKClient is synchronous
-signing_key = await loop.run_in_executor(None, lambda: _jwks_client.get_signing_key_from_jwt(token))
-```
-
-Blocking the event loop on the first request causes the browser to time out before CORS
-headers are sent — which Chrome reports as a CORS error, masking the real cause.
+The backend is fully async (FastAPI + asyncpg). Bcrypt and JWT ops are fast enough to run
+directly in async handlers; no thread executors needed for auth.
 
 ### JWT Verification
-New Supabase projects use **ES256** (asymmetric), not HS256. Verification uses
-`PyJWKClient` pointed at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
-See `backend/app/core/auth.py`.
+Auth is now local HS256. Token is read from the `access_token` httpOnly cookie.
+`get_current_user` decodes it with `JWT_SECRET_KEY` using PyJWT.
+See `backend/app/core/auth.py` and `backend/app/core/security.py`.
 
 ### DATABASE_URL
 Uses the **transaction pooler** (port 6543, `aws-0-eu-west-1.pooler.supabase.com`),
@@ -84,17 +75,19 @@ The `alembic/env.py` reads `DATABASE_URL` directly from the environment — do n
 pass it through `config.set_main_option()`, which breaks on `%` characters.
 
 ### Alembic Migration Chain
-See `CONTEXT.md` for the full chain. Current HEAD: `g7h8i9j0k1l2` (`add_household_budget_calendar`).
-When adding a new migration, set `down_revision` to `'g7h8i9j0k1l2'`.
+See `CONTEXT.md` for the full chain. Current HEAD: `i9j0k1l2m3n4` (`add_password_hash`).
+When adding a new migration, set `down_revision` to `'i9j0k1l2m3n4'`.
 
 ### Frontend API Calls
-All authenticated calls go through `src/lib/api.ts` (`apiGet`, `apiPost`, `apiPatch`,
-`apiDelete`), which automatically attaches the Supabase session token as a Bearer header.
-Signup calls `POST /api/users/` on the backend — it does **not** call Supabase directly.
+All calls go through `src/lib/api.ts` (`apiGet`, `apiPost`, `apiPatch`, `apiPut`, `apiDelete`).
+All fetches use `credentials: 'include'` — the browser sends httpOnly cookies automatically.
+No Authorization header. On 401, `api.ts` auto-refreshes the access token and retries once.
+Signup calls `POST /api/users/` on the backend.
 
-### Startup Pre-warm
-`backend/main.py` has a `lifespan` hook that pre-warms both the JWKS client and the
-Supabase admin client at startup, so cold-start blocking never hits a real request.
+### Proxy (route protection)
+`frontend/src/proxy.ts` (Next.js 16 renamed `middleware.ts` to `proxy.ts`; exports `proxy`
+function, not `middleware`). Checks for `access_token` cookie; redirects unauthenticated
+requests to `/auth/login` and logged-in users away from `/auth/*` routes.
 
 ---
 
@@ -102,17 +95,14 @@ Supabase admin client at startup, so cold-start blocking never hits a real reque
 
 **Backend (`backend/.env`)**:
 ```
-DATABASE_URL=postgresql+asyncpg://postgres.<project-ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=<service_role_key>
-SUPABASE_JWT_SECRET=<jwt_secret>   # kept in config but not used for verification
+APP_NAME=Home Pro Manager
 DEBUG=True
+DATABASE_URL=postgresql+asyncpg://postgres.<project-ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres
+JWT_SECRET_KEY=<128-char hex string — generate with: python -c "import secrets; print(secrets.token_hex(64))">
 ```
 
 **Frontend (`frontend/.env.local`)**:
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon_key>
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8002
 ```
 
@@ -120,10 +110,11 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8002
 
 ## What Not To Do
 
-- Do not call `supabase.auth.signUp()` from the frontend — signup goes through `POST /api/users/`
+- Do not import from `@supabase/ssr` or `@supabase/supabase-js` — Supabase Auth is removed
+- Do not add an `Authorization: Bearer` header to API calls — auth is cookie-based
+- Do not name the proxy file `middleware.ts` — Next.js 16 uses `proxy.ts` with a `proxy` export
 - Do not use `config.set_main_option("sqlalchemy.url", ...)` in alembic env.py
 - Do not add `drop_constraint` calls in migrations for FK constraints that don't exist in the schema
 - Do not use the direct Supabase connection string (port 5432, `db.<ref>.supabase.co`) — it may be IPv6-only
-- Do not call synchronous I/O directly inside `async def` route handlers
 - Do not set `pool_pre_ping=True` on the asyncpg engine — the ping uses a prepared statement that PgBouncer transaction mode drops, causing `InvalidSQLStatementNameError` (surfaces as a CORS error in the browser)
-- Do not use `connect_args={"prepared_statement_cache_size": 0}` alone — the default `_default_name_func` returns `None`, which makes asyncpg generate named statements (`__asyncpg_stmt_N__`) that collide when PgBouncer reuses a backend connection for a new asyncpg connection. Always pair it with `"prepared_statement_name_func": lambda: ""` to use unnamed prepared statements (auto-discarded after each Execute)
+- Do not use `connect_args={"prepared_statement_cache_size": 0}` alone — always pair it with `"prepared_statement_name_func": lambda: ""` to use unnamed prepared statements (auto-discarded after each Execute)
