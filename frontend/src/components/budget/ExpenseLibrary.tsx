@@ -849,7 +849,21 @@ export default function ExpenseLibrary() {
                                     {group.name.charAt(0)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-slate-900">{group.name}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-bold text-slate-900">{group.name}</p>
+                                        {(() => {
+                                            const seen = new Map<string, ExpenseTag>()
+                                            groupExpenses.filter(e => !e.is_deleted).forEach(e =>
+                                                e.tag_assignments.forEach(ta => seen.set(ta.tag.id, ta.tag))
+                                            )
+                                            return Array.from(seen.values()).map(tag => (
+                                                <span key={tag.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                                                    style={{ background: tag.color || '#6366f1' }}>
+                                                    {tag.name}
+                                                </span>
+                                            ))
+                                        })()}
+                                    </div>
                                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                         <p className="text-xs text-slate-400">{groupExpenses.filter(e => !e.is_deleted).length} expenses · {formatKES(monthlyTotal)}/mo</p>
                                         {totalBudgetedMonthly > 0 && monthlyTotal > 0 && (
