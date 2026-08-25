@@ -69,6 +69,7 @@ interface SessionDetail {
     name: string
     status: string
     items: SessionItem[]
+    monthly_income?: number | null
 }
 
 interface ExpenseGroup {
@@ -728,6 +729,28 @@ function SessionDetailView({
                     valueClass="text-amber-700"
                 />
             </div>
+
+            {/* Income vs allocated — shown when historical income is available */}
+            {session.monthly_income != null && session.monthly_income > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                    <StatCard
+                        label="Monthly Income"
+                        value={fmt(Number(session.monthly_income))}
+                        sub="at time of session"
+                        colorClass="bg-sky-50"
+                        labelClass="text-sky-500"
+                        valueClass="text-sky-700"
+                    />
+                    <StatCard
+                        label="Unallocated"
+                        value={fmt(Math.max(Number(session.monthly_income) - totalAllocated, 0))}
+                        sub={Number(session.monthly_income) < totalAllocated ? 'Over-budgeted' : 'Unplanned buffer'}
+                        colorClass={Number(session.monthly_income) < totalAllocated ? 'bg-red-50' : 'bg-violet-50'}
+                        labelClass={Number(session.monthly_income) < totalAllocated ? 'text-red-400' : 'text-violet-500'}
+                        valueClass={Number(session.monthly_income) < totalAllocated ? 'text-red-600' : 'text-violet-700'}
+                    />
+                </div>
+            )}
 
             {/* Freed-up budget row — appears once any item is marked N/A */}
             {freedUp > 0 && (

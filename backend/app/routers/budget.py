@@ -13,7 +13,7 @@ from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem
 )
-from app.models.household import HouseholdMember, Account, AccountTransaction
+from app.models.household import HouseholdMember, Account, AccountTransaction, MemberIncomeHistory
 from app.schemas.budget import (
     ExpenseGroupCreate, ExpenseGroupUpdate, ExpenseGroupResponse,
     ExpenseTagCreate, ExpenseTagUpdate, ExpenseTagResponse,
@@ -42,8 +42,56 @@ def compute_monthly_amount(amount: Decimal, frequency: str) -> Decimal:
         "weekly": Decimal("4.34524"),
         "monthly": Decimal("1"),
         "annual": Decimal("1") / Decimal("12"),
+        "annually": Decimal("1") / Decimal("12"),
+        "weekly": Decimal("52") / Decimal("12"),
     }
-    return round(amount * multipliers[frequency], 2)
+    return round(amount * multipliers.get(frequency, Decimal("1")), 2)
+
+
+async def get_household_income_as_of(db: AsyncSession, household_id: UUID, as_of_date) -> Decimal:
+    """Return the total normalised monthly income for a household as of a given date.
+
+    For each active contributing member, selects the most recent history row
+    where effective_from <= as_of_date. Falls back to the member's current
+    income fields if no history row exists for that date range.
+    """
+    from datetime import date as date_type
+    from sqlalchemy import func as sa_func
+
+    # Subquery: for each member, the latest effective_from that is <= as_of_date
+    latest_sq = (
+        select(
+            MemberIncomeHistory.household_member_id,
+            sa_func.max(MemberIncomeHistory.effective_from).label("max_date"),
+        )
+        .where(
+            MemberIncomeHistory.household_id == household_id,
+            MemberIncomeHistory.effective_from <= as_of_date,
+        )
+        .group_by(MemberIncomeHistory.household_member_id)
+        .subquery()
+    )
+
+    rows = (await db.execute(
+        select(
+            MemberIncomeHistory.household_member_id,
+            MemberIncomeHistory.income_amount,
+            MemberIncomeHistory.income_cadence,
+        )
+        .join(latest_sq, (MemberIncomeHistory.household_member_id == latest_sq.c.household_member_id) &
+              (MemberIncomeHistory.effective_from == latest_sq.c.max_date))
+        .join(HouseholdMember, HouseholdMember.id == MemberIncomeHistory.household_member_id)
+        .where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.contributes_income == True,
+            HouseholdMember.is_active == True,
+        )
+    )).fetchall()
+
+    total = Decimal("0")
+    for row in rows:
+        total += compute_monthly_amount(Decimal(str(row.income_amount)), row.income_cadence)
+    return total
 
 
 # ─── Expense Tags ─────────────────────────────────────────────────
@@ -967,7 +1015,10 @@ async def get_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return session
+
+    resp = BudgetSessionResponse.model_validate(session)
+    resp.monthly_income = await get_household_income_as_of(db, household_id, session.month)
+    return resp
 
 
 @router.patch("/sessions/{session_id}", response_model=BudgetSessionResponse)

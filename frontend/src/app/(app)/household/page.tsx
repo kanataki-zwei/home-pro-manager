@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +24,16 @@ interface Account {
     id: string; name: string; account_type: string; institution_type: string | null
     ownership: string; current_balance: number; currency: string; is_active: boolean
     household_member_id: string | null; contributes_to_net_worth: boolean
+}
+interface IncomeHistoryEntry {
+    id: string
+    income_amount: string
+    income_currency: string
+    income_cadence: string
+    effective_from: string
+    change_type: string
+    change_reason: string | null
+    created_at: string
 }
 interface AccountTransaction {
     id: string; account_id: string; amount: string; narration: string
@@ -147,8 +157,12 @@ export default function HouseholdPage() {
     const [editingMember, setEditingMember] = useState<Member | null>(null)
     const [editMemberData, setEditMemberData] = useState({ name: '', member_type_id: '', date_of_birth: '', user_id: '' })
     const [savingMember, setSavingMember] = useState(false)
-    const [incomeEdits, setIncomeEdits] = useState<Record<string, { amount: string; currency: string; cadence: string }>>({})
-    const [savingIncome, setSavingIncome] = useState<string | null>(null)
+    const [incomeDialogMember, setIncomeDialogMember] = useState<Member | null>(null)
+    const [incomeForm, setIncomeForm] = useState({ amount: '', currency: 'KES', cadence: 'monthly', changeType: 'increase', reason: '', effectiveFrom: '' })
+    const [savingIncome, setSavingIncome] = useState(false)
+    const [incomeHistories, setIncomeHistories] = useState<Record<string, IncomeHistoryEntry[]>>({})
+    const [loadingHistory, setLoadingHistory] = useState<string | null>(null)
+    const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set())
 
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
 
@@ -375,39 +389,73 @@ export default function HouseholdPage() {
 
     const toggleIncome = async (member: Member) => {
         if (!household) return
-        const next = !member.contributes_income
-        const data = await apiPatch<Member>(`/api/households/${household.id}/members/${member.id}`, {
-            contributes_income: next,
-            ...(next ? {} : { income_amount: null, income_currency: null, income_cadence: null })
-        }).catch(() => { toast.error('Failed'); return null })
-        if (!data) return
-        setMembers(members.map(m => m.id === data.id ? data : m))
-        if (next) setIncomeEdits(prev => ({
-            ...prev,
-            [member.id]: { amount: '', currency: 'KES', cadence: 'monthly' }
-        }))
-        else setIncomeEdits(prev => { const n = { ...prev }; delete n[member.id]; return n })
-    }
-
-    const saveIncome = async (member: Member) => {
-        if (!household) return
-        const edit = incomeEdits[member.id]
-        if (!edit?.amount || !edit.currency || !edit.cadence) {
-            toast.error('Please fill in all income fields')
+        if (!member.contributes_income) {
+            // Turning ON — open income dialog to capture details
+            openIncomeDialog(member)
             return
         }
-        setSavingIncome(member.id)
+        // Turning OFF — clear income fields
+        const data = await apiPatch<Member>(`/api/households/${household.id}/members/${member.id}`, {
+            contributes_income: false,
+            income_amount: null, income_currency: null, income_cadence: null,
+        }).catch(() => { toast.error('Failed'); return null })
+        if (data) setMembers(members.map(m => m.id === data.id ? data : m))
+    }
+
+    function openIncomeDialog(member: Member) {
+        const now = new Date()
+        const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        setIncomeForm({
+            amount: member.income_amount ? String(member.income_amount) : '',
+            currency: member.income_currency ?? 'KES',
+            cadence: member.income_cadence ?? 'monthly',
+            changeType: member.income_amount ? 'increase' : 'increase',
+            reason: '',
+            effectiveFrom: defaultMonth,
+        })
+        setIncomeDialogMember(member)
+    }
+
+    async function submitIncomeUpdate() {
+        if (!household || !incomeDialogMember) return
+        const amount = parseFloat(incomeForm.amount)
+        if (!incomeForm.amount || isNaN(amount) || amount <= 0) { toast.error('Enter a valid amount'); return }
+        if (!incomeForm.effectiveFrom) { toast.error('Choose an effective month'); return }
+        setSavingIncome(true)
         try {
-            const data = await apiPatch<Member>(`/api/households/${household.id}/members/${member.id}`, {
-                income_amount: parseFloat(edit.amount),
-                income_currency: edit.currency,
-                income_cadence: edit.cadence,
+            const data = await apiPost<Member>(`/api/households/${household.id}/members/${incomeDialogMember.id}/income`, {
+                income_amount: amount,
+                income_currency: incomeForm.currency,
+                income_cadence: incomeForm.cadence,
+                change_type: incomeForm.changeType,
+                change_reason: incomeForm.reason.trim() || null,
+                effective_from: `${incomeForm.effectiveFrom}-01`,
             })
             setMembers(members.map(m => m.id === data.id ? data : m))
-            setIncomeEdits(prev => { const n = { ...prev }; delete n[member.id]; return n })
-            toast.success('Income saved!')
+            // Invalidate cached history for this member
+            setIncomeHistories(prev => { const n = { ...prev }; delete n[incomeDialogMember.id]; return n })
+            setExpandedHistory(prev => { const n = new Set(prev); n.delete(incomeDialogMember.id); return n })
+            setIncomeDialogMember(null)
+            toast.success('Income updated!')
         } catch { toast.error('Failed to save income') }
-        finally { setSavingIncome(null) }
+        finally { setSavingIncome(false) }
+    }
+
+    async function toggleHistory(member: Member) {
+        if (!household) return
+        const isExpanded = expandedHistory.has(member.id)
+        if (isExpanded) {
+            setExpandedHistory(prev => { const n = new Set(prev); n.delete(member.id); return n })
+            return
+        }
+        setExpandedHistory(prev => new Set(prev).add(member.id))
+        if (incomeHistories[member.id]) return  // already loaded
+        setLoadingHistory(member.id)
+        try {
+            const data = await apiGet<IncomeHistoryEntry[]>(`/api/households/${household.id}/members/${member.id}/income-history`)
+            setIncomeHistories(prev => ({ ...prev, [member.id]: data }))
+        } catch { toast.error('Failed to load income history') }
+        finally { setLoadingHistory(null) }
     }
 
     if (loading) return (
@@ -567,10 +615,10 @@ export default function HouseholdPage() {
                                 )}
 
                                 {/* Income section */}
-                                <div className="mt-3 pt-3 border-t border-slate-50">
+                                <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
                                     <button
                                         onClick={() => toggleIncome(member)}
-                                        className="flex items-center justify-between w-full group/toggle">
+                                        className="flex items-center justify-between w-full">
                                         <span className="text-xs font-semibold text-slate-500">Contributes to income</span>
                                         <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200'}`}>
                                             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${member.contributes_income ? 'left-4' : 'left-0.5'}`} />
@@ -578,56 +626,56 @@ export default function HouseholdPage() {
                                     </button>
 
                                     {member.contributes_income && (
-                                        <div className="mt-3 space-y-2">
-                                            {/* Show saved values if not editing */}
-                                            {!incomeEdits[member.id] && member.income_amount ? (
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs text-slate-500">
-                                                        {member.income_currency} {Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {member.income_cadence}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => setIncomeEdits(prev => ({ ...prev, [member.id]: { amount: String(member.income_amount ?? ''), currency: member.income_currency ?? 'KES', cadence: member.income_cadence ?? 'monthly' } }))}
-                                                        className="text-xs font-semibold text-sky-500 hover:text-sky-700">
-                                                        Edit
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Amount"
-                                                            value={incomeEdits[member.id]?.amount ?? ''}
-                                                            onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], amount: e.target.value } }))}
-                                                            className="flex-1 h-9 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300"
-                                                        />
-                                                        <select
-                                                            value={incomeEdits[member.id]?.currency ?? 'KES'}
-                                                            onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], currency: e.target.value } }))}
-                                                            className="h-9 px-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
-                                                            <option value="KES">KES</option>
-                                                            <option value="USD">USD</option>
-                                                            <option value="EUR">EUR</option>
-                                                        </select>
-                                                    </div>
-                                                    <select
-                                                        value={incomeEdits[member.id]?.cadence ?? 'monthly'}
-                                                        onChange={e => setIncomeEdits(prev => ({ ...prev, [member.id]: { ...prev[member.id], cadence: e.target.value } }))}
-                                                        className="w-full h-9 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
-                                                        <option value="weekly">Weekly</option>
-                                                        <option value="monthly">Monthly</option>
-                                                        <option value="annually">Annually</option>
-                                                    </select>
-                                                    <button
-                                                        onClick={() => saveIncome(member)}
-                                                        disabled={savingIncome === member.id}
-                                                        className="w-full h-9 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
-                                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                                        {savingIncome === member.id ? 'Saving…' : 'Save Income'}
-                                                    </button>
+                                        <>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-slate-600 font-medium">
+                                                    {member.income_amount
+                                                        ? `${member.income_currency} ${Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / ${member.income_cadence}`
+                                                        : <span className="text-slate-400 italic">Not set</span>
+                                                    }
+                                                </span>
+                                                <button
+                                                    onClick={() => openIncomeDialog(member)}
+                                                    className="text-xs font-semibold text-sky-500 hover:text-sky-700 transition-colors">
+                                                    {member.income_amount ? 'Edit' : 'Set income'}
+                                                </button>
+                                            </div>
+                                            {/* Income history toggle */}
+                                            <button
+                                                onClick={() => toggleHistory(member)}
+                                                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                                                {loadingHistory === member.id
+                                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                    : <History className="h-3 w-3" />}
+                                                <span>Income history</span>
+                                                {expandedHistory.has(member.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                            </button>
+                                            {expandedHistory.has(member.id) && (
+                                                <div className="mt-1 rounded-xl bg-slate-50 border border-slate-100 divide-y divide-slate-100 text-xs">
+                                                    {(incomeHistories[member.id] ?? []).length === 0 ? (
+                                                        <p className="px-3 py-2 text-slate-400">No history yet.</p>
+                                                    ) : (incomeHistories[member.id] ?? []).map(h => {
+                                                        const icon = h.change_type === 'increase' ? <ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                                            : h.change_type === 'decrease' ? <ArrowDownCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                                                            : <RotateCcw className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                        return (
+                                                            <div key={h.id} className="flex items-start gap-2 px-3 py-2">
+                                                                {icon}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="font-semibold text-slate-700">
+                                                                        {h.income_currency} {Number(h.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {h.income_cadence}
+                                                                    </p>
+                                                                    <p className="text-slate-400">
+                                                                        Effective {new Date(h.effective_from).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}
+                                                                    </p>
+                                                                    {h.change_reason && <p className="text-slate-500 truncate">{h.change_reason}</p>}
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
                                                 </div>
                                             )}
-                                        </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -1323,6 +1371,120 @@ export default function HouseholdPage() {
                     <DialogFooter>
                         <Button variant="outline" className="rounded-2xl" onClick={() => setTxnDialogAccount(null)}>Cancel</Button>
                         <SaveButton onClick={addTransaction} loading={savingTxn} label="Add Entry" />
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Income Edit Dialog */}
+            <Dialog open={!!incomeDialogMember} onOpenChange={open => { if (!open && !savingIncome) setIncomeDialogMember(null) }}>
+                <DialogContent className="rounded-3xl border-0 max-w-md" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black">
+                            {incomeDialogMember?.income_amount ? 'Update Income' : 'Set Income'} — {incomeDialogMember?.name}
+                        </DialogTitle>
+                        <p className="text-sm text-slate-400 mt-1">Changes are recorded with a reason and effective date so historical budgets stay accurate.</p>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {/* Change type — only show if member already has income */}
+                        {incomeDialogMember?.income_amount && (
+                            <div className="space-y-1.5">
+                                <Label className="text-sm font-semibold text-slate-700">Type of change</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { value: 'increase', label: 'Increase', icon: <ArrowUpCircle className="h-4 w-4" />, color: 'emerald' },
+                                        { value: 'decrease', label: 'Decrease', icon: <ArrowDownCircle className="h-4 w-4" />, color: 'red' },
+                                        { value: 'correction', label: 'Correction', icon: <RotateCcw className="h-4 w-4" />, color: 'slate' },
+                                    ].map(opt => (
+                                        <button key={opt.value} type="button"
+                                            onClick={() => setIncomeForm(f => ({ ...f, changeType: opt.value }))}
+                                            className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                                                incomeForm.changeType === opt.value
+                                                    ? opt.color === 'emerald' ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                                                      : opt.color === 'red' ? 'border-red-400 bg-red-50 text-red-700'
+                                                      : 'border-slate-400 bg-slate-100 text-slate-700'
+                                                    : 'border-slate-100 text-slate-400 hover:border-slate-200'
+                                            }`}>
+                                            {opt.icon}
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-400">
+                                    {incomeForm.changeType === 'increase' && 'Promotion, new job, or new revenue stream'}
+                                    {incomeForm.changeType === 'decrease' && 'Job loss, reduced hours, or lost revenue stream'}
+                                    {incomeForm.changeType === 'correction' && 'Fixing a data entry error — no real income change'}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* New amount */}
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-slate-700">New amount</Label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={incomeForm.amount}
+                                    onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))}
+                                    className="flex-1 h-10 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                                />
+                                <select
+                                    value={incomeForm.currency}
+                                    onChange={e => setIncomeForm(f => ({ ...f, currency: e.target.value }))}
+                                    className="h-10 px-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                                    {['KES','USD','EUR','GBP','TZS','UGX','ZAR'].map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <select
+                                    value={incomeForm.cadence}
+                                    onChange={e => setIncomeForm(f => ({ ...f, cadence: e.target.value }))}
+                                    className="h-10 px-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="annually">Annually</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Effective from */}
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-slate-700">Effective from</Label>
+                            <input
+                                type="month"
+                                value={incomeForm.effectiveFrom}
+                                onChange={e => setIncomeForm(f => ({ ...f, effectiveFrom: e.target.value }))}
+                                className="w-full h-10 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                            />
+                            <p className="text-xs text-slate-400">Budget sessions from this month onwards will use the new amount.</p>
+                        </div>
+
+                        {/* Reason */}
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-slate-700">Reason <span className="font-normal text-slate-400">(optional)</span></Label>
+                            <input
+                                type="text"
+                                value={incomeForm.reason}
+                                onChange={e => setIncomeForm(f => ({ ...f, reason: e.target.value }))}
+                                placeholder={
+                                    incomeForm.changeType === 'increase' ? 'e.g. Promoted to senior engineer'
+                                    : incomeForm.changeType === 'decrease' ? 'e.g. Reduced to part-time hours'
+                                    : 'e.g. Wrong amount entered previously'
+                                }
+                                className="w-full h-10 px-3 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" className="rounded-2xl" onClick={() => setIncomeDialogMember(null)} disabled={savingIncome}>Cancel</Button>
+                        <Button
+                            onClick={submitIncomeUpdate}
+                            disabled={savingIncome || !incomeForm.amount || !incomeForm.effectiveFrom}
+                            className="rounded-2xl gap-2"
+                            style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
+                            {savingIncome ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            Save
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

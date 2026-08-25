@@ -228,6 +228,7 @@ class BudgetSessionResponse(BaseModel):
     total_allocated: Optional[Decimal] = None
     total_paid: Optional[Decimal] = None
     total_remaining: Optional[Decimal] = None
+    monthly_income: Optional[Decimal] = None  # effective household income at session.month (from history)
 
     class Config:
         from_attributes = True

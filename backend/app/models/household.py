@@ -99,6 +99,21 @@ class AccountTransaction(Base):
     account = relationship("Account", back_populates="transactions")
 
 
+class MemberIncomeHistory(Base):
+    __tablename__ = "member_income_history"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    household_member_id = Column(UUID(as_uuid=True), ForeignKey("household_members.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    income_amount = Column(Numeric(15, 2), nullable=False)
+    income_currency = Column(String(10), nullable=False)
+    income_cadence = Column(String(20), nullable=False)
+    effective_from = Column(Date, nullable=False)
+    change_type = Column(String(20), nullable=False, default="update")  # initial | increase | decrease | correction
+    change_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class FxRate(Base):
     __tablename__ = "fx_rates"
 

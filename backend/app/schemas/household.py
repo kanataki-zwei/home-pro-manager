@@ -81,6 +81,30 @@ class HouseholdMemberResponse(BaseModel):
         from_attributes = True
 
 
+# ─── Member Income History ──────────────────────────────────────
+class MemberIncomeUpdate(BaseModel):
+    income_amount: Decimal = Field(gt=0)
+    income_currency: str = Field(default="KES", max_length=10)
+    income_cadence: Literal["weekly", "monthly", "annually"] = "monthly"
+    change_type: Literal["increase", "decrease", "correction"] = "increase"
+    change_reason: Optional[str] = Field(default=None, max_length=500)
+    effective_from: date  # caller sends first-of-month date
+
+class MemberIncomeHistoryResponse(BaseModel):
+    id: UUID
+    household_member_id: UUID
+    income_amount: Decimal
+    income_currency: str
+    income_cadence: str
+    effective_from: date
+    change_type: str
+    change_reason: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ─── Account ────────────────────────────────────────────────────
 _ACCOUNT_TYPES = Literal["checking", "savings", "cash", "investment", "credit"]
 _INSTITUTION_TYPES = Literal["bank", "money_market", "mobile_money", "direct_pay", "insurance", "govt_securities", "stocks_shares"]

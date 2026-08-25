@@ -7,7 +7,7 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
-from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction, FxRate
+from app.models.household import Household, MemberType, HouseholdMember, Account, AccountTransaction, FxRate, MemberIncomeHistory
 from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem,
@@ -16,6 +16,7 @@ from app.schemas.household import (
     HouseholdCreate, HouseholdUpdate, HouseholdResponse,
     MemberTypeCreate, MemberTypeResponse,
     HouseholdMemberCreate, HouseholdMemberUpdate, HouseholdMemberResponse,
+    MemberIncomeUpdate, MemberIncomeHistoryResponse,
     AccountCreate, AccountUpdate, AccountResponse,
     AccountTransactionCreate, AccountTransactionResponse,
     FxRateUpsert, FxRateResponse
@@ -208,6 +209,69 @@ async def delete_member(household_id: UUID, member_id: UUID, db: AsyncSession = 
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     member.is_active = False
+
+
+# ─── Member Income History ──────────────────────────────────────
+
+@router.post("/{household_id}/members/{member_id}/income", response_model=HouseholdMemberResponse)
+async def update_member_income(
+    household_id: UUID,
+    member_id: UUID,
+    payload: MemberIncomeUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_household_member),
+):
+    result = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
+        .where(HouseholdMember.id == member_id, HouseholdMember.household_id == household_id)
+    )
+    member = result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    member.income_amount = payload.income_amount
+    member.income_currency = payload.income_currency
+    member.income_cadence = payload.income_cadence
+    member.contributes_income = True
+
+    history = MemberIncomeHistory(
+        household_member_id=member_id,
+        household_id=household_id,
+        income_amount=payload.income_amount,
+        income_currency=payload.income_currency,
+        income_cadence=payload.income_cadence,
+        effective_from=payload.effective_from,
+        change_type=payload.change_type,
+        change_reason=payload.change_reason,
+    )
+    db.add(history)
+    await db.commit()
+
+    result = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
+        .where(HouseholdMember.id == member_id)
+    )
+    return result.scalar_one()
+
+
+@router.get("/{household_id}/members/{member_id}/income-history", response_model=list[MemberIncomeHistoryResponse])
+async def get_member_income_history(
+    household_id: UUID,
+    member_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_household_member),
+):
+    result = await db.execute(
+        select(MemberIncomeHistory)
+        .where(
+            MemberIncomeHistory.household_member_id == member_id,
+            MemberIncomeHistory.household_id == household_id,
+        )
+        .order_by(MemberIncomeHistory.effective_from.desc())
+    )
+    return result.scalars().all()
 
 
 # ─── Accounts ───────────────────────────────────────────────────
