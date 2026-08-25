@@ -75,10 +75,12 @@ f6c7d8e9a0b1  add_account_transactions
       ↓
 a8b9c0d1e2f3  add_fx_rates
       ↓
-g7h8i9j0k1l2  add_household_budget_calendar      ← HEAD
+g7h8i9j0k1l2  add_household_budget_calendar
+      ↓
+h8i9j0k1l2m3  add_member_income_history          ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'g7h8i9j0k1l2'`.
+When adding a new migration set `down_revision = 'h8i9j0k1l2m3'`.
 
 ### Tables
 
@@ -89,7 +91,13 @@ When adding a new migration set `down_revision = 'g7h8i9j0k1l2'`.
   - `pay_day` (SmallInteger 1–28, nullable) — day of month salary lands; used to compute the grace-period cutoff in Monthly Sessions
 - `member_types` — e.g., Husband, Wife, Child (per household)
 - `household_members` — members of a household, optionally linked to a `users` row;
-  carry income fields: `contributes_income`, `income_amount`, `income_currency`, `income_cadence`
+  carry income fields: `contributes_income`, `income_amount`, `income_currency`, `income_cadence` (always reflects the most recent income)
+- `member_income_history` — append-only log of every income change per member:
+  - `effective_from` (Date) — first of the month the income takes effect; used to resolve income for a given session month
+  - `change_type`: `initial | increase | decrease | correction`
+  - `change_reason` (text, optional) — free-text note (e.g. "Promoted to senior engineer")
+  - Existing member incomes are backfilled as `initial` rows on migration
+  - **Never mutated** — each edit inserts a new row; `household_members` is updated in the same transaction
 - `fx_rates` — per-household exchange rates to KES; unique per (household_id, currency); used to convert foreign account balances and show "≈ KES" labels throughout
 - `accounts` — financial accounts with:
   - `account_type`: `checking | savings | cash | investment | credit`
@@ -164,7 +172,9 @@ throughout the budget tracker.
 
 **Members section**
 - Member cards with member type badge, "You" badge on the logged-in user's card
-- Income toggle per member: amount, currency, cadence
+- Income toggle per member: toggling ON opens the Edit Income dialog; toggling OFF clears income fields
+- **Edit Income dialog**: change type (Increase / Decrease / Correction) with contextual hint text, new amount/currency/cadence, effective-from month picker (defaults to current month), optional reason field; calls `POST /members/{id}/income` which updates the member and inserts a history row
+- **Income history**: expandable timeline per member showing each change with icon, effective date, amount, and reason; lazy-loaded via `GET /members/{id}/income-history`
 - SVG donut chart showing income share (pure stroke-dasharray, no library)
 - Add/Edit member dialogs prefill name from selected system user
 
@@ -202,6 +212,7 @@ throughout the budget tracker.
 - **`amount_paid`**: each item records the actual amount paid (may differ from allocated); shown alongside allocated in the item row
 - **Paid-vs-budgeted variance**: session-level variance panel (`GET /budget/sessions/{id}/variance`) — per-group and per-item breakdown of budgeted vs paid vs variance
 - Ad-hoc (one-time) items draw from freed-up N/A budget pool
+- **Monthly Income + Unallocated stat cards**: shown in session detail when `monthly_income` is available — uses the historically effective income for that session's month (not today's current income); computed by `get_household_income_as_of()` helper in `budget.py` which queries `member_income_history`
 - Status distribution bar: stacked (Paid / Reserved / To Do / N/A) + 4-col breakdown
 - **Drag-to-reorder**: grip handles on expense groups and items within each group; order persisted in `localStorage` per session (`hpm_session_order_<id>`); handles hidden in read-only sessions
 - **Auto-credit**: when an item is marked Paid and its linked expense has a source account
@@ -283,3 +294,5 @@ throughout the budget tracker.
 | 2026-07-31 | Budget | Monthly Sessions: hide pre-tracking months, payday banner, pay-day-aware 5-day grace period for previous month |
 | 2026-08-25 | Budget | Drag-to-reorder expense groups and items in session detail (@dnd-kit); order persisted in localStorage |
 | 2026-08-25 | Settings | Danger Zone: owner-only data clearance with 4 levels; Supabase re-auth + DELETE confirmation required |
+| 2026-08-25 | Household | Income history tracking (migration h8i9j0k1l2m3): append-only log with effective_from, change_type, reason; Edit Income dialog replaces inline fields |
+| 2026-08-25 | Budget | Session detail: Monthly Income + Unallocated stat cards using historically effective income at session month |
