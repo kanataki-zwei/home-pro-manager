@@ -211,6 +211,8 @@ function SessionDetailView({
     accounts,
     pastCutoff,
     householdId,
+    viewMode,
+    currentUserId,
     onBack,
     onSessionUpdate,
 }: {
@@ -219,10 +221,15 @@ function SessionDetailView({
     accounts: Account[]
     pastCutoff: string
     householdId: string
+    viewMode: 'household' | 'me'
+    currentUserId: string | null
     onBack: () => void
     onSessionUpdate: (id: string, status: string) => void
 }) {
     const [items, setItems] = useState<SessionItem[]>(session.items)
+    const displayItems = (viewMode === 'me' && currentUserId)
+        ? items.filter(i => i.expense_id === null || i.expense?.owner_id === currentUserId)
+        : items
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [pendingNa, setPendingNa] = useState<{ itemId: string; note: string } | null>(null)
     const [pendingPaidRef, setPendingPaidRef] = useState<{ itemId: string; ref: string; amountPaid: string } | null>(null)
@@ -275,7 +282,7 @@ function SessionDetailView({
     }
 
     const grouped = new Map<string, SessionItem[]>()
-    for (const item of items) {
+    for (const item of displayItems) {
         const key = item.expense_id === null
             ? '__adhoc__'
             : (item.expense?.group_id ?? '__none__')
@@ -310,23 +317,23 @@ function SessionDetailView({
         persistOrder(groupOrder, newItemOrders)
     }
 
-    const freedUp = items
+    const freedUp = displayItems
         .filter(i => i.expense_id !== null && i.status === 'na')
         .reduce((s, i) => s + Number(i.allocated_amount), 0)
     const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const extraIncomeTotal = extraIncome.reduce((s, e) => s + Number(e.amount), 0)
     const adHocAvailable = Math.max(freedUp + extraIncomeTotal - adHocUsed, 0)
 
-    const totalOriginalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalAllocated = items.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalPaid      = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalReserved  = items.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalTodo      = items.filter(i => i.status === 'todo').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalOriginalAllocated = displayItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalAllocated = displayItems.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalPaid      = displayItems.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalReserved  = displayItems.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalTodo      = displayItems.filter(i => i.status === 'todo').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalRemaining = totalAllocated - totalPaid - totalReserved
-    const countPaid     = items.filter(i => i.status === 'paid').length
-    const countReserved = items.filter(i => i.status === 'reserved').length
-    const countTodo     = items.filter(i => i.status === 'todo').length
-    const countNa       = items.filter(i => i.status === 'na').length
+    const countPaid     = displayItems.filter(i => i.status === 'paid').length
+    const countReserved = displayItems.filter(i => i.status === 'reserved').length
+    const countTodo     = displayItems.filter(i => i.status === 'todo').length
+    const countNa       = displayItems.filter(i => i.status === 'na').length
 
     async function updateStatus(itemId: string, newStatus: ItemStatus) {
         setUpdatingId(itemId)
@@ -690,7 +697,7 @@ function SessionDetailView({
                         </button>
                     </div>
                     {(() => {
-                        const unpaidCount = items.filter(i => i.status === 'todo' || i.status === 'reserved').length
+                        const unpaidCount = displayItems.filter(i => i.status === 'todo' || i.status === 'reserved').length
                         return (
                             <button
                                 onClick={() => setShowUnpaidOnly(p => !p)}
@@ -926,7 +933,7 @@ function SessionDetailView({
                     <StatCard
                         label="Freed Up (N/A)"
                         value={fmt(freedUp)}
-                        sub={`${items.filter(i => i.status === 'na' && i.expense_id !== null).length} expense(s) skipped`}
+                        sub={`${displayItems.filter(i => i.status === 'na' && i.expense_id !== null).length} expense(s) skipped`}
                         colorClass="bg-violet-50"
                         labelClass="text-violet-500"
                         valueClass="text-violet-700"
@@ -943,11 +950,11 @@ function SessionDetailView({
             )}
 
             {/* Progress bar */}
-            {items.length > 0 && (
+            {displayItems.length > 0 && (
                 <div className="space-y-3">
                     <div className="flex justify-between items-center">
                         <p className="text-xs font-medium text-slate-400">Status distribution</p>
-                        <p className="text-xs text-slate-400">{items.length} item{items.length !== 1 ? 's' : ''}</p>
+                        <p className="text-xs text-slate-400">{displayItems.length} item{displayItems.length !== 1 ? 's' : ''}</p>
                     </div>
                     {totalOriginalAllocated > 0 && (
                         <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
@@ -981,18 +988,18 @@ function SessionDetailView({
                 </div>
             )}
 
-            {items.length === 0 && !showAdHocForm && (
+            {displayItems.length === 0 && !showAdHocForm && (
                 <div className="flex items-center justify-center h-32 rounded-2xl border-2 border-dashed border-slate-200">
                     <p className="text-sm text-slate-400">No expenses found for this session</p>
                 </div>
             )}
 
             {/* ── By Account view ── */}
-            {viewByAccount && items.length > 0 && (() => {
-                const displayItems = showUnpaidOnly
-                    ? items.filter(i => i.status === 'todo' || i.status === 'reserved')
-                    : items
-                if (displayItems.length === 0) return (
+            {viewByAccount && displayItems.length > 0 && (() => {
+                const accountViewItems = showUnpaidOnly
+                    ? displayItems.filter(i => i.status === 'todo' || i.status === 'reserved')
+                    : displayItems
+                if (accountViewItems.length === 0) return (
                     <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
                         <span className="text-2xl">🎉</span>
                         <p className="text-sm font-bold text-emerald-600 mt-2">All caught up!</p>
@@ -1000,7 +1007,7 @@ function SessionDetailView({
                     </div>
                 )
                 const byAccount = new Map<string | null, SessionItem[]>()
-                for (const item of displayItems) {
+                for (const item of accountViewItems) {
                     const accountId = item.expense?.account_id ?? null
                     if (!byAccount.has(accountId)) byAccount.set(accountId, [])
                     byAccount.get(accountId)!.push(item)
@@ -1071,7 +1078,7 @@ function SessionDetailView({
 
             {/* ── Unpaid-only + by-group static view ── */}
             {showUnpaidOnly && !viewByAccount && (() => {
-                const unpaidItems = items.filter(i => i.status === 'todo' || i.status === 'reserved')
+                const unpaidItems = displayItems.filter(i => i.status === 'todo' || i.status === 'reserved')
                 if (unpaidItems.length === 0) return (
                     <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
                         <span className="text-2xl">🎉</span>
@@ -1258,7 +1265,7 @@ function SessionDetailView({
 // ─── Main component ───────────────────────────────────────────────
 
 export default function MonthlySession() {
-    const { household, members, accounts } = useHousehold()
+    const { household, members, accounts, viewMode, currentUserId } = useHousehold()
     const financialStartMonth = household?.financial_start_month?.slice(0, 7) ?? null  // "YYYY-MM"
     const payDay = household?.pay_day ?? null
     const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -1372,6 +1379,8 @@ export default function MonthlySession() {
                 accounts={accounts as Account[]}
                 pastCutoff={pastCutoff}
                 householdId={household!.id}
+                viewMode={viewMode}
+                currentUserId={currentUserId}
                 onBack={() => setSelectedSession(null)}
                 onSessionUpdate={handleSessionUpdate}
             />
