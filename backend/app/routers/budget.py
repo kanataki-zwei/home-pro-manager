@@ -676,7 +676,7 @@ async def get_budget_stats(
 ):
     from datetime import date as date_type
 
-    # Total monthly income across all active contributing members
+    # Sessions are per-user, so income must be scoped to the current user only.
     income_q = await db.execute(
         select(
             func.coalesce(
@@ -693,6 +693,7 @@ async def get_budget_stats(
             )
         ).where(
             HouseholdMember.household_id == household_id,
+            HouseholdMember.user_id == current_user.id,
             HouseholdMember.contributes_income == True,
             HouseholdMember.income_amount.isnot(None),
             HouseholdMember.is_active == True,
