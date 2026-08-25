@@ -128,6 +128,21 @@ export default function BudgetReport() {
 
     const totalMonthly = scopedRows.reduce((s, r) => s + r.amount, 0)
 
+    const isSavingsTagged = (e: Expense) =>
+        e.tag_assignments.some(ta => ta.tag.name.toLowerCase() === 'savings')
+
+    const savingsRows = scopedRows.filter(r => isSavingsTagged(r.expense))
+    const totalSavingsMonthly = savingsRows.reduce((s, r) => s + r.amount, 0)
+
+    const scopedIncome = useMemo(() => {
+        const incomeMembers = scope === 'me'
+            ? members.filter(m => m.user_id === currentUserId && m.contributes_income && m.income_amount)
+            : members.filter(m => m.contributes_income && m.income_amount)
+        return incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
+    }, [members, scope, currentUserId])
+
+    const librarySavingsRate = scopedIncome > 0 ? (totalSavingsMonthly / scopedIncome) * 100 : 0
+
     const byGroup = useMemo(() => {
         const map = new Map<string | null, { expense: Expense; amount: number }[]>()
         for (const row of scopedRows) {
@@ -177,10 +192,23 @@ export default function BudgetReport() {
                 .reduce((s, e) => s + Number(e.monthly_amount), 0)
             const allocated = hhOwned + hhJoint + personal
             const remaining = income - allocated
-            const savingsRate = income > 0 ? (remaining / income) * 100 : 0
+
+            // Savings rate = savings-tagged expenses for this member / income
+            const memberSavings = expenses.filter(e => !e.is_deleted && isSavingsTagged(e)).reduce((s, e) => {
+                if (e.owner_id !== null) return e.owner_id === m.user_id ? s + Number(e.monthly_amount) : s
+                if (e.ownership_type === role) return s + Number(e.monthly_amount)
+                if (e.ownership_type === 'joint') {
+                    const split = role === 'husband' ? (e.joint_split_husband ?? 50)
+                                : role === 'wife'    ? (e.joint_split_wife    ?? 50) : 0
+                    return s + Number(e.monthly_amount) * split / 100
+                }
+                return s
+            }, 0)
+            const savingsRate = income > 0 ? (memberSavings / income) * 100 : 0
+
             return {
                 member: m, income, hhOwned, hhJoint, personal,
-                allocated, remaining, savingsRate,
+                allocated, remaining, savingsRate, memberSavings,
                 color: CHART_COLORS[i % CHART_COLORS.length],
                 gradient: GRADIENTS[i % GRADIENTS.length],
             }
@@ -230,7 +258,7 @@ export default function BudgetReport() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
                 <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Monthly Total</p>
                     <p className="text-lg font-black text-slate-900">{fmt(totalMonthly)}</p>
@@ -251,6 +279,13 @@ export default function BudgetReport() {
                     </div>
                     <p className="text-lg font-black text-slate-900">{activeGroupCount}</p>
                     <p className="text-xs text-slate-400 mt-0.5">active</p>
+                </div>
+                <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Savings Rate</p>
+                    <p className={`text-lg font-black ${librarySavingsRate >= 20 ? 'text-emerald-600' : librarySavingsRate >= 10 ? 'text-amber-500' : 'text-slate-900'}`}>
+                        {librarySavingsRate.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{fmt(totalSavingsMonthly)} tagged</p>
                 </div>
             </div>
 
@@ -332,7 +367,7 @@ export default function BudgetReport() {
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
                     <div className={`grid gap-4 ${memberRows.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {memberRows.map(row => {
-                            const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, gradient } = row
+                            const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
                             const isMe = member.user_id === currentUserId
                             const overspent = remaining < 0
                             const memberRole = member.member_type.name
@@ -441,26 +476,32 @@ export default function BudgetReport() {
                                     </div>
 
                                     {/* Remaining + savings rate */}
-                                    <div className={`mx-5 mb-5 flex items-center justify-between rounded-2xl px-4 py-3 ${
-                                        overspent ? 'bg-rose-50 border border-rose-100' : 'bg-emerald-50 border border-emerald-100'
-                                    }`}>
-                                        <div>
-                                            <p className={`text-xs font-bold ${overspent ? 'text-rose-500' : 'text-emerald-600'}`}>
-                                                {overspent ? '⚠ Overspent' : '✓ Remaining'}
-                                            </p>
-                                            <p className={`text-base font-black mt-0.5 ${overspent ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                                {overspent ? '−' : ''}{fmt(Math.abs(remaining))}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                            </p>
+                                    <div className="mx-5 mb-4 rounded-2xl overflow-hidden border border-slate-100">
+                                        <div className={`flex items-center justify-between px-4 py-3 ${
+                                            overspent ? 'bg-rose-50' : 'bg-slate-50'
+                                        }`}>
+                                            <div>
+                                                <p className={`text-xs font-bold ${overspent ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                    {overspent ? '⚠ Overspent' : 'Remaining'}
+                                                </p>
+                                                <p className={`text-sm font-black mt-0.5 ${overspent ? 'text-rose-600' : 'text-slate-700'}`}>
+                                                    {overspent ? '−' : ''}{fmt(Math.abs(remaining))}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-xs text-slate-400">savings rate</p>
-                                            <p className={`text-lg font-black ${
-                                                overspent ? 'text-rose-500'
-                                                : savingsRate >= 20 ? 'text-emerald-600'
+                                        <div className={`flex items-center justify-between px-4 py-3 ${
+                                            savingsRate >= 20 ? 'bg-emerald-50' : savingsRate >= 10 ? 'bg-amber-50' : 'bg-white'
+                                        }`}>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-400">Savings Rate</p>
+                                                <p className="text-xs text-slate-400 mt-0.5">{fmt(memberSavings)} tagged savings</p>
+                                            </div>
+                                            <p className={`text-xl font-black ${
+                                                savingsRate >= 20 ? 'text-emerald-600'
                                                 : savingsRate >= 10 ? 'text-amber-500'
-                                                : 'text-slate-500'
+                                                : 'text-slate-400'
                                             }`}>
-                                                {overspent ? '−' : ''}{Math.abs(savingsRate).toFixed(1)}%
+                                                {savingsRate.toFixed(1)}%
                                             </p>
                                         </div>
                                     </div>
