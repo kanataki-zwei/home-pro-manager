@@ -720,7 +720,7 @@ async def get_budget_stats(
     current_session: SessionMonthStats | None = None
 
     for s in sessions:
-        total_budgeted = Decimal(str(sum(i.allocated_amount for i in s.items)))
+        total_budgeted = Decimal(str(sum(i.allocated_amount for i in s.items if i.status != 'na')))
         paid_count = sum(1 for i in s.items if i.status == "paid")
         paid_amount = Decimal(str(sum(i.allocated_amount for i in s.items if i.status == "paid")))
         item_count = len(s.items)
