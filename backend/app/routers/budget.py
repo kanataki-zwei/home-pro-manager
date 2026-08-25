@@ -700,11 +700,17 @@ async def get_budget_stats(
     )
     total_income = Decimal(str(income_q.scalar() or "0"))
 
-    # Last 6 sessions with their items and extra income
+    # Last 6 sessions with items (+ expense tags + session item tags) and extra income
     sessions_q = await db.execute(
         select(BudgetSession)
         .options(
-            selectinload(BudgetSession.items),
+            selectinload(BudgetSession.items).options(
+                selectinload(BudgetSessionItem.expense)
+                    .selectinload(Expense.tag_assignments)
+                    .selectinload(ExpenseTagAssignment.tag),
+                selectinload(BudgetSessionItem.tag_assignments)
+                    .selectinload(BudgetSessionItemTagAssignment.tag),
+            ),
             selectinload(BudgetSession.extra_income),
         )
         .where(
@@ -720,27 +726,37 @@ async def get_budget_stats(
     today = date_type.today()
     current_month_start = today.replace(day=1)
 
+    def is_savings_tagged(item: BudgetSessionItem) -> bool:
+        if item.expense_id is not None:
+            return any(ta.tag.name.lower() == "savings" for ta in (item.expense.tag_assignments if item.expense else []))
+        return any(ta.tag.name.lower() == "savings" for ta in item.tag_assignments)
+
     history: list[SessionMonthStats] = []
     current_session: SessionMonthStats | None = None
 
     for s in sessions:
-        total_budgeted = Decimal(str(sum(i.allocated_amount for i in s.items if i.status != 'na')))
+        active_items = [i for i in s.items if i.status != "na"]
+        total_budgeted = Decimal(str(sum(i.allocated_amount for i in active_items)))
         paid_count = sum(1 for i in s.items if i.status == "paid")
         paid_amount = Decimal(str(sum(i.allocated_amount for i in s.items if i.status == "paid")))
         item_count = len(s.items)
         extra_income_total = Decimal(str(sum(ei.amount for ei in s.extra_income)))
 
-        saved_amount = total_income - total_budgeted
-        if total_income > 0:
-            savings_rate = (saved_amount / total_income * 100).quantize(Decimal("0.1"))
-        else:
-            savings_rate = Decimal("0")
+        # Library items = salary-funded; ad-hoc items = extra-income-funded
+        salary_savings = Decimal(str(sum(
+            i.allocated_amount for i in active_items
+            if i.expense_id is not None and is_savings_tagged(i)
+        )))
+        extra_savings = Decimal(str(sum(
+            i.allocated_amount for i in active_items
+            if i.expense_id is None and is_savings_tagged(i)
+        )))
+        savings_amount = salary_savings + extra_savings
 
-        income_with_extra = total_income + extra_income_total
-        if income_with_extra > 0:
-            with_extra_rate = ((income_with_extra - total_budgeted) / income_with_extra * 100).quantize(Decimal("0.1"))
-        else:
-            with_extra_rate = Decimal("0")
+        total_denom = total_income + extra_income_total
+        savings_rate = (savings_amount / total_denom * 100).quantize(Decimal("0.1")) if total_denom > 0 else Decimal("0")
+        salary_savings_rate = (salary_savings / total_income * 100).quantize(Decimal("0.1")) if total_income > 0 else Decimal("0")
+        extra_savings_rate = (extra_savings / extra_income_total * 100).quantize(Decimal("0.1")) if extra_income_total > 0 else Decimal("0")
 
         stats = SessionMonthStats(
             session_id=str(s.id),
@@ -750,10 +766,11 @@ async def get_budget_stats(
             item_count=item_count,
             paid_count=paid_count,
             paid_amount=paid_amount,
-            savings_rate=savings_rate,
-            saved_amount=saved_amount,
             extra_income_total=extra_income_total,
-            with_extra_rate=with_extra_rate,
+            savings_amount=savings_amount,
+            savings_rate=savings_rate,
+            salary_savings_rate=salary_savings_rate,
+            extra_savings_rate=extra_savings_rate,
         )
         history.append(stats)
         if s.month == current_month_start:

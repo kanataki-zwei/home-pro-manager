@@ -287,10 +287,11 @@ class SessionMonthStats(BaseModel):
     item_count: int
     paid_count: int
     paid_amount: Decimal
-    savings_rate: Decimal        # salary-only: (salary − total_budgeted) / salary × 100
-    saved_amount: Decimal        # salary − total_budgeted (can be negative)
-    extra_income_total: Decimal  # sum of session extra_income entries
-    with_extra_rate: Decimal     # (salary + extra − total_budgeted) / (salary + extra) × 100
+    extra_income_total: Decimal   # sum of session extra_income entries
+    savings_amount: Decimal       # sum of allocated_amount for "Savings"-tagged items (non-NA)
+    savings_rate: Decimal         # savings_amount / (salary + extra) × 100  — headline
+    salary_savings_rate: Decimal  # savings from library items / salary income
+    extra_savings_rate: Decimal   # savings from ad-hoc items / extra income (0 if no extra)
 
 class BudgetStatsResponse(BaseModel):
     total_income: Decimal

@@ -30,10 +30,11 @@ interface SessionMonthStats {
     item_count: number
     paid_count: number
     paid_amount: number
-    savings_rate: number
-    saved_amount: number
     extra_income_total: number
-    with_extra_rate: number
+    savings_amount: number
+    savings_rate: number         // total: savings / (salary + extra)
+    salary_savings_rate: number  // library savings / salary only
+    extra_savings_rate: number   // adhoc savings / extra income
 }
 interface BudgetStats {
     total_income: number
@@ -278,12 +279,14 @@ export default function DashboardPage() {
 
                         const color = rate >= 20 ? '#10b981' : rate >= 10 ? '#f59e0b' : '#ef4444'
 
-                        const savedAmt = Number(current?.saved_amount ?? 0)
+                        const savingsAmt = Number(current?.savings_amount ?? 0)
+                        const salaryRate = Number(current?.salary_savings_rate ?? 0)
+                        const extraRate = Number(current?.extra_savings_rate ?? 0)
                         const extraInc = Number(current?.extra_income_total ?? 0)
-                        const withExtraRate = Number(current?.with_extra_rate ?? rate)
-                        const salaryIncome = budgetStats?.total_income ?? 0
+                        const salaryIncome = Number(budgetStats?.total_income ?? 0)
                         const hasExtra = extraInc > 0
-                        const withExtraColor = withExtraRate >= 20 ? '#10b981' : withExtraRate >= 10 ? '#f59e0b' : '#ef4444'
+                        const salaryColor = salaryRate >= 20 ? '#10b981' : salaryRate >= 10 ? '#f59e0b' : '#ef4444'
+                        const extraColor = extraRate >= 20 ? '#10b981' : extraRate >= 10 ? '#f59e0b' : '#ef4444'
 
                         return (
                             <div className="bg-white rounded-2xl border border-slate-100 p-5"
@@ -292,6 +295,7 @@ export default function DashboardPage() {
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Savings Rate</p>
                                         <p className="text-3xl font-black" style={{ color }}>{rate.toFixed(1)}%</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">{fmtCompact(savingsAmt)} saved</p>
                                         {delta !== null && (
                                             <p className={`text-xs font-semibold mt-1 ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
                                                 {isPositive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}pp vs last month
@@ -333,31 +337,36 @@ export default function DashboardPage() {
                                     )}
                                 </div>
 
-                                {/* Saved amount + numerator/denominator */}
-                                {current && Number(salaryIncome) > 0 && (
+                                {/* Breakdown: salary / extra / total */}
+                                {current && salaryIncome > 0 && (
                                     <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-slate-400">Salary only</span>
-                                            <div className="text-right">
-                                                <span className="font-bold" style={{ color }}>{rate.toFixed(1)}%</span>
-                                                <span className="text-slate-300 mx-1">·</span>
-                                                <span className={`font-semibold ${savedAmt >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                                                    {savedAmt >= 0 ? fmtCompact(savedAmt) : `−${fmtCompact(Math.abs(savedAmt))}`} saved
-                                                </span>
+                                            <span className="text-slate-400">Salary</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold" style={{ color: salaryColor }}>{salaryRate.toFixed(1)}%</span>
+                                                <span className="text-slate-300">·</span>
+                                                <span className="text-slate-500">{fmtCompact(salaryIncome)} income</span>
                                             </div>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400">
-                                            {fmtCompact(Math.abs(savedAmt))} / {fmtCompact(Number(salaryIncome))} salary
                                         </div>
                                         {hasExtra && (
-                                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
-                                                <span className="text-slate-400">With extra income</span>
-                                                <div className="text-right">
-                                                    <span className="font-bold" style={{ color: withExtraColor }}>{withExtraRate.toFixed(1)}%</span>
-                                                    <span className="text-slate-300 mx-1">·</span>
-                                                    <span className="text-sky-500 font-semibold">+{fmtCompact(extraInc)} extra</span>
+                                            <>
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <span className="text-slate-400">Extra income</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold" style={{ color: extraColor }}>{extraRate.toFixed(1)}%</span>
+                                                        <span className="text-slate-300">·</span>
+                                                        <span className="text-slate-500">{fmtCompact(extraInc)} extra</span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                                                    <span className="text-slate-500 font-semibold">Total</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold" style={{ color }}>{rate.toFixed(1)}%</span>
+                                                        <span className="text-slate-300">·</span>
+                                                        <span className="text-slate-500">{fmtCompact(salaryIncome + extraInc)} total</span>
+                                                    </div>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 )}
