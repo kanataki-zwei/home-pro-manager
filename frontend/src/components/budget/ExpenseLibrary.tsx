@@ -252,6 +252,30 @@ export default function ExpenseLibrary() {
         }
     }
 
+    const removeTagFromGroup = async (groupId: string, tagId: string) => {
+        if (!household) return
+        setGroupTagPickerOpen(null)
+        setApplyingTagToGroup(groupId)
+        const groupExps = expenses.filter(e => e.group_id === groupId && !e.is_deleted && e.tag_assignments.some(ta => ta.tag.id === tagId))
+        if (groupExps.length === 0) { setApplyingTagToGroup(null); return }
+        try {
+            const results = await Promise.all(
+                groupExps.map(e =>
+                    apiPatch<Expense>(
+                        `/api/households/${household.id}/budget/expenses/${e.id}`,
+                        { tag_ids: e.tag_assignments.map(ta => ta.tag.id).filter(id => id !== tagId) }
+                    )
+                )
+            )
+            setExpenses(prev => prev.map(e => results.find(r => r.id === e.id) ?? e))
+            toast.success(`Tag removed from ${results.length} expense${results.length !== 1 ? 's' : ''}`)
+        } catch {
+            toast.error('Failed to remove tag from group')
+        } finally {
+            setApplyingTagToGroup(null)
+        }
+    }
+
     const restoreGroup = async (id: string) => {
         if (!household) return
         try {
@@ -849,7 +873,7 @@ export default function ExpenseLibrary() {
                                                     <button
                                                         onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
                                                         disabled={applyingTagToGroup === group.id}
-                                                        title="Apply a tag to all expenses in this group"
+                                                        title="Add or remove a tag across all expenses in this group"
                                                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
                                                         {applyingTagToGroup === group.id
                                                             ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
@@ -857,18 +881,32 @@ export default function ExpenseLibrary() {
                                                     </button>
                                                     {groupTagPickerOpen === group.id && (
                                                         <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 min-w-max">
-                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Apply tag to all expenses</p>
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
                                                             <div className="space-y-0.5">
-                                                                {tags.map(tag => (
-                                                                    <button
-                                                                        key={tag.id}
-                                                                        onClick={() => applyTagToGroup(group.id, tag.id)}
-                                                                        className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left">
-                                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                                            style={{ background: tag.color || '#6366f1' }} />
-                                                                        <span className="text-sm font-semibold text-slate-700">{tag.name}</span>
-                                                                    </button>
-                                                                ))}
+                                                                {tags.map(tag => {
+                                                                    const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
+                                                                    const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
+                                                                    return (
+                                                                        <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                                                style={{ background: tag.color || '#6366f1' }} />
+                                                                            <span className="text-sm font-semibold text-slate-700 flex-1 mr-3">{tag.name}</span>
+                                                                            <button
+                                                                                onClick={() => applyTagToGroup(group.id, tag.id)}
+                                                                                title="Add to all expenses in group"
+                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                                                                                <Plus className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => removeTagFromGroup(group.id, tag.id)}
+                                                                                title="Remove from all expenses in group"
+                                                                                disabled={!hasTag}
+                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                                                                                <X className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    )
+                                                                })}
                                                             </div>
                                                         </div>
                                                     )}
