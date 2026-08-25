@@ -369,6 +369,9 @@ async def update_expense(
             db.add(ExpenseTagAssignment(expense_id=expense_id, tag_id=tag_id))
 
     await db.commit()
+    # expire_on_commit=False means the session keeps stale in-memory objects;
+    # expire explicitly so the re-fetch below gets fresh rows from the DB.
+    await db.refresh(expense)
 
     result = await db.execute(
         select(Expense)
