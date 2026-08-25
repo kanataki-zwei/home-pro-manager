@@ -1,59 +1,59 @@
-import { getSession } from '@/lib/auth'
-
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8002'
 
-async function getAuthHeaders() {
-    const session = await getSession()
-    return {
-        'Content-Type': 'application/json',
-        ...(session?.access_token && {
-            Authorization: `Bearer ${session.access_token}`
+async function refreshToken(): Promise<boolean> {
+    try {
+        const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
         })
+        return res.ok
+    } catch {
+        return false
     }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-    const headers = await getAuthHeaders()
-    const res = await fetch(`${BASE_URL}${path}`, { headers })
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    const res = await fetch(`${BASE_URL}${path}`, {
+        ...init,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> || {}) },
+    })
+
+    if (res.status === 401) {
+        const refreshed = await refreshToken()
+        if (refreshed) {
+            const retry = await fetch(`${BASE_URL}${path}`, {
+                ...init,
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> || {}) },
+            })
+            if (!retry.ok) throw new Error(await retry.text())
+            return retry
+        }
+        if (typeof window !== 'undefined') window.location.href = '/auth/login'
+        throw new Error('Session expired')
+    }
+
     if (!res.ok) throw new Error(await res.text())
-    return res.json()
+    return res
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+    return (await apiFetch(path)).json()
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-    const headers = await getAuthHeaders()
-    const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-    })
-    if (!res.ok) throw new Error(await res.text())
-    return res.json()
+    return (await apiFetch(path, { method: 'POST', body: JSON.stringify(body) })).json()
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-    const headers = await getAuthHeaders()
-    const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(body)
-    })
-    if (!res.ok) throw new Error(await res.text())
-    return res.json()
+    return (await apiFetch(path, { method: 'PATCH', body: JSON.stringify(body) })).json()
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
-    const headers = await getAuthHeaders()
-    const res = await fetch(`${BASE_URL}${path}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(body)
-    })
-    if (!res.ok) throw new Error(await res.text())
-    return res.json()
+    return (await apiFetch(path, { method: 'PUT', body: JSON.stringify(body) })).json()
 }
 
 export async function apiDelete(path: string): Promise<void> {
-    const headers = await getAuthHeaders()
-    const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers })
-    if (!res.ok) throw new Error(await res.text())
+    await apiFetch(path, { method: 'DELETE' })
 }

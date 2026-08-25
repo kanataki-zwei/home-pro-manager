@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
-import { signIn } from '@/lib/auth'
-import { createClient } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Settings, User, Building2, Tags, Plus, Trash2, Save, Loader2, RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -292,12 +290,9 @@ export default function SettingsPage() {
         setClearPasswordError('')
 
         // Re-authenticate to verify identity
-        const supabase = createClient()
-        const { error: authErr } = await supabase.auth.signInWithPassword({
-            email: profile.email,
-            password: clearPassword,
-        })
-        if (authErr) {
+        try {
+            await apiPost('/api/auth/verify-password', { password: clearPassword })
+        } catch {
             setClearPasswordError('Incorrect password. Please try again.')
             setClearing(false)
             return

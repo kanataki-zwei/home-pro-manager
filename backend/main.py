@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -12,10 +11,10 @@ from app.core.database import engine
 from app.core.limiter import limiter
 from sqlalchemy import text
 import app.models
-from app.routers.users import router as users_router, get_supabase
+from app.routers.auth import router as auth_router
+from app.routers.users import router as users_router
 from app.routers.households import router as households_router
 from app.routers.budget import router as budget_router
-from app.core.auth import _jwks_client
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +23,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     if settings.DEBUG:
         logger.warning("DEBUG mode is enabled — disable before deploying to production")
-    # Pre-warm blocking clients so cold-start latency hits before any request comes in
-    await asyncio.to_thread(lambda: _jwks_client.fetch_data())
-    await asyncio.to_thread(get_supabase)
-    # Pre-warm the DB pool so the first user request doesn't pay connection latency
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -84,13 +79,16 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(_SecurityHeadersMiddleware)
 
+app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(households_router, prefix="/api/households", tags=["Households"])
 app.include_router(budget_router, prefix="/api")
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "app": settings.APP_NAME}
+
 
 @app.get("/health/db")
 async def health_db():

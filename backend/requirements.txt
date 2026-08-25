@@ -1,8 +1,9 @@
-﻿alembic==1.18.4
+alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
 asyncpg==0.31.0
+bcrypt==5.0.0
 cachetools==6.2.6
 certifi==2026.1.4
 cffi==2.0.0
@@ -61,9 +62,6 @@ starlette==0.52.1
 storage3==2.28.0
 StrEnum==0.4.15
 strictyaml==1.7.3
-supabase==2.28.0
-supabase-auth==2.28.0
-supabase-functions==2.28.0
 tenacity==9.1.4
 typing-inspection==0.4.2
 typing_extensions==4.15.0

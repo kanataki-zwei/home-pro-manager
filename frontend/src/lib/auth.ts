@@ -1,22 +1,29 @@
-import { createClient } from '@/lib/supabase'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8002'
 
-export async function signIn(email: string, password: string) {
-    const supabase = createClient()
-    return supabase.auth.signInWithPassword({ email, password })
+export async function signIn(
+    email: string,
+    password: string,
+): Promise<{ error: { message: string } | null }> {
+    try {
+        const res = await fetch(`${BASE_URL}/api/auth/login`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        })
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            return { error: { message: data.detail || 'Invalid credentials' } }
+        }
+        return { error: null }
+    } catch {
+        return { error: { message: 'Connection failed' } }
+    }
 }
 
-export async function signUp(email: string, password: string) {
-    const supabase = createClient()
-    return supabase.auth.signUp({ email, password })
-}
-
-export async function signOut() {
-    const supabase = createClient()
-    return supabase.auth.signOut()
-}
-
-export async function getSession() {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    return session
+export async function signOut(): Promise<void> {
+    await fetch(`${BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+    }).catch(() => {})
 }

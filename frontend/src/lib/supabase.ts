@@ -1,13 +1,3 @@
-import { createBrowserClient } from '@supabase/ssr'
-
-let client: ReturnType<typeof createBrowserClient> | null = null
-
-export function createClient() {
-    if (!client) {
-        client = createBrowserClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-    }
-    return client
-}
+// Supabase client removed — authentication is now handled by the local backend.
+// This file is kept as a stub so any stale imports fail loudly at compile time.
+export {}

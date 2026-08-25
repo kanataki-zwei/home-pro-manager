@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { apiGet, apiPost } from '@/lib/api'
-import { getSession } from '@/lib/auth'
 
 interface MemberType {
     id: string
@@ -98,10 +97,9 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
     const loadFromAPI = async () => {
         setLoading(true)
         try {
-            const session = await getSession()
-            setCurrentUserId(session?.user?.id ?? null)
+            const me = await apiGet<{ id: string }>('/api/users/me')
+            setCurrentUserId(me.id)
 
-            // Fetch household by current user identity — no localStorage needed
             const h = await apiGet<Household>('/api/households/mine')
             setHousehold(h)
 
