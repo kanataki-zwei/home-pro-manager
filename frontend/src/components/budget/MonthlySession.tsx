@@ -519,9 +519,17 @@ function SessionDetailView({
                         </button>
                     )}
                     <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${item.status === 'na' ? 'text-slate-400' : 'text-slate-800'}`}>
-                            {displayName}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className={`text-sm font-semibold truncate ${item.status === 'na' ? 'text-slate-400' : 'text-slate-800'}`}>
+                                {displayName}
+                            </p>
+                            {item.expense?.tag_assignments.map(ta => (
+                                <span key={ta.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                                    style={{ background: ta.tag.color || '#6366f1' }}>
+                                    {ta.tag.name}
+                                </span>
+                            ))}
+                        </div>
                         <p className="text-xs text-slate-400">{fmt(item.allocated_amount)}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
