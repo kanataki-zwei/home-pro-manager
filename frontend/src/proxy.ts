@@ -6,8 +6,9 @@ export function proxy(request: NextRequest) {
 
     const isAuthRoute = pathname.startsWith('/auth')
     const isPublicRoute = pathname === '/'
+    const isApiRoute = pathname.startsWith('/api')
 
-    if (!token && !isAuthRoute && !isPublicRoute) {
+    if (!token && !isAuthRoute && !isPublicRoute && !isApiRoute) {
         return NextResponse.redirect(new URL('/auth/login', request.url))
     }
 
