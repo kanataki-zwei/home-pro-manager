@@ -276,6 +276,20 @@ export default function ExpenseLibrary() {
         }
     }
 
+    const toggleExpenseTag = async (expenseId: string, tagId: string) => {
+        if (!household) return
+        const exp = expenses.find(e => e.id === expenseId)
+        if (!exp) return
+        const currentIds = exp.tag_assignments.map(ta => ta.tag.id)
+        const newIds = currentIds.includes(tagId) ? currentIds.filter(id => id !== tagId) : [...currentIds, tagId]
+        try {
+            const updated = await apiPatch<Expense>(`/api/households/${household.id}/budget/expenses/${expenseId}`, { tag_ids: newIds })
+            setExpenses(prev => prev.map(e => e.id === expenseId ? updated : e))
+        } catch {
+            toast.error('Failed to update tag')
+        }
+    }
+
     const restoreGroup = async (id: string) => {
         if (!household) return
         try {
@@ -950,9 +964,11 @@ export default function ExpenseLibrary() {
                                                     key={expense.id}
                                                     expense={expense}
                                                     accounts={accounts as Account[]}
+                                                    tags={tags}
                                                     onEdit={() => openEditExpense(expense)}
                                                     onDelete={() => deleteExpense(expense.id)}
                                                     onRestore={() => restoreExpense(expense.id)}
+                                                    onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
                                                     showDeleted={showDeleted}
                                                 />
                                             ))}
@@ -986,9 +1002,11 @@ export default function ExpenseLibrary() {
                                     key={expense.id}
                                     expense={expense}
                                     accounts={formAccounts}
+                                    tags={tags}
                                     onEdit={() => openEditExpense(expense)}
                                     onDelete={() => deleteExpense(expense.id)}
                                     onRestore={() => restoreExpense(expense.id)}
+                                    onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
                                     showDeleted={showDeleted}
                                 />
                             ))}
@@ -1233,15 +1251,30 @@ export default function ExpenseLibrary() {
 
 // ─── Expense Row ──────────────────────────────────────────────────
 
-function ExpenseRow({ expense, accounts, onEdit, onDelete, onRestore, showDeleted }: {
+function ExpenseRow({ expense, accounts, tags, onEdit, onDelete, onRestore, onTagToggle, showDeleted }: {
     expense: Expense
     accounts: Account[]
+    tags: ExpenseTag[]
     onEdit: () => void
     onDelete: () => void
     onRestore: () => void
+    onTagToggle: (tagId: string) => void
     showDeleted: boolean
 }) {
     const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
+    const [tagPickerOpen, setTagPickerOpen] = useState(false)
+    const tagPickerRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (!tagPickerOpen) return
+        const close = (e: MouseEvent) => {
+            if (tagPickerRef.current && !tagPickerRef.current.contains(e.target as Node))
+                setTagPickerOpen(false)
+        }
+        document.addEventListener('mousedown', close)
+        return () => document.removeEventListener('mousedown', close)
+    }, [tagPickerOpen])
+
     return (
         <div className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors group ${expense.is_deleted ? 'opacity-50' : ''}`}>
             <div className="flex-1 min-w-0">
@@ -1282,6 +1315,32 @@ function ExpenseRow({ expense, accounts, onEdit, onDelete, onRestore, showDelete
                     </button>
                 ) : (
                     <>
+                        {tags.length > 0 && (
+                            <div className="relative" ref={tagPickerRef} onMouseDown={e => e.stopPropagation()}>
+                                <button onClick={() => setTagPickerOpen(v => !v)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-purple-500 hover:bg-purple-50 transition-all">
+                                    <Tag className="h-3.5 w-3.5" />
+                                </button>
+                                {tagPickerOpen && (
+                                    <div className="absolute right-0 top-8 z-50 bg-white rounded-2xl shadow-lg border border-slate-100 p-2 min-w-[160px]">
+                                        {tags.map(tag => {
+                                            const active = expense.tag_assignments.some(ta => ta.tag.id === tag.id)
+                                            return (
+                                                <div key={tag.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                        style={{ background: tag.color || '#6366f1' }} />
+                                                    <span className="text-xs text-slate-700 flex-1">{tag.name}</span>
+                                                    <button onClick={() => { onTagToggle(tag.id); setTagPickerOpen(false) }}
+                                                        className={`w-5 h-5 rounded flex items-center justify-center transition-all ${active ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
+                                                        {active ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <button onClick={onEdit}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
                             <Pencil className="h-3.5 w-3.5" />
