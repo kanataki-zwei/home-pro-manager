@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Plus, GripVertical } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, GripVertical, Wallet } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -44,8 +44,11 @@ interface Expense {
     ownership_type: string
     group_id: string | null
     owner_id: string | null
+    account_id: string | null
     tag_assignments: TagAssignment[]
 }
+
+interface Account { id: string; name: string }
 
 interface SessionItem {
     id: string
@@ -63,12 +66,22 @@ interface SessionItem {
     updated_at: string
 }
 
+interface ExtraIncome {
+    id: string
+    session_id: string
+    household_id: string
+    amount: number
+    narration: string
+    created_at: string
+}
+
 interface SessionDetail {
     id: string
     month: string
     name: string
     status: string
     items: SessionItem[]
+    extra_income: ExtraIncome[]
     monthly_income?: number | null
 }
 
@@ -195,6 +208,7 @@ function SortableItemWrapper({
 function SessionDetailView({
     session,
     groups,
+    accounts,
     pastCutoff,
     householdId,
     onBack,
@@ -202,6 +216,7 @@ function SessionDetailView({
 }: {
     session: SessionDetail
     groups: ExpenseGroup[]
+    accounts: Account[]
     pastCutoff: string
     householdId: string
     onBack: () => void
@@ -221,6 +236,14 @@ function SessionDetailView({
     const [resetting, setResetting] = useState(false)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [syncing, setSyncing] = useState(false)
+    const [viewByAccount, setViewByAccount] = useState(false)
+    const [showUnpaidOnly, setShowUnpaidOnly] = useState(false)
+    const [extraIncome, setExtraIncome] = useState<ExtraIncome[]>(session.extra_income ?? [])
+    const [showExtraIncomeForm, setShowExtraIncomeForm] = useState(false)
+    const [extraIncomeAmount, setExtraIncomeAmount] = useState('')
+    const [extraIncomeNarration, setExtraIncomeNarration] = useState('')
+    const [addingExtraIncome, setAddingExtraIncome] = useState(false)
+    const [deletingExtraIncomeId, setDeletingExtraIncomeId] = useState<string | null>(null)
 
     // ── Drag-to-reorder state (persisted in localStorage per session) ──
     const storageKey = `hpm_session_order_${session.id}`
@@ -291,7 +314,8 @@ function SessionDetailView({
         .filter(i => i.expense_id !== null && i.status === 'na')
         .reduce((s, i) => s + Number(i.allocated_amount), 0)
     const adHocUsed = adHocItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const adHocAvailable = Math.max(freedUp - adHocUsed, 0)
+    const extraIncomeTotal = extraIncome.reduce((s, e) => s + Number(e.amount), 0)
+    const adHocAvailable = Math.max(freedUp + extraIncomeTotal - adHocUsed, 0)
 
     const totalOriginalAllocated = items.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalAllocated = items.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
@@ -384,6 +408,40 @@ function SessionDetailView({
             toast.error('Failed to delete expense')
         } finally {
             setDeletingId(null)
+        }
+    }
+
+    async function addExtraIncome() {
+        const parsed = parseFloat(extraIncomeAmount)
+        if (isNaN(parsed) || parsed <= 0 || !extraIncomeNarration.trim()) return
+        setAddingExtraIncome(true)
+        try {
+            const created = await apiPost<ExtraIncome>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/extra-income`,
+                { amount: parsed, narration: extraIncomeNarration.trim() }
+            )
+            setExtraIncome(prev => [...prev, created])
+            setExtraIncomeAmount('')
+            setExtraIncomeNarration('')
+            setShowExtraIncomeForm(false)
+            toast.success('Extra income added')
+        } catch {
+            toast.error('Failed to add extra income')
+        } finally {
+            setAddingExtraIncome(false)
+        }
+    }
+
+    async function deleteExtraIncome(id: string) {
+        setDeletingExtraIncomeId(id)
+        try {
+            await apiDelete(`/api/households/${householdId}/budget/sessions/${session.id}/extra-income/${id}`)
+            setExtraIncome(prev => prev.filter(e => e.id !== id))
+            toast.success('Extra income removed')
+        } catch {
+            toast.error('Failed to remove extra income')
+        } finally {
+            setDeletingExtraIncomeId(null)
         }
     }
 
@@ -594,7 +652,7 @@ function SessionDetailView({
         )
     }
 
-    const showAdHocSection = adHocItems.length > 0 || (!isReadOnly && showAdHocForm) || freedUp > 0
+    const showAdHocSection = adHocItems.length > 0 || (!isReadOnly && showAdHocForm) || freedUp > 0 || extraIncomeTotal > 0
 
     return (
         <div className="space-y-6">
@@ -618,8 +676,35 @@ function SessionDetailView({
                         Read-only
                     </span>
                 )}
-                {!isReadOnly && (
-                    <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-3">
+                    <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
+                        <button
+                            onClick={() => setViewByAccount(false)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!viewByAccount ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            By Group
+                        </button>
+                        <button
+                            onClick={() => setViewByAccount(true)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${viewByAccount ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            By Account
+                        </button>
+                    </div>
+                    {(() => {
+                        const unpaidCount = items.filter(i => i.status === 'todo' || i.status === 'reserved').length
+                        return (
+                            <button
+                                onClick={() => setShowUnpaidOnly(p => !p)}
+                                className={`text-xs font-bold px-3 py-1 rounded-xl border transition-all flex items-center gap-1.5 ${showUnpaidOnly ? 'bg-amber-50 text-amber-700 border-amber-200' : 'text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'}`}>
+                                Unpaid only
+                                {unpaidCount > 0 && (
+                                    <span className={`font-black ${showUnpaidOnly ? 'text-amber-500' : 'text-slate-400'}`}>
+                                        {unpaidCount}
+                                    </span>
+                                )}
+                            </button>
+                        )
+                    })()}
+                    {!isReadOnly && <div className="flex items-center gap-2">
                         {sessionStatus === 'draft' && (
                             <button
                                 onClick={syncExpenses}
@@ -661,8 +746,8 @@ function SessionDetailView({
                             className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
                             {closingSession ? 'Saving…' : 'Mark as Complete'}
                         </button>
-                    </div>
-                )}
+                    </div>}
+                </div>
             </div>
 
             {/* Velocity indicator — current month active session only */}
@@ -752,8 +837,91 @@ function SessionDetailView({
                 </div>
             )}
 
-            {/* Freed-up budget row — appears once any item is marked N/A */}
-            {freedUp > 0 && (
+            {/* Extra income section */}
+            {(!isReadOnly || extraIncome.length > 0) && (
+                <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-sky-500">Extra Income</p>
+                            {extraIncomeTotal > 0 && (
+                                <p className="text-base font-black text-sky-700 mt-0.5">{fmt(extraIncomeTotal)}</p>
+                            )}
+                        </div>
+                        {!isReadOnly && !showExtraIncomeForm && (
+                            <button
+                                onClick={() => setShowExtraIncomeForm(true)}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-800 border border-sky-200 hover:border-sky-400 bg-white hover:bg-sky-50 px-3 py-1.5 rounded-lg transition-colors">
+                                <Plus className="h-3.5 w-3.5" />
+                                Add income
+                            </button>
+                        )}
+                    </div>
+                    {extraIncome.length > 0 && (
+                        <div className="divide-y divide-sky-100">
+                            {extraIncome.map(e => (
+                                <div key={e.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-sky-800 truncate">{e.narration}</p>
+                                        <p className="text-xs text-sky-500">{fmt(e.amount)}</p>
+                                    </div>
+                                    {!isReadOnly && (
+                                        <button
+                                            onClick={() => deleteExtraIncome(e.id)}
+                                            disabled={deletingExtraIncomeId === e.id}
+                                            className="p-1 text-sky-300 hover:text-red-400 transition-colors disabled:opacity-40 shrink-0">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {extraIncome.length === 0 && !showExtraIncomeForm && (
+                        <p className="text-xs text-sky-400 italic">
+                            No extra income added yet — add one-off income to expand the ad-hoc pool
+                        </p>
+                    )}
+                    {showExtraIncomeForm && (
+                        <div className="border-t border-sky-100 pt-3 space-y-2.5">
+                            <input
+                                type="text"
+                                placeholder="Narration (e.g. Freelance project, bonus…)"
+                                value={extraIncomeNarration}
+                                onChange={e => setExtraIncomeNarration(e.target.value)}
+                                className="w-full text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                            />
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-sky-400 shrink-0">KES</span>
+                                <input
+                                    type="number"
+                                    placeholder="Amount"
+                                    min="0"
+                                    step="0.01"
+                                    value={extraIncomeAmount}
+                                    onChange={e => setExtraIncomeAmount(e.target.value)}
+                                    className="flex-1 text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={addExtraIncome}
+                                    disabled={addingExtraIncome || !extraIncomeNarration.trim() || !extraIncomeAmount || parseFloat(extraIncomeAmount) <= 0}
+                                    className="text-xs font-semibold bg-sky-600 text-white rounded-lg px-4 py-1.5 hover:bg-sky-700 transition-colors disabled:opacity-40">
+                                    {addingExtraIncome ? 'Adding…' : 'Add Income'}
+                                </button>
+                                <button
+                                    onClick={() => { setShowExtraIncomeForm(false); setExtraIncomeAmount(''); setExtraIncomeNarration('') }}
+                                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                    ✕ Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Freed-up budget row — appears once any item is marked N/A or extra income added */}
+            {(freedUp > 0 || extraIncomeTotal > 0) && (
                 <div className="grid grid-cols-2 gap-3">
                     <StatCard
                         label="Freed Up (N/A)"
@@ -766,7 +934,7 @@ function SessionDetailView({
                     <StatCard
                         label="Available for Ad-hoc"
                         value={fmt(adHocAvailable)}
-                        sub={adHocUsed > 0 ? `${fmt(adHocUsed)} used` : 'No one-time expenses yet'}
+                        sub={adHocUsed > 0 ? `${fmt(adHocUsed)} used` : 'Freed + extra income pool'}
                         colorClass="bg-sky-50"
                         labelClass="text-sky-500"
                         valueClass="text-sky-700"
@@ -819,8 +987,135 @@ function SessionDetailView({
                 </div>
             )}
 
+            {/* ── By Account view ── */}
+            {viewByAccount && items.length > 0 && (() => {
+                const displayItems = showUnpaidOnly
+                    ? items.filter(i => i.status === 'todo' || i.status === 'reserved')
+                    : items
+                if (displayItems.length === 0) return (
+                    <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
+                        <span className="text-2xl">🎉</span>
+                        <p className="text-sm font-bold text-emerald-600 mt-2">All caught up!</p>
+                        <p className="text-xs text-emerald-400 mt-0.5">No unpaid expenses this month</p>
+                    </div>
+                )
+                const byAccount = new Map<string | null, SessionItem[]>()
+                for (const item of displayItems) {
+                    const accountId = item.expense?.account_id ?? null
+                    if (!byAccount.has(accountId)) byAccount.set(accountId, [])
+                    byAccount.get(accountId)!.push(item)
+                }
+
+                const groups: { id: string | null; name: string; acctItems: SessionItem[] }[] = []
+                for (const [accountId, acctItems] of byAccount.entries()) {
+                    if (accountId === null) continue
+                    const acc = accounts.find(a => a.id === accountId)
+                    groups.push({ id: accountId, name: acc?.name ?? 'Unknown Account', acctItems })
+                }
+                groups.sort((a, b) => {
+                    const ta = a.acctItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
+                    const tb = b.acctItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
+                    return tb - ta
+                })
+                const noAcctItems = byAccount.get(null) ?? []
+                if (noAcctItems.length > 0) {
+                    groups.push({ id: null, name: 'No Account', acctItems: noAcctItems })
+                }
+
+                return (
+                    <div className="space-y-6">
+                        {groups.map(({ id, name, acctItems }) => {
+                            const total = acctItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
+                            const naTotal = acctItems
+                                .filter(i => i.status === 'na')
+                                .reduce((s, i) => s + Number(i.allocated_amount), 0)
+                            const activeTotal = total - naTotal
+                            const hasNa = naTotal > 0
+                            return (
+                                <div key={id ?? '__none__'} className="space-y-2">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-2">
+                                            {id
+                                                ? <Wallet className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                                : <span className="text-xs text-slate-300 flex-shrink-0">—</span>}
+                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{name}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-right">
+                                            {hasNa && (
+                                                <>
+                                                    <span className="text-xs text-slate-400">{fmt(total)} total</span>
+                                                    <span className="text-xs text-slate-300">·</span>
+                                                </>
+                                            )}
+                                            <span className="text-xs font-bold text-slate-700">
+                                                {fmt(activeTotal)}
+                                            </span>
+                                            {hasNa && (
+                                                <span className="text-xs text-slate-400 whitespace-nowrap">
+                                                    (−{fmt(naTotal)} N/A)
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                        {acctItems.map((item, idx) =>
+                                            renderItemRow(item, idx === acctItems.length - 1)
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )
+            })()}
+
+            {/* ── Unpaid-only + by-group static view ── */}
+            {showUnpaidOnly && !viewByAccount && (() => {
+                const unpaidItems = items.filter(i => i.status === 'todo' || i.status === 'reserved')
+                if (unpaidItems.length === 0) return (
+                    <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
+                        <span className="text-2xl">🎉</span>
+                        <p className="text-sm font-bold text-emerald-600 mt-2">All caught up!</p>
+                        <p className="text-xs text-emerald-400 mt-0.5">No unpaid expenses this month</p>
+                    </div>
+                )
+                const filteredGrouped = new Map<string, SessionItem[]>()
+                for (const item of unpaidItems) {
+                    const key = item.expense_id === null ? '__adhoc__' : (item.expense?.group_id ?? '__none__')
+                    if (!filteredGrouped.has(key)) filteredGrouped.set(key, [])
+                    filteredGrouped.get(key)!.push(item)
+                }
+                const filteredLibraryGroups = [...filteredGrouped.entries()].filter(([k]) => k !== '__adhoc__')
+                const filteredAdHoc = filteredGrouped.get('__adhoc__') ?? []
+                return (
+                    <div className="space-y-6">
+                        {filteredLibraryGroups.map(([groupId, groupItems]) => {
+                            const ordered = orderedItemsForGroup(groupId, groupItems)
+                            return (
+                                <div key={groupId} className="space-y-2">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                                        {groupId === '__none__' ? 'Uncategorized' : (groupMap.get(groupId) ?? 'Unknown group')}
+                                    </p>
+                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                        {ordered.map((item, idx) => renderItemRow(item, idx === ordered.length - 1))}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                        {filteredAdHoc.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">One-time expenses</p>
+                                <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                    {filteredAdHoc.map((item, idx) => renderItemRow(item, idx === filteredAdHoc.length - 1))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
+
             {/* Library item groups — drag to reorder sections and items */}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
+            {!viewByAccount && !showUnpaidOnly && <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGroupDragEnd}>
                 <SortableContext items={orderedLibraryGroups.map(([id]) => id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-6">
                         {orderedLibraryGroups.map(([groupId, groupItems]) => {
@@ -869,18 +1164,18 @@ function SessionDetailView({
                         })}
                     </div>
                 </SortableContext>
-            </DndContext>
+            </DndContext>}
 
             {/* Ad-hoc section */}
-            {showAdHocSection && (
+            {!viewByAccount && !showUnpaidOnly && showAdHocSection && (
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                             One-time expenses
                         </p>
-                        {freedUp > 0 && (
+                        {(freedUp > 0 || extraIncomeTotal > 0) && (
                             <span className="text-xs text-slate-500">
-                                {fmt(adHocAvailable)} available of {fmt(freedUp)} freed
+                                {fmt(adHocAvailable)} available
                             </span>
                         )}
                     </div>
@@ -895,7 +1190,7 @@ function SessionDetailView({
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                             {adHocAvailable <= 0 ? (
                                 <p className="text-xs text-slate-400 italic">
-                                    No freed budget — mark expenses as N/A first
+                                    No pool available — mark expenses as N/A or add extra income first
                                 </p>
                             ) : (
                                 <p className="text-xs text-slate-500">
@@ -948,7 +1243,7 @@ function SessionDetailView({
             )}
 
             {/* Bottom add button — always accessible when not in form mode */}
-            {!isReadOnly && !showAdHocForm && (
+            {!isReadOnly && !showAdHocForm && !showUnpaidOnly && (
                 <button
                     onClick={() => setShowAdHocForm(true)}
                     className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-violet-700 bg-violet-50 border-2 border-violet-200 rounded-2xl py-3 hover:bg-violet-100 hover:border-violet-300 transition-colors">
@@ -963,7 +1258,7 @@ function SessionDetailView({
 // ─── Main component ───────────────────────────────────────────────
 
 export default function MonthlySession() {
-    const { household, members } = useHousehold()
+    const { household, members, accounts } = useHousehold()
     const financialStartMonth = household?.financial_start_month?.slice(0, 7) ?? null  // "YYYY-MM"
     const payDay = household?.pay_day ?? null
     const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -1074,6 +1369,7 @@ export default function MonthlySession() {
             <SessionDetailView
                 session={selectedSession}
                 groups={groups}
+                accounts={accounts as Account[]}
                 pastCutoff={pastCutoff}
                 householdId={household!.id}
                 onBack={() => setSelectedSession(null)}

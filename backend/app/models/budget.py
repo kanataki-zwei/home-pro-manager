@@ -117,6 +117,7 @@ class BudgetSession(Base, TimestampMixin):
 
     household = relationship("Household")
     items = relationship("BudgetSessionItem", back_populates="session")
+    extra_income = relationship("BudgetSessionExtraIncome", back_populates="session", cascade="all, delete-orphan")
 
 
 class BudgetSessionItem(Base, TimestampMixin):
@@ -141,3 +142,16 @@ class BudgetSessionItem(Base, TimestampMixin):
 
     session = relationship("BudgetSession", back_populates="items")
     expense = relationship("Expense")
+
+
+class BudgetSessionExtraIncome(Base, TimestampMixin):
+    __tablename__ = "budget_session_extra_income"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("budget_sessions.id", ondelete="CASCADE"), nullable=False)
+    household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    narration = Column(String(500), nullable=False)
+
+    session = relationship("BudgetSession", back_populates="extra_income")
+    household = relationship("Household")

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +41,7 @@ interface AccountTransaction {
 }
 interface Household { id: string; name: string; created_by: string | null; financial_start_month: string | null; pay_day: number | null; member_types: MemberType[] }
 interface SystemUser { id: string; email: string; name: string | null }
+interface BudgetExpense { id: string; name: string; monthly_amount: number; frequency: string; account_id: string | null; is_deleted: boolean }
 
 const ACCOUNT_TYPES = [
     { value: 'checking',   icon: '🏧', label: 'Checking' },
@@ -183,6 +184,9 @@ export default function HouseholdPage() {
     const [savingTxn, setSavingTxn] = useState(false)
     const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null)
     const [accountTxns, setAccountTxns] = useState<Record<string, AccountTransaction[]>>({})
+    const [budgetExpenses, setBudgetExpenses] = useState<BudgetExpense[]>([])
+    const [budgetExpensesLoaded, setBudgetExpensesLoaded] = useState(false)
+    const [expandedAccountExpenses, setExpandedAccountExpenses] = useState<string | null>(null)
 
     useEffect(() => {
         if (!contextLoading) {
@@ -357,6 +361,21 @@ export default function HouseholdPage() {
             const data = await apiGet<AccountTransaction[]>(`/api/households/${household!.id}/accounts/${accountId}/transactions`)
             setAccountTxns(prev => ({ ...prev, [accountId]: data }))
         } catch { toast.error('Failed to load history') }
+    }
+
+    const loadBudgetExpenses = async () => {
+        if (!household || budgetExpensesLoaded) return
+        try {
+            const data = await apiGet<BudgetExpense[]>(`/api/households/${household.id}/budget/expenses`)
+            setBudgetExpenses(data.filter(e => !e.is_deleted))
+            setBudgetExpensesLoaded(true)
+        } catch { /* non-critical */ }
+    }
+
+    const toggleAccountExpenses = async (accountId: string) => {
+        if (expandedAccountExpenses === accountId) { setExpandedAccountExpenses(null); return }
+        setExpandedAccountExpenses(accountId)
+        await loadBudgetExpenses()
     }
 
     const openTxnDialog = (account: Account) => {
@@ -935,6 +954,11 @@ export default function HouseholdPage() {
                                                     className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'text-sky-500 bg-sky-50' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50'}`}>
                                                     <History className="h-3.5 w-3.5" />
                                                 </button>
+                                                <button onClick={() => toggleAccountExpenses(account.id)}
+                                                    title="Linked budget expenses"
+                                                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${expandedAccountExpenses === account.id ? 'text-violet-500 bg-violet-50' : 'text-slate-400 hover:text-violet-500 hover:bg-violet-50'}`}>
+                                                    <DollarSign className="h-3.5 w-3.5" />
+                                                </button>
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={() => openEditAccount(account)}
                                                         className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
@@ -982,6 +1006,46 @@ export default function HouseholdPage() {
                                             )}
                                         </div>
                                     )}
+                                    {expandedAccountExpenses === account.id && (() => {
+                                        const linked = budgetExpenses.filter(e => e.account_id === account.id)
+                                        const monthlyTotal = linked.reduce((s, e) => s + Number(e.monthly_amount), 0)
+                                        return (
+                                            <div className="border-t border-slate-100 bg-violet-50/30">
+                                                {!budgetExpensesLoaded ? (
+                                                    <div className="flex items-center gap-2 px-5 py-4 text-sm text-slate-400">
+                                                        <div className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin flex-shrink-0" />
+                                                        Loading expenses...
+                                                    </div>
+                                                ) : linked.length === 0 ? (
+                                                    <p className="px-5 py-4 text-sm text-slate-400">No budget expenses linked to this account.</p>
+                                                ) : (
+                                                    <>
+                                                        <div className="divide-y divide-violet-100/60">
+                                                            {linked.map(e => (
+                                                                <div key={e.id} className="flex items-center justify-between px-5 py-2.5">
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <DollarSign className="h-3 w-3 text-violet-300 flex-shrink-0" />
+                                                                        <span className="text-sm text-slate-700 font-medium truncate">{e.name}</span>
+                                                                        <span className="text-xs text-slate-400 capitalize flex-shrink-0">{e.frequency}</span>
+                                                                    </div>
+                                                                    <span className="text-sm font-bold text-slate-800 flex-shrink-0 ml-3">
+                                                                        KES {Number(e.monthly_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                                                                        <span className="text-xs font-normal text-slate-400">/mo</span>
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="px-5 py-3 border-t border-violet-100 flex items-center justify-between">
+                                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Monthly total</span>
+                                                            <span className="font-black text-violet-700">
+                                                                KES {monthlyTotal.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )
+                                    })()}
                                 </div>
                             )
                         })}

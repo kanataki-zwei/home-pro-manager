@@ -213,6 +213,21 @@ class BudgetSessionItemResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class BudgetSessionExtraIncomeCreate(BaseModel):
+    amount: Decimal = Field(gt=0)
+    narration: str = Field(min_length=1, max_length=500)
+
+class BudgetSessionExtraIncomeResponse(BaseModel):
+    id: UUID
+    session_id: UUID
+    household_id: UUID
+    amount: Decimal
+    narration: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class BudgetSessionResponse(BaseModel):
     id: UUID
     household_id: UUID
@@ -225,6 +240,7 @@ class BudgetSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: List[BudgetSessionItemResponse] = []
+    extra_income: List[BudgetSessionExtraIncomeResponse] = []
     total_allocated: Optional[Decimal] = None
     total_paid: Optional[Decimal] = None
     total_remaining: Optional[Decimal] = None

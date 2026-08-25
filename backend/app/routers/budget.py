@@ -11,7 +11,8 @@ from app.core.auth import get_current_user, require_household_member
 from app.models.user import User
 from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
-    BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem
+    BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem,
+    BudgetSessionExtraIncome
 )
 from app.models.household import HouseholdMember, Account, AccountTransaction, MemberIncomeHistory
 from app.schemas.budget import (
@@ -22,6 +23,7 @@ from app.schemas.budget import (
     BudgetTemplateItemCreate, BudgetTemplateItemUpdate, BudgetTemplateItemResponse,
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
     BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate,
+    BudgetSessionExtraIncomeCreate, BudgetSessionExtraIncomeResponse,
     SessionMonthStats, BudgetStatsResponse,
     GroupTrend, SessionTrend, BudgetTrendResponse,
     VarianceItem, VarianceGroup, VarianceResponse,
@@ -989,7 +991,10 @@ async def create_session(
 
     result = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(BudgetSession.id == session.id)
     )
     return result.scalar_one()
@@ -1004,7 +1009,10 @@ async def get_session(
 ):
     result = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(
             BudgetSession.id == session_id,
             BudgetSession.household_id == household_id,
@@ -1045,7 +1053,10 @@ async def update_session(
     await db.commit()
     result = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(BudgetSession.id == session_id)
     )
     return result.scalar_one()
@@ -1094,7 +1105,10 @@ async def reset_session(
 
     result = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(BudgetSession.id == session_id)
     )
     return result.scalar_one()
@@ -1175,7 +1189,10 @@ async def sync_session_expenses(
 
     result = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(BudgetSession.id == session_id)
     )
     return result.scalar_one()
@@ -1307,7 +1324,7 @@ async def add_adhoc_session_item(
     if not session_result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Enforce freed-up budget constraint
+    # Enforce freed-up budget constraint (freed-up NA amounts + extra income)
     existing_result = await db.execute(
         select(BudgetSessionItem).where(BudgetSessionItem.session_id == session_id)
     )
@@ -1320,7 +1337,11 @@ async def add_adhoc_session_item(
         i.allocated_amount for i in existing_items
         if i.expense_id is None
     )
-    available = freed_up - adhoc_used
+    extra_income_result = await db.execute(
+        select(BudgetSessionExtraIncome).where(BudgetSessionExtraIncome.session_id == session_id)
+    )
+    extra_income_total = sum(e.amount for e in extra_income_result.scalars().all())
+    available = freed_up + extra_income_total - adhoc_used
     if payload.amount > available:
         raise HTTPException(
             status_code=400,
@@ -1362,4 +1383,59 @@ async def delete_adhoc_session_item(
     if item.expense_id is not None:
         raise HTTPException(status_code=400, detail="Only one-time expenses can be removed from a session")
     await db.delete(item)
+    await db.commit()
+
+
+# ─── Extra Income ─────────────────────────────────────────────────
+
+@router.post("/sessions/{session_id}/extra-income", response_model=BudgetSessionExtraIncomeResponse, status_code=status.HTTP_201_CREATED)
+async def add_extra_income(
+    household_id: UUID,
+    session_id: UUID,
+    payload: BudgetSessionExtraIncomeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    session_result = await db.execute(
+        select(BudgetSession).where(
+            BudgetSession.id == session_id,
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False
+        )
+    )
+    if not session_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    entry = BudgetSessionExtraIncome(
+        session_id=session_id,
+        household_id=household_id,
+        amount=payload.amount,
+        narration=payload.narration,
+    )
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.delete("/sessions/{session_id}/extra-income/{income_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_extra_income(
+    household_id: UUID,
+    session_id: UUID,
+    income_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(BudgetSessionExtraIncome).where(
+            BudgetSessionExtraIncome.id == income_id,
+            BudgetSessionExtraIncome.session_id == session_id,
+            BudgetSessionExtraIncome.household_id == household_id,
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Extra income entry not found")
+    await db.delete(entry)
     await db.commit()

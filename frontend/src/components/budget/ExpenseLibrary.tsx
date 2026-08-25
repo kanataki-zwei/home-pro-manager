@@ -86,6 +86,7 @@ export default function ExpenseLibrary() {
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+    const [accountDistExpanded, setAccountDistExpanded] = useState(false)
     const [loading, setLoading] = useState(true)
     const [showDeleted, setShowDeleted] = useState(false)
     const [activeTab, setActiveTab] = useState<'household' | 'personal'>(isMeMode ? 'personal' : 'household')
@@ -571,6 +572,108 @@ export default function ExpenseLibrary() {
                                 )
                             })}
                         </div>
+                    </div>
+                )
+            })()}
+
+            {/* ── Expenses by Account ── */}
+            {(() => {
+                const visibleExpenses = expenses.filter(e => !e.is_deleted)
+                if (visibleExpenses.length === 0) return null
+
+                const allAccounts = accounts as Account[]
+                const byAccount = new Map<string | null, Expense[]>()
+                for (const e of visibleExpenses) {
+                    if (!byAccount.has(e.account_id)) byAccount.set(e.account_id, [])
+                    byAccount.get(e.account_id)!.push(e)
+                }
+
+                const linked: { acc: Account; exps: Expense[]; total: number }[] = []
+                for (const [id, exps] of byAccount.entries()) {
+                    if (id === null) continue
+                    const acc = allAccounts.find(a => a.id === id)
+                    if (!acc) continue
+                    linked.push({ acc, exps, total: exps.reduce((s, e) => s + Number(e.monthly_amount), 0) })
+                }
+                linked.sort((a, b) => b.total - a.total)
+
+                const unlinked = byAccount.get(null) ?? []
+                const unlinkedTotal = unlinked.reduce((s, e) => s + Number(e.monthly_amount), 0)
+                if (linked.length === 0 && unlinked.length === 0) return null
+
+                return (
+                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <button
+                            onClick={() => setAccountDistExpanded(p => !p)}
+                            className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses by Account</p>
+                                <span className="text-xs text-slate-300">{linked.length + (unlinked.length > 0 ? 1 : 0)} group{linked.length + (unlinked.length > 0 ? 1 : 0) !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {unlinked.length > 0 && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                                        {unlinked.length} unlinked
+                                    </span>
+                                )}
+                                {accountDistExpanded
+                                    ? <ChevronDown className="h-4 w-4 text-slate-400" />
+                                    : <ChevronRight className="h-4 w-4 text-slate-400" />}
+                            </div>
+                        </button>
+                        {accountDistExpanded && <div className="border-t border-slate-50 divide-y divide-slate-50">
+                            {linked.map(row => (
+                                <div key={row.acc.id} className="px-5 py-3.5">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Wallet className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                            <span className="text-sm font-bold text-slate-800">{row.acc.name}</span>
+                                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${row.exps.length > 1 ? 'bg-sky-50 text-sky-600' : 'bg-slate-50 text-slate-400'}`}>
+                                                {row.exps.length} {row.exps.length === 1 ? 'expense' : 'expenses'}
+                                            </span>
+                                            {row.exps.length > 1 && (
+                                                <span className="px-1.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-500">multiple</span>
+                                            )}
+                                        </div>
+                                        <span className="text-sm font-black text-slate-900 flex-shrink-0">
+                                            {formatKES(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1 pl-5">
+                                        {row.exps.map(e => (
+                                            <div key={e.id} className="flex items-center justify-between">
+                                                <span className="text-xs text-slate-500">{e.name}</span>
+                                                <span className="text-xs font-semibold text-slate-700">{formatKES(e.monthly_amount)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {unlinked.length > 0 && (
+                                <div className="px-5 py-3.5 bg-amber-50/30">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-300 flex-shrink-0">—</span>
+                                            <span className="text-sm font-bold text-slate-600">No Account</span>
+                                            <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                                                {unlinked.length} unlinked
+                                            </span>
+                                        </div>
+                                        <span className="text-sm font-black text-slate-700 flex-shrink-0">
+                                            {formatKES(unlinkedTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </span>
+                                    </div>
+                                    <div className="space-y-1 pl-5">
+                                        {unlinked.map(e => (
+                                            <div key={e.id} className="flex items-center justify-between">
+                                                <span className="text-xs text-slate-500">{e.name}</span>
+                                                <span className="text-xs font-semibold text-slate-700">{formatKES(e.monthly_amount)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>}
                     </div>
                 )
             })()}
