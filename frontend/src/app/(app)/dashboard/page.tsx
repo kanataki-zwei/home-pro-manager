@@ -31,6 +31,9 @@ interface SessionMonthStats {
     paid_count: number
     paid_amount: number
     savings_rate: number
+    saved_amount: number
+    extra_income_total: number
+    with_extra_rate: number
 }
 interface BudgetStats {
     total_income: number
@@ -275,6 +278,13 @@ export default function DashboardPage() {
 
                         const color = rate >= 20 ? '#10b981' : rate >= 10 ? '#f59e0b' : '#ef4444'
 
+                        const savedAmt = Number(current?.saved_amount ?? 0)
+                        const extraInc = Number(current?.extra_income_total ?? 0)
+                        const withExtraRate = Number(current?.with_extra_rate ?? rate)
+                        const salaryIncome = budgetStats?.total_income ?? 0
+                        const hasExtra = extraInc > 0
+                        const withExtraColor = withExtraRate >= 20 ? '#10b981' : withExtraRate >= 10 ? '#f59e0b' : '#ef4444'
+
                         return (
                             <div className="bg-white rounded-2xl border border-slate-100 p-5"
                                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
@@ -322,6 +332,36 @@ export default function DashboardPage() {
                                         </svg>
                                     )}
                                 </div>
+
+                                {/* Saved amount + numerator/denominator */}
+                                {current && Number(salaryIncome) > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-400">Salary only</span>
+                                            <div className="text-right">
+                                                <span className="font-bold" style={{ color }}>{rate.toFixed(1)}%</span>
+                                                <span className="text-slate-300 mx-1">·</span>
+                                                <span className={`font-semibold ${savedAmt >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    {savedAmt >= 0 ? fmtCompact(savedAmt) : `−${fmtCompact(Math.abs(savedAmt))}`} saved
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                            {fmtCompact(Math.abs(savedAmt))} / {fmtCompact(Number(salaryIncome))} salary
+                                        </div>
+                                        {hasExtra && (
+                                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                                                <span className="text-slate-400">With extra income</span>
+                                                <div className="text-right">
+                                                    <span className="font-bold" style={{ color: withExtraColor }}>{withExtraRate.toFixed(1)}%</span>
+                                                    <span className="text-slate-300 mx-1">·</span>
+                                                    <span className="text-sky-500 font-semibold">+{fmtCompact(extraInc)} extra</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="mt-3 flex items-center gap-3">
                                     {history.slice(-6).map((h, i) => {
                                         const r = Number(h.savings_rate)

@@ -142,6 +142,18 @@ class BudgetSessionItem(Base, TimestampMixin):
 
     session = relationship("BudgetSession", back_populates="items")
     expense = relationship("Expense")
+    tag_assignments = relationship("BudgetSessionItemTagAssignment", back_populates="session_item", cascade="all, delete-orphan")
+
+
+class BudgetSessionItemTagAssignment(Base):
+    __tablename__ = "budget_session_item_tag_assignments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_item_id = Column(UUID(as_uuid=True), ForeignKey("budget_session_items.id", ondelete="CASCADE"), nullable=False)
+    tag_id = Column(UUID(as_uuid=True), ForeignKey("expense_tags.id", ondelete="CASCADE"), nullable=False)
+
+    session_item = relationship("BudgetSessionItem", back_populates="tag_assignments")
+    tag = relationship("ExpenseTag")
 
 
 class BudgetSessionExtraIncome(Base, TimestampMixin):

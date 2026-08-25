@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.budget import (
     ExpenseGroup, ExpenseTag, ExpenseTagAssignment, Expense,
     BudgetTemplate, BudgetTemplateItem, BudgetSession, BudgetSessionItem,
-    BudgetSessionExtraIncome
+    BudgetSessionExtraIncome, BudgetSessionItemTagAssignment
 )
 from app.models.household import HouseholdMember, Account, AccountTransaction, MemberIncomeHistory
 from app.schemas.budget import (
@@ -24,6 +24,7 @@ from app.schemas.budget import (
     BudgetSessionCreate, BudgetSessionUpdate, BudgetSessionResponse, BudgetSessionSummaryResponse,
     BudgetSessionItemUpdate, BudgetSessionItemResponse, AdHocSessionItemCreate,
     BudgetSessionExtraIncomeCreate, BudgetSessionExtraIncomeResponse,
+    SessionItemTagAssignmentResponse,
     SessionMonthStats, BudgetStatsResponse,
     GroupTrend, SessionTrend, BudgetTrendResponse,
     VarianceItem, VarianceGroup, VarianceResponse,
@@ -699,10 +700,13 @@ async def get_budget_stats(
     )
     total_income = Decimal(str(income_q.scalar() or "0"))
 
-    # Last 6 sessions with their items
+    # Last 6 sessions with their items and extra income
     sessions_q = await db.execute(
         select(BudgetSession)
-        .options(selectinload(BudgetSession.items))
+        .options(
+            selectinload(BudgetSession.items),
+            selectinload(BudgetSession.extra_income),
+        )
         .where(
             BudgetSession.household_id == household_id,
             BudgetSession.user_id == current_user.id,
@@ -724,11 +728,19 @@ async def get_budget_stats(
         paid_count = sum(1 for i in s.items if i.status == "paid")
         paid_amount = Decimal(str(sum(i.allocated_amount for i in s.items if i.status == "paid")))
         item_count = len(s.items)
+        extra_income_total = Decimal(str(sum(ei.amount for ei in s.extra_income)))
 
+        saved_amount = total_income - total_budgeted
         if total_income > 0:
-            savings_rate = ((total_income - total_budgeted) / total_income * 100).quantize(Decimal("0.1"))
+            savings_rate = (saved_amount / total_income * 100).quantize(Decimal("0.1"))
         else:
             savings_rate = Decimal("0")
+
+        income_with_extra = total_income + extra_income_total
+        if income_with_extra > 0:
+            with_extra_rate = ((income_with_extra - total_budgeted) / income_with_extra * 100).quantize(Decimal("0.1"))
+        else:
+            with_extra_rate = Decimal("0")
 
         stats = SessionMonthStats(
             session_id=str(s.id),
@@ -739,6 +751,9 @@ async def get_budget_stats(
             paid_count=paid_count,
             paid_amount=paid_amount,
             savings_rate=savings_rate,
+            saved_amount=saved_amount,
+            extra_income_total=extra_income_total,
+            with_extra_rate=with_extra_rate,
         )
         history.append(stats)
         if s.month == current_month_start:
@@ -1013,7 +1028,10 @@ async def get_session(
     result = await db.execute(
         select(BudgetSession)
         .options(
-            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.items).options(
+                selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+                selectinload(BudgetSessionItem.tag_assignments).selectinload(BudgetSessionItemTagAssignment.tag),
+            ),
             selectinload(BudgetSession.extra_income),
         )
         .where(
@@ -1057,7 +1075,10 @@ async def update_session(
     result = await db.execute(
         select(BudgetSession)
         .options(
-            selectinload(BudgetSession.items).selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSession.items).options(
+                selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+                selectinload(BudgetSessionItem.tag_assignments).selectinload(BudgetSessionItemTagAssignment.tag),
+            ),
             selectinload(BudgetSession.extra_income),
         )
         .where(BudgetSession.id == session_id)
@@ -1248,8 +1269,9 @@ async def update_session_item(
         raise HTTPException(status_code=422, detail="A note is required when marking an item as N/A")
 
     old_status = item.status
+    tag_ids = payload.tag_ids
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    for key, value in payload.model_dump(exclude_unset=True, exclude={'tag_ids'}).items():
         setattr(item, key, value)
 
     # Clear notes when moving away from N/A
@@ -1298,11 +1320,24 @@ async def update_session_item(
                 account.current_balance = (account.current_balance or Decimal("0")) - auto_txn.amount
             await db.delete(auto_txn)
 
+    # ── Tag assignments for ad-hoc items ─────────────────────────
+    if tag_ids is not None and item.expense_id is None:
+        await db.execute(
+            delete(BudgetSessionItemTagAssignment).where(
+                BudgetSessionItemTagAssignment.session_item_id == item.id
+            )
+        )
+        for tid in tag_ids:
+            db.add(BudgetSessionItemTagAssignment(session_item_id=item.id, tag_id=tid))
+
     await db.commit()
 
     result = await db.execute(
         select(BudgetSessionItem)
-        .options(selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag))
+        .options(
+            selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSessionItem.tag_assignments).selectinload(BudgetSessionItemTagAssignment.tag),
+        )
         .where(BudgetSessionItem.id == item_id)
     )
     return result.scalar_one()
@@ -1362,8 +1397,15 @@ async def add_adhoc_session_item(
     )
     db.add(item)
     await db.commit()
-    await db.refresh(item)
-    return item
+    result = await db.execute(
+        select(BudgetSessionItem)
+        .options(
+            selectinload(BudgetSessionItem.expense).selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+            selectinload(BudgetSessionItem.tag_assignments).selectinload(BudgetSessionItemTagAssignment.tag),
+        )
+        .where(BudgetSessionItem.id == item.id)
+    )
+    return result.scalar_one()
 
 
 @router.delete("/sessions/{session_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

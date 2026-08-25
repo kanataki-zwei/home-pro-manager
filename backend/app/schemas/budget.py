@@ -190,10 +190,18 @@ class BudgetSessionItemUpdate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=1000)
     reference_number: Optional[str] = Field(default=None, max_length=100)
     amount_paid: Optional[Decimal] = Field(default=None, ge=0)
+    tag_ids: Optional[List[UUID]] = None  # only applied to ad-hoc items
 
 class AdHocSessionItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     amount: Decimal = Field(gt=0)          # stored directly as allocated_amount
+
+class SessionItemTagAssignmentResponse(BaseModel):
+    id: UUID
+    tag: ExpenseTagResponse
+
+    class Config:
+        from_attributes = True
 
 class BudgetSessionItemResponse(BaseModel):
     id: UUID
@@ -207,6 +215,7 @@ class BudgetSessionItemResponse(BaseModel):
     notes: Optional[str] = None
     reference_number: Optional[str] = None
     expense: Optional[ExpenseResponse] = None
+    tag_assignments: List[SessionItemTagAssignmentResponse] = []
     created_at: datetime
     updated_at: datetime
 
@@ -278,7 +287,10 @@ class SessionMonthStats(BaseModel):
     item_count: int
     paid_count: int
     paid_amount: Decimal
-    savings_rate: Decimal  # (income − total_budgeted) / income × 100
+    savings_rate: Decimal        # salary-only: (salary − total_budgeted) / salary × 100
+    saved_amount: Decimal        # salary − total_budgeted (can be negative)
+    extra_income_total: Decimal  # sum of session extra_income entries
+    with_extra_rate: Decimal     # (salary + extra − total_budgeted) / (salary + extra) × 100
 
 class BudgetStatsResponse(BaseModel):
     total_income: Decimal

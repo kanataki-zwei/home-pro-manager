@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Plus, GripVertical, Wallet } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, GripVertical, Wallet, Tag } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -62,6 +62,7 @@ interface SessionItem {
     allocated_amount: number
     amount_paid: number
     status: string   // todo | paid | reserved | na
+    tag_assignments: TagAssignment[]
     created_at: string
     updated_at: string
 }
@@ -209,6 +210,7 @@ function SessionDetailView({
     session,
     groups,
     accounts,
+    tags,
     pastCutoff,
     householdId,
     viewMode,
@@ -219,6 +221,7 @@ function SessionDetailView({
     session: SessionDetail
     groups: ExpenseGroup[]
     accounts: Account[]
+    tags: ExpenseTag[]
     pastCutoff: string
     householdId: string
     viewMode: 'household' | 'me'
@@ -251,6 +254,33 @@ function SessionDetailView({
     const [extraIncomeNarration, setExtraIncomeNarration] = useState('')
     const [addingExtraIncome, setAddingExtraIncome] = useState(false)
     const [deletingExtraIncomeId, setDeletingExtraIncomeId] = useState<string | null>(null)
+    const [tagPickerOpenId, setTagPickerOpenId] = useState<string | null>(null)
+
+    async function toggleAdHocItemTag(itemId: string, tagId: string) {
+        const item = items.find(i => i.id === itemId)
+        if (!item) return
+        const currentIds = item.tag_assignments.map(ta => ta.tag.id)
+        const isRemoving = currentIds.includes(tagId)
+        const newIds = isRemoving ? currentIds.filter(id => id !== tagId) : [...currentIds, tagId]
+        const matchedTag = tags.find(t => t.id === tagId)
+        setItems(prev => prev.map(i => {
+            if (i.id !== itemId) return i
+            const newAssignments = isRemoving
+                ? i.tag_assignments.filter(ta => ta.tag.id !== tagId)
+                : matchedTag ? [...i.tag_assignments, { id: `temp-${tagId}`, tag: matchedTag }] : i.tag_assignments
+            return { ...i, tag_assignments: newAssignments }
+        }))
+        try {
+            const updated = await apiPatch<SessionItem>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/items/${itemId}`,
+                { status: item.status, tag_ids: newIds }
+            )
+            setItems(prev => prev.map(i => i.id === itemId ? updated : i))
+        } catch {
+            setItems(prev => prev.map(i => i.id === itemId ? item : i))
+            toast.error('Failed to update tag')
+        }
+    }
 
     // ── Drag-to-reorder state (persisted in localStorage per session) ──
     const storageKey = `hpm_session_order_${session.id}`
@@ -523,7 +553,7 @@ function SessionDetailView({
                             <p className={`text-sm font-semibold truncate ${item.status === 'na' ? 'text-slate-400' : 'text-slate-800'}`}>
                                 {displayName}
                             </p>
-                            {item.expense?.tag_assignments.map(ta => (
+                            {(isAdHoc ? item.tag_assignments : (item.expense?.tag_assignments ?? [])).map(ta => (
                                 <span key={ta.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white"
                                     style={{ background: ta.tag.color || '#6366f1' }}>
                                     {ta.tag.name}
@@ -531,6 +561,38 @@ function SessionDetailView({
                             ))}
                         </div>
                         <p className="text-xs text-slate-400">{fmt(item.allocated_amount)}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {isAdHoc && !isReadOnly && tags.length > 0 && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setTagPickerOpenId(tagPickerOpenId === item.id ? null : item.id)}
+                                    className="p-1 text-slate-300 hover:text-indigo-500 transition-colors"
+                                    title="Tag this expense">
+                                    <Tag className="h-3.5 w-3.5" />
+                                </button>
+                                {tagPickerOpenId === item.id && (
+                                    <div className="absolute right-0 top-6 z-20 bg-white rounded-xl border border-slate-200 shadow-lg p-2 min-w-[140px]"
+                                        style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 pb-1.5">Tags</p>
+                                        {tags.map(tag => {
+                                            const active = item.tag_assignments.some(ta => ta.tag.id === tag.id)
+                                            return (
+                                                <button
+                                                    key={tag.id}
+                                                    onClick={() => toggleAdHocItemTag(item.id, tag.id)}
+                                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left">
+                                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                        style={{ background: tag.color || '#6366f1' }} />
+                                                    <span className="text-xs text-slate-700 flex-1">{tag.name}</span>
+                                                    {active && <span className="text-[10px] text-indigo-500 font-bold">✓</span>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                         {STATUSES.map(s => {
@@ -1278,6 +1340,7 @@ export default function MonthlySession() {
     const payDay = household?.pay_day ?? null
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
+    const [tags, setTags] = useState<ExpenseTag[]>([])
     const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [startingMonth, setStartingMonth] = useState<string | null>(null)
@@ -1324,8 +1387,9 @@ export default function MonthlySession() {
         Promise.all([
             apiGet<SessionSummary[]>(`/api/households/${household.id}/budget/sessions`),
             apiGet<ExpenseGroup[]>(`/api/households/${household.id}/budget/groups`),
+            apiGet<ExpenseTag[]>(`/api/households/${household.id}/budget/tags`),
         ])
-            .then(([s, g]) => { setSessions(s); setGroups(g) })
+            .then(([s, g, t]) => { setSessions(s); setGroups(g); setTags(t) })
             .catch(() => toast.error('Failed to load sessions'))
             .finally(() => setLoading(false))
     }, [household])
@@ -1385,6 +1449,7 @@ export default function MonthlySession() {
                 session={selectedSession}
                 groups={groups}
                 accounts={accounts as Account[]}
+                tags={tags}
                 pastCutoff={pastCutoff}
                 householdId={household!.id}
                 viewMode={viewMode}
