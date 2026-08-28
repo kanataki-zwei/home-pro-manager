@@ -14,6 +14,7 @@ class Household(Base, TimestampMixin):
     created_by = Column(UUID(as_uuid=True), nullable=True)
     financial_start_month = Column(Date(), nullable=True)
     pay_day = Column(SmallInteger(), nullable=True)  # 1–28, day of month payday falls on
+    pay_day_grace_period = Column(SmallInteger(), nullable=True)  # 1–10 days; defaults to 5 when null
 
     members = relationship("HouseholdMember", back_populates="household")
     member_types = relationship("MemberType", back_populates="household")

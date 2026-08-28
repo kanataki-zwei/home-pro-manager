@@ -215,6 +215,7 @@ function SessionDetailView({
     householdId,
     viewMode,
     currentUserId,
+    initialShowUnpaidOnly = false,
     onBack,
     onSessionUpdate,
 }: {
@@ -226,6 +227,7 @@ function SessionDetailView({
     householdId: string
     viewMode: 'household' | 'me'
     currentUserId: string | null
+    initialShowUnpaidOnly?: boolean
     onBack: () => void
     onSessionUpdate: (id: string, status: string) => void
 }) {
@@ -243,11 +245,12 @@ function SessionDetailView({
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [sessionStatus, setSessionStatus] = useState(session.status)
     const [closingSession, setClosingSession] = useState(false)
+    const [reopeningSession, setReopeningSession] = useState(false)
     const [resetting, setResetting] = useState(false)
     const [showResetConfirm, setShowResetConfirm] = useState(false)
     const [syncing, setSyncing] = useState(false)
     const [viewByAccount, setViewByAccount] = useState(false)
-    const [showUnpaidOnly, setShowUnpaidOnly] = useState(false)
+    const [showUnpaidOnly, setShowUnpaidOnly] = useState(initialShowUnpaidOnly)
     const [extraIncome, setExtraIncome] = useState<ExtraIncome[]>(session.extra_income ?? [])
     const [showExtraIncomeForm, setShowExtraIncomeForm] = useState(false)
     const [extraIncomeAmount, setExtraIncomeAmount] = useState('')
@@ -356,11 +359,11 @@ function SessionDetailView({
 
     const totalOriginalAllocated = displayItems.reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalAllocated = displayItems.filter(i => i.status !== 'na').reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalPaid      = displayItems.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalReserved  = displayItems.filter(i => i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
+    const totalPaid      = displayItems.filter(i => i.status === 'paid' || i.status === 'reserved').reduce((s, i) => s + Number(i.allocated_amount), 0)
     const totalTodo      = displayItems.filter(i => i.status === 'todo').reduce((s, i) => s + Number(i.allocated_amount), 0)
-    const totalRemaining = totalAllocated - totalPaid - totalReserved
-    const countPaid     = displayItems.filter(i => i.status === 'paid').length
+    const totalRemaining = totalAllocated - totalPaid
+    const countPaid     = displayItems.filter(i => i.status === 'paid' || i.status === 'reserved').length
     const countReserved = displayItems.filter(i => i.status === 'reserved').length
     const countTodo     = displayItems.filter(i => i.status === 'todo').length
     const countNa       = displayItems.filter(i => i.status === 'na').length
@@ -493,6 +496,20 @@ function SessionDetailView({
             toast.error('Failed to close session')
         } finally {
             setClosingSession(false)
+        }
+    }
+
+    async function reopenSession() {
+        setReopeningSession(true)
+        try {
+            await apiPatch(`/api/households/${householdId}/budget/sessions/${session.id}`, { status: 'active' })
+            setSessionStatus('active')
+            onSessionUpdate(session.id, 'active')
+            toast.success(`${session.name} reopened`)
+        } catch {
+            toast.error('Failed to reopen session')
+        } finally {
+            setReopeningSession(false)
         }
     }
 
@@ -767,7 +784,7 @@ function SessionDetailView({
                         </button>
                     </div>
                     {(() => {
-                        const unpaidCount = displayItems.filter(i => i.status === 'todo' || i.status === 'reserved').length
+                        const unpaidCount = displayItems.filter(i => i.status === 'todo').length
                         return (
                             <button
                                 onClick={() => setShowUnpaidOnly(p => !p)}
@@ -781,6 +798,14 @@ function SessionDetailView({
                             </button>
                         )
                     })()}
+                    {sessionStatus === 'closed' && !isPast && (
+                        <button
+                            onClick={reopenSession}
+                            disabled={reopeningSession}
+                            className="text-xs font-semibold text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                            {reopeningSession ? 'Reopening…' : 'Reopen'}
+                        </button>
+                    )}
                     {!isReadOnly && <div className="flex items-center gap-2">
                         {sessionStatus === 'draft' && (
                             <button
@@ -878,7 +903,7 @@ function SessionDetailView({
                 <StatCard
                     label="Paid"
                     value={fmt(totalPaid)}
-                    sub={totalReserved > 0 ? `+ ${fmt(totalReserved)} reserved` : undefined}
+                    sub={totalReserved > 0 ? `incl. ${fmt(totalReserved)} reserved` : undefined}
                     colorClass="bg-emerald-50"
                     labelClass="text-emerald-500"
                     valueClass="text-emerald-700"
@@ -1067,7 +1092,7 @@ function SessionDetailView({
             {/* ── By Account view ── */}
             {viewByAccount && displayItems.length > 0 && (() => {
                 const accountViewItems = showUnpaidOnly
-                    ? displayItems.filter(i => i.status === 'todo' || i.status === 'reserved')
+                    ? displayItems.filter(i => i.status === 'todo')
                     : displayItems
                 if (accountViewItems.length === 0) return (
                     <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
@@ -1148,7 +1173,7 @@ function SessionDetailView({
 
             {/* ── Unpaid-only + by-group static view ── */}
             {showUnpaidOnly && !viewByAccount && (() => {
-                const unpaidItems = displayItems.filter(i => i.status === 'todo' || i.status === 'reserved')
+                const unpaidItems = displayItems.filter(i => i.status === 'todo')
                 if (unpaidItems.length === 0) return (
                     <div className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50">
                         <span className="text-2xl">🎉</span>
@@ -1334,10 +1359,11 @@ function SessionDetailView({
 
 // ─── Main component ───────────────────────────────────────────────
 
-export default function MonthlySession() {
+export default function MonthlySession({ autoFilter = false }: { autoFilter?: boolean }) {
     const { household, members, accounts, viewMode, currentUserId } = useHousehold()
     const financialStartMonth = household?.financial_start_month?.slice(0, 7) ?? null  // "YYYY-MM"
     const payDay = household?.pay_day ?? null
+    const graceDays = household?.pay_day_grace_period ?? 5
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
@@ -1345,6 +1371,7 @@ export default function MonthlySession() {
     const [loading, setLoading] = useState(true)
     const [startingMonth, setStartingMonth] = useState<string | null>(null)
     const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null)
+    const [autoFilterPending, setAutoFilterPending] = useState(autoFilter)
 
     const today = new Date()
     const currentYear = today.getFullYear()
@@ -1371,10 +1398,10 @@ export default function MonthlySession() {
                 payDay
               )
         const graceEnd = new Date(lastPayDate)
-        graceEnd.setDate(graceEnd.getDate() + 5)
+        graceEnd.setDate(graceEnd.getDate() + graceDays)
         pastCutoff = today <= graceEnd ? prevMonthStart : currMonthStart
     } else {
-        pastCutoff = today.getDate() <= 5 ? prevMonthStart : currMonthStart
+        pastCutoff = today.getDate() <= graceDays ? prevMonthStart : currMonthStart
     }
 
     // Total monthly household income
@@ -1393,6 +1420,15 @@ export default function MonthlySession() {
             .catch(() => toast.error('Failed to load sessions'))
             .finally(() => setLoading(false))
     }, [household])
+
+    useEffect(() => {
+        if (!autoFilterPending || loading || sessions.length === 0) return
+        setAutoFilterPending(false)
+        // Prefer current month, then most recent
+        const currKey = currMonthStart.slice(0, 7)
+        const target = sessions.find(s => s.month.slice(0, 7) === currKey) ?? sessions[0]
+        if (target) openSession(target.id)
+    }, [autoFilterPending, loading, sessions])
 
     async function openSession(sessionId: string) {
         if (!household) return
@@ -1454,6 +1490,7 @@ export default function MonthlySession() {
                 householdId={household!.id}
                 viewMode={viewMode}
                 currentUserId={currentUserId}
+                initialShowUnpaidOnly={autoFilter && !autoFilterPending}
                 onBack={() => setSelectedSession(null)}
                 onSessionUpdate={handleSessionUpdate}
             />

@@ -284,9 +284,10 @@ class SessionMonthStats(BaseModel):
     month: str            # ISO "2026-07-01"
     status: str
     total_budgeted: Decimal
-    item_count: int
-    paid_count: int
+    item_count: int       # non-NA items only
+    paid_count: int       # paid + reserved
     paid_amount: Decimal
+    na_count: int         # items marked N/A
     extra_income_total: Decimal   # sum of session extra_income entries
     savings_amount: Decimal       # sum of allocated_amount for "Savings"-tagged items (non-NA)
     savings_rate: Decimal         # savings_amount / (salary + extra) × 100  — headline

@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { BookOpen, LayoutTemplate, CalendarCheck, BarChart2 } from 'lucide-react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { toast } from 'sonner'
@@ -18,10 +18,14 @@ const TABS = [
 
 type Tab = typeof TABS[number]['key']
 
-export default function BudgetPage() {
+function BudgetPageInner() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { household, members, loading } = useHousehold()
-    const [activeTab, setActiveTab] = useState<Tab>('library')
+    const [activeTab, setActiveTab] = useState<Tab>(
+        (searchParams.get('tab') as Tab | null) ?? 'library'
+    )
+    const autoFilter = searchParams.get('filter') === 'todo' && searchParams.get('tab') === 'sessions'
 
     useEffect(() => {
         if (loading) return
@@ -83,7 +87,15 @@ export default function BudgetPage() {
                     <p className="text-xs text-slate-300 mt-1">Coming next</p>
                 </div>
             )}
-            {activeTab === 'sessions' && <MonthlySession />}
+            {activeTab === 'sessions' && <MonthlySession autoFilter={autoFilter} />}
         </div>
+    )
+}
+
+export default function BudgetPage() {
+    return (
+        <Suspense>
+            <BudgetPageInner />
+        </Suspense>
     )
 }

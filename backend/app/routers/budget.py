@@ -738,9 +738,10 @@ async def get_budget_stats(
     for s in sessions:
         active_items = [i for i in s.items if i.status != "na"]
         total_budgeted = Decimal(str(sum(i.allocated_amount for i in active_items)))
-        paid_count = sum(1 for i in s.items if i.status == "paid")
-        paid_amount = Decimal(str(sum(i.allocated_amount for i in s.items if i.status == "paid")))
-        item_count = len(s.items)
+        paid_count = sum(1 for i in active_items if i.status in ("paid", "reserved"))
+        paid_amount = Decimal(str(sum(i.allocated_amount for i in active_items if i.status in ("paid", "reserved"))))
+        item_count = len(active_items)
+        na_count = sum(1 for i in s.items if i.status == "na")
         extra_income_total = Decimal(str(sum(ei.amount for ei in s.extra_income)))
 
         # Library items = salary-funded; ad-hoc items = extra-income-funded
@@ -767,6 +768,7 @@ async def get_budget_stats(
             item_count=item_count,
             paid_count=paid_count,
             paid_amount=paid_amount,
+            na_count=na_count,
             extra_income_total=extra_income_total,
             savings_amount=savings_amount,
             savings_rate=savings_rate,
@@ -886,7 +888,7 @@ async def get_budget_variance(
         for it in g_items:
             budgeted = it.allocated_amount
             paid = it.amount_paid if it.amount_paid > Decimal("0") else (
-                it.allocated_amount if it.status == "paid" else Decimal("0")
+                it.allocated_amount if it.status in ("paid", "reserved") else Decimal("0")
             )
             name = it.expense.name if it.expense else (it.ad_hoc_name or "One-time")
             v_items.append(VarianceItem(
@@ -940,7 +942,7 @@ async def list_sessions(
     for s in sessions:
         total_allocated = sum(i.allocated_amount for i in s.items)
         total_paid = sum(
-            i.allocated_amount for i in s.items if i.status == "paid"
+            i.allocated_amount for i in s.items if i.status in ("paid", "reserved")
         )
         out.append(BudgetSessionSummaryResponse(
             id=s.id, household_id=s.household_id, user_id=s.user_id,

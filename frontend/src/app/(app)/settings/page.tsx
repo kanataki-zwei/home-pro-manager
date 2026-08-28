@@ -45,6 +45,7 @@ export default function SettingsPage() {
     // Budget calendar state
     const [startMonth, setStartMonth] = useState('')   // "YYYY-MM" for input[type=month]
     const [payDay, setPayDay] = useState('')
+    const [gracePeriod, setGracePeriod] = useState('5')
     const [savingCalendar, setSavingCalendar] = useState(false)
 
     // Member types state
@@ -82,6 +83,7 @@ export default function SettingsPage() {
             setMemberTypes(household.member_types ?? [])
             setStartMonth(household.financial_start_month ? household.financial_start_month.slice(0, 7) : '')
             setPayDay(household.pay_day != null ? String(household.pay_day) : '')
+            setGracePeriod(household.pay_day_grace_period != null ? String(household.pay_day_grace_period) : '5')
         }
     }, [household])
 
@@ -130,6 +132,8 @@ export default function SettingsPage() {
             else body.financial_start_month = null
             const pd = parseInt(payDay)
             body.pay_day = !isNaN(pd) && pd >= 1 && pd <= 28 ? pd : null
+            const gp = parseInt(gracePeriod)
+            body.pay_day_grace_period = !isNaN(gp) && gp >= 1 && gp <= 10 ? gp : null
             await apiPatch(`/api/households/${household.id}`, body)
             await refreshHousehold()
             toast.success('Budget calendar saved')
@@ -419,7 +423,7 @@ export default function SettingsPage() {
                             </p>
                             <p className="text-xs text-emerald-700 leading-relaxed">
                                 Once your pay day arrives, you'll see a prompt to start planning next month's budget.
-                                You have a <span className="font-semibold">5-day window</span> from your pay day to finalise it —
+                                You have a configurable <span className="font-semibold">grace window</span> from your pay day to finalise it —
                                 during this window the current month's session also stays editable for any last-minute adjustments.
                             </p>
                             <p className="text-xs text-emerald-600 leading-relaxed border-t border-emerald-100 pt-2 mt-1">
@@ -443,12 +447,43 @@ export default function SettingsPage() {
                             </select>
                             {payDay && (
                                 <p className="text-xs text-slate-500">
-                                    Budget prompt + 5-day editing window starts on the{' '}
+                                    Budget prompt + editing window starts on the{' '}
                                     <span className="font-semibold text-emerald-600">
                                         {payDay}{Number(payDay) === 1 ? 'st' : Number(payDay) === 2 ? 'nd' : Number(payDay) === 3 ? 'rd' : 'th'}
                                     </span>
                                 </p>
                             )}
+                        </div>
+
+                        {/* Grace period */}
+                        <div className="space-y-1.5 pt-1">
+                            <Label className="text-sm text-slate-600">Grace period (days)</Label>
+                            <p className="text-xs text-slate-400">
+                                How many days after pay day the editing window stays open. Max 10 days.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <select
+                                    value={gracePeriod}
+                                    onChange={e => setGracePeriod(e.target.value)}
+                                    className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44">
+                                    {Array.from({ length: 10 }, (_, i) => i + 1).map(d => (
+                                        <option key={d} value={d}>
+                                            {d} {d === 1 ? 'day' : 'days'}
+                                        </option>
+                                    ))}
+                                </select>
+                                {payDay && gracePeriod && (
+                                    <p className="text-xs text-slate-500">
+                                        Window closes on the{' '}
+                                        <span className="font-semibold text-emerald-600">
+                                            {(() => {
+                                                const end = Number(payDay) + Number(gracePeriod)
+                                                return `${end}${end === 1 ? 'st' : end === 2 ? 'nd' : end === 3 ? 'rd' : 'th'}`
+                                            })()}
+                                        </span>
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
 

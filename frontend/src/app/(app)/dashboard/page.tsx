@@ -30,6 +30,7 @@ interface SessionMonthStats {
     item_count: number
     paid_count: number
     paid_amount: number
+    na_count: number
     extra_income_total: number
     savings_amount: number
     savings_rate: number         // total: savings / (salary + extra)
@@ -73,7 +74,7 @@ const GRADIENTS = [
 // ─── Dashboard ────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-    const { household, members, accounts, loading, currentUserId, viewMode } = useHousehold()
+    const { household, members, accounts, fxRates, loading, currentUserId, viewMode } = useHousehold()
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [sessions, setSessions] = useState<SessionSummary[]>([])
     const [tags, setTags] = useState<ExpenseTag[]>([])
@@ -81,6 +82,7 @@ export default function DashboardPage() {
     const [budgetLoading, setBudgetLoading] = useState(true)
     const [membersExpanded, setMembersExpanded] = useState(false)
     const [incomeExpanded, setIncomeExpanded] = useState(false)
+    const [pendingExpanded, setPendingExpanded] = useState(false)
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
     const isMeMode = viewMode === 'me'
 
@@ -129,9 +131,12 @@ export default function DashboardPage() {
         : accounts
 
     const totalBalance = visibleAccounts
-        .filter(a => a.contributes_to_net_worth)
-        .reduce((s, a) => s + Number(a.current_balance), 0)
-    const currency = accounts[0]?.currency || 'KES'
+        .filter(a => a.contributes_to_net_worth && a.is_active)
+        .reduce((s, a) => {
+            if (a.currency === 'KES') return s + Number(a.current_balance)
+            const rate = fxRates.find(r => r.currency === a.currency)
+            return s + (rate ? Number(a.current_balance) * Number(rate.rate_to_kes) : 0)
+        }, 0)
 
     const allIncomeMembers = members.filter(m => m.contributes_income && m.income_amount)
     const incomeMembers = isMeMode
@@ -200,7 +205,7 @@ export default function DashboardPage() {
                         <div>
                             <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Balance</p>
                             <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
-                                {currency} {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                KES {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                             <p className="text-slate-400 text-xs mt-2">
                             {visibleAccounts.filter(a => a.contributes_to_net_worth).length} net worth account{visibleAccounts.filter(a => a.contributes_to_net_worth).length !== 1 ? 's' : ''} · {myAccountsOnly ? 'your accounts' : 'household'}
@@ -428,7 +433,7 @@ export default function DashboardPage() {
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{monthName}</p>
                                         <div className="flex items-center gap-2">
-                                            <p className="text-xl font-black text-slate-900">{cs.paid_count}/{cs.item_count} paid</p>
+                                            <p className="text-xl font-black text-slate-900">{cs.paid_count}/{cs.item_count} resolved</p>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[cs.status] ?? 'bg-slate-100 text-slate-600'}`}>
                                                 {cs.status}
                                             </span>
@@ -442,7 +447,7 @@ export default function DashboardPage() {
                                 {/* Paid progress bar */}
                                 <div className="mb-2">
                                     <div className="flex justify-between text-xs text-slate-400 mb-1">
-                                        <span>{fmt(cs.paid_amount)} paid</span>
+                                        <span>{fmt(cs.paid_amount)} resolved</span>
                                         <span>{fmt(cs.total_budgeted)} budgeted</span>
                                     </div>
                                     <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -460,9 +465,62 @@ export default function DashboardPage() {
                                     <span className="text-slate-400">Day {daysElapsed} of {daysInMonth} · {(timePct * 100).toFixed(0)}% through month</span>
                                     <span className={`font-bold ${paceColor}`}>{paceArrow} {paceLabel}</span>
                                 </div>
-                                {remaining > 0 && (
-                                    <p className="text-xs text-slate-400 mt-1">{remaining} item{remaining !== 1 ? 's' : ''} still to do — {fmt(cs.total_budgeted - cs.paid_amount)} remaining</p>
-                                )}
+
+                                {/* Pending breakdown — expandable */}
+                                {(() => {
+                                    const todoCount = cs.item_count - cs.paid_count
+                                    const todoAmount = cs.total_budgeted - cs.paid_amount
+                                    if (todoCount === 0 && cs.na_count === 0) return null
+                                    return (
+                                        <div className="mt-2 border-t border-slate-100 pt-2">
+                                            <button
+                                                onClick={() => setPendingExpanded(v => !v)}
+                                                className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                                            >
+                                                <span>
+                                                    {todoCount > 0
+                                                        ? <>{todoCount} item{todoCount !== 1 ? 's' : ''} still pending</>
+                                                        : <>All active items resolved</>
+                                                    }
+                                                    {cs.na_count > 0 && <span className="ml-1 text-slate-300">· {cs.na_count} N/A</span>}
+                                                </span>
+                                                {pendingExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                            </button>
+                                            {pendingExpanded && (
+                                                <div className="mt-2 space-y-1.5">
+                                                    {todoCount > 0 && (
+                                                        <Link
+                                                            href="/budget?tab=sessions&filter=todo"
+                                                            className="flex items-center justify-between group hover:bg-amber-50 -mx-1 px-1 py-0.5 rounded-lg transition-colors"
+                                                        >
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                                                                <span className="text-xs text-slate-600 font-medium group-hover:text-amber-700">To Do</span>
+                                                            </div>
+                                                            <div className="text-right flex items-center gap-1">
+                                                                <span className="text-xs font-bold text-slate-700 group-hover:text-amber-700">{todoCount} item{todoCount !== 1 ? 's' : ''}</span>
+                                                                <span className="text-xs text-slate-400 ml-1.5">{fmtCompact(todoAmount)}</span>
+                                                                <ArrowUpRight className="h-3 w-3 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
+                                                            </div>
+                                                        </Link>
+                                                    )}
+                                                    {cs.na_count > 0 && (
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
+                                                                <span className="text-xs text-slate-600 font-medium">N/A</span>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className="text-xs font-bold text-slate-700">{cs.na_count} item{cs.na_count !== 1 ? 's' : ''}</span>
+                                                                <span className="text-xs text-slate-400 ml-1.5">skipped</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })()}
                             </div>
                         )
                     })()}

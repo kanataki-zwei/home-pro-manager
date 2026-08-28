@@ -29,6 +29,7 @@ class HouseholdUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     financial_start_month: Optional[date] = None   # store as first day of chosen month
     pay_day: Optional[int] = Field(default=None, ge=1, le=28)
+    pay_day_grace_period: Optional[int] = Field(default=None, ge=1, le=10)
 
 class HouseholdResponse(BaseModel):
     id: UUID
@@ -36,6 +37,7 @@ class HouseholdResponse(BaseModel):
     created_by: Optional[UUID] = None
     financial_start_month: Optional[date] = None
     pay_day: Optional[int] = None
+    pay_day_grace_period: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     member_types: list[MemberTypeResponse] = []

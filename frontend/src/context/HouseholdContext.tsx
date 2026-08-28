@@ -40,6 +40,7 @@ interface Household {
     created_by: string | null
     financial_start_month: string | null
     pay_day: number | null
+    pay_day_grace_period: number | null
     member_types: MemberType[]
 }
 

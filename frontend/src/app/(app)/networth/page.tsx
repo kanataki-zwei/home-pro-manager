@@ -54,6 +54,36 @@ const GRADIENTS = [
 
 const SEGMENT_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4']
 
+const TYPE_LABELS: Record<string, string> = {
+    bank:            'Bank',
+    money_market:    'Money Market',
+    mobile_money:    'Mobile Money',
+    direct_pay:      'Direct Pay',
+    insurance:       'Insurance',
+    govt_securities: 'Govt. Securities',
+    stocks_shares:   'Stocks & Shares',
+    checking:        'Checking',
+    savings:         'Savings',
+    cash:            'Cash',
+    investment:      'Investment',
+    credit:          'Credit / Liability',
+}
+
+const TYPE_COLORS: Record<string, string> = {
+    bank:            '#0ea5e9',
+    money_market:    '#10b981',
+    mobile_money:    '#8b5cf6',
+    direct_pay:      '#f59e0b',
+    insurance:       '#06b6d4',
+    govt_securities: '#f43f5e',
+    stocks_shares:   '#84cc16',
+    checking:        '#6366f1',
+    savings:         '#14b8a6',
+    cash:            '#f97316',
+    investment:      '#ec4899',
+    credit:          '#ef4444',
+}
+
 // ─── Page ─────────────────────────────────────────────────────────
 
 function toKES(amount: number, currency: string, fxRates: { currency: string; rate_to_kes: string }[]): number | null {
@@ -246,7 +276,8 @@ export default function NetWorthPage() {
                     <div className="relative mt-6">
                         <div className="flex h-2 rounded-full overflow-hidden gap-px">
                             {netWorthAccounts.map((a, i) => {
-                                const pct = (Number(a.current_balance) / totalNetWorth) * 100
+                                const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+                                const pct = (kes / totalNetWorth) * 100
                                 return (
                                     <div key={a.id}
                                         style={{ width: `${Math.max(pct, 0)}%`, background: SEGMENT_COLORS[i % SEGMENT_COLORS.length] }} />
@@ -319,6 +350,72 @@ export default function NetWorthPage() {
                 </div>
             )}
 
+            {/* Net Worth Spread */}
+            {netWorthAccounts.length > 0 && (() => {
+                // Group by institution_type, fall back to account_type
+                const groups = new Map<string, { kes: number; count: number }>()
+                for (const a of netWorthAccounts) {
+                    const key = a.institution_type ?? a.account_type
+                    const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+                    const existing = groups.get(key) ?? { kes: 0, count: 0 }
+                    groups.set(key, { kes: existing.kes + kes, count: existing.count + 1 })
+                }
+                const sorted = [...groups.entries()].sort((a, b) => b[1].kes - a[1].kes)
+                const total = sorted.reduce((s, [, v]) => s + v.kes, 0)
+                if (sorted.length < 2) return null // only show when there's more than 1 type
+
+                return (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Net Worth Spread</p>
+                                <p className="text-sm font-black text-slate-800 mt-0.5">{fmtCompact(total)} across {sorted.length} account types</p>
+                            </div>
+                        </div>
+
+                        {/* Stacked bar */}
+                        <div className="flex h-3 rounded-full overflow-hidden gap-px mb-5">
+                            {sorted.map(([key, { kes }]) => {
+                                const pct = total > 0 ? (kes / total) * 100 : 0
+                                const color = TYPE_COLORS[key] ?? '#94a3b8'
+                                return (
+                                    <div key={key} style={{ width: `${pct}%`, background: color }} />
+                                )
+                            })}
+                        </div>
+
+                        {/* Type rows */}
+                        <div className="space-y-3">
+                            {sorted.map(([key, { kes, count }]) => {
+                                const pct = total > 0 ? (kes / total) * 100 : 0
+                                const color = TYPE_COLORS[key] ?? '#94a3b8'
+                                const label = TYPE_LABELS[key] ?? key
+                                return (
+                                    <div key={key}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                                <span className="text-sm font-semibold text-slate-700">{label}</span>
+                                                <span className="text-xs text-slate-400">{count} account{count !== 1 ? 's' : ''}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-sm font-bold text-slate-800">{fmtCompact(kes)}</span>
+                                                <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full transition-all"
+                                                style={{ width: `${pct}%`, background: color }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )
+            })()}
+
             {/* Account breakdown */}
             <div className="grid grid-cols-2 gap-4">
 
@@ -343,7 +440,8 @@ export default function NetWorthPage() {
                     ) : (
                         <div className="divide-y divide-slate-50">
                             {netWorthAccounts.map((a, i) => {
-                                const pct = totalNetWorth > 0 ? ((Number(a.current_balance) / totalNetWorth) * 100).toFixed(1) : '0.0'
+                                const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+                                const pct = totalNetWorth > 0 ? ((kes / totalNetWorth) * 100).toFixed(1) : '0.0'
                                 return (
                                     <div key={a.id} className="flex items-center gap-3 px-5 py-3">
                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
