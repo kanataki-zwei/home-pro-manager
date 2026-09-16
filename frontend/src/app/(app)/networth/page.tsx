@@ -99,6 +99,7 @@ export default function NetWorthPage() {
     const [txnLoading, setTxnLoading] = useState(true)
     const [txnFilter, setTxnFilter] = useState<'all' | 'credit' | 'debit'>('all')
     const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'session'>('all')
+    const [accountSort, setAccountSort] = useState<'name-asc' | 'name-desc' | 'amount-desc' | 'amount-asc'>('amount-desc')
     const isMeMode = viewMode === 'me'
 
     useEffect(() => {
@@ -151,6 +152,16 @@ export default function NetWorthPage() {
     )
 
     const accountMap = Object.fromEntries(accounts.map(a => [a.id, a]))
+
+    function sortAccounts<T extends { name: string; current_balance: string | number; currency: string }>(arr: T[]): T[] {
+        return [...arr].sort((a, b) => {
+            if (accountSort === 'name-asc') return a.name.localeCompare(b.name)
+            if (accountSort === 'name-desc') return b.name.localeCompare(a.name)
+            const aKes = toKES(Number(a.current_balance), a.currency, fxRates) ?? Number(a.current_balance)
+            const bKes = toKES(Number(b.current_balance), b.currency, fxRates) ?? Number(b.current_balance)
+            return accountSort === 'amount-asc' ? aKes - bKes : bKes - aKes
+        })
+    }
 
     const scopedTransactions = isMeMode
         ? transactions.filter(t => myAccountIds.has(t.account_id))
@@ -431,6 +442,22 @@ export default function NetWorthPage() {
             })()}
 
             {/* Account breakdown */}
+            <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Accounts</p>
+                <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                    {([
+                        { key: 'name-asc',    label: 'A → Z' },
+                        { key: 'name-desc',   label: 'Z → A' },
+                        { key: 'amount-desc', label: 'Amount ↓' },
+                        { key: 'amount-asc',  label: 'Amount ↑' },
+                    ] as const).map(({ key, label }) => (
+                        <button key={key} onClick={() => setAccountSort(key)}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${accountSort === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
 
                 {/* Net worth accounts */}
@@ -453,7 +480,7 @@ export default function NetWorthPage() {
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-50">
-                            {netWorthAccounts.map((a, i) => {
+                            {sortAccounts(netWorthAccounts).map((a, i) => {
                                 const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
                                 const pct = totalNetWorth > 0 ? ((kes / totalNetWorth) * 100).toFixed(1) : '0.0'
                                 return (
@@ -499,7 +526,7 @@ export default function NetWorthPage() {
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-50">
-                            {excludedAccounts.map((a, i) => (
+                            {sortAccounts(excludedAccounts).map((a, i) => (
                                 <div key={a.id} className="flex items-center gap-3 px-5 py-3">
                                     <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
                                         style={{ background: GRADIENTS[i % GRADIENTS.length] }}>

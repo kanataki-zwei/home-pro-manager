@@ -853,13 +853,13 @@ export default function ExpenseLibrary() {
                         {tag.name}
                         <button
                             onClick={() => { setEditingTag(tag); setEditTagName(tag.name); setEditTagColor(tag.color || '#6366f1') }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full hover:bg-white/25 transition-all ml-0.5"
+                            className="p-0.5 rounded-full hover:bg-white/25 transition-all ml-0.5"
                             title="Edit tag">
                             <Pencil className="h-2.5 w-2.5" />
                         </button>
                         <button
                             onClick={() => deleteTag(tag.id)}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full hover:bg-white/25 transition-all"
+                            className="p-0.5 rounded-full hover:bg-white/25 transition-all"
                             title="Delete tag">
                             <X className="h-2.5 w-2.5" />
                         </button>

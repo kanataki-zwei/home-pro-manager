@@ -512,6 +512,71 @@ export default function BudgetReport() {
                 </div>
             )}
 
+            {/* ── Savings Breakdown ── */}
+            {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
+                <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
+                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        {/* Household / scope total */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                    {scope === 'all' ? 'Household Total' : 'Your Savings'}
+                                </p>
+                                <p className="text-sm font-black text-slate-900 mt-1">
+                                    {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
+                            </div>
+                            <div className={`text-3xl font-black ${
+                                librarySavingsRate >= 20 ? 'text-emerald-600'
+                                : librarySavingsRate >= 10 ? 'text-amber-500'
+                                : 'text-slate-400'
+                            }`}>
+                                {librarySavingsRate.toFixed(1)}%
+                            </div>
+                        </div>
+
+                        {/* Per-member rows (all scope only) */}
+                        {scope === 'all' && (
+                            <div className="divide-y divide-slate-50">
+                                {memberRows.map(row => {
+                                    const isMe = row.member.user_id === currentUserId
+                                    return (
+                                        <div key={row.member.id} className="flex items-center gap-3 px-5 py-3.5">
+                                            <div className="w-8 h-8 rounded-2xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                style={{ background: row.gradient }}>
+                                                {row.member.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <p className="text-sm font-bold text-slate-700 truncate">{row.member.name}</p>
+                                                    {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600 flex-shrink-0">You</span>}
+                                                </div>
+                                                {row.memberSavings > 0
+                                                    ? <p className="text-xs text-slate-400 mt-0.5">{fmt(row.memberSavings)}<span className="text-slate-300">/mo tagged</span></p>
+                                                    : <p className="text-xs text-slate-300 mt-0.5">No savings tagged</p>
+                                                }
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className={`text-xl font-black ${
+                                                    row.savingsRate >= 20 ? 'text-emerald-600'
+                                                    : row.savingsRate >= 10 ? 'text-amber-500'
+                                                    : 'text-slate-300'
+                                                }`}>
+                                                    {row.savingsRate.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-slate-400">of income</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* ── Month-over-month trend ── */}
             {scope === 'all' && trendChartData.length >= 2 && (
                 <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
