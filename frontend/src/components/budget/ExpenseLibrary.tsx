@@ -1338,7 +1338,7 @@ function ExpenseRow({ expense, accounts, tags, onEdit, onDelete, onRestore, onTa
                     <p className="text-xs text-slate-400">{formatKES(expense.amount)} {expense.frequency}</p>
                 )}
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0">
                 {expense.is_deleted ? (
                     <button onClick={onRestore}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
