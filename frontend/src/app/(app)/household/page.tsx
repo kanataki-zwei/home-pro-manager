@@ -620,7 +620,7 @@ export default function HouseholdPage() {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-1">
                                         <button onClick={() => openEditMember(member)}
                                             className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
                                             <Pencil className="h-3.5 w-3.5" />
