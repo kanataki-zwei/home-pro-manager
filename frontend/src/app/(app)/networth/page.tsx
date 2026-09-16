@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
-import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import {
     ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
@@ -135,9 +135,14 @@ export default function NetWorthPage() {
 
     const netWorthAccounts = visibleAccounts.filter(a => a.contributes_to_net_worth && a.is_active)
     const excludedAccounts = visibleAccounts.filter(a => !a.contributes_to_net_worth && a.is_active)
+    const liquidCashAccounts = visibleAccounts.filter(a => a.contributes_to_liquid_cash && a.is_active)
 
     const myAccountIds = new Set(visibleAccounts.map(a => a.id))
     const totalNetWorth = netWorthAccounts.reduce((s, a) => {
+        const kes = toKES(Number(a.current_balance), a.currency, fxRates)
+        return s + (kes ?? 0)
+    }, 0)
+    const totalLiquidCash = liquidCashAccounts.reduce((s, a) => {
         const kes = toKES(Number(a.current_balance), a.currency, fxRates)
         return s + (kes ?? 0)
     }, 0)
@@ -244,10 +249,10 @@ export default function NetWorthPage() {
                     style={{ background: 'radial-gradient(circle, #34d399, transparent)', transform: 'translate(30%, -30%)' }} />
                 <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-5"
                     style={{ background: 'radial-gradient(circle, #10b981, transparent)', transform: 'translate(-30%, 30%)' }} />
-                <div className="relative grid grid-cols-3 gap-8">
+                <div className="relative grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="col-span-1">
                         <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Net Worth</p>
-                        <p className="text-white font-bold mb-2" style={{ fontSize: '2.2rem', lineHeight: 1 }}>
+                        <p className="text-white font-bold mb-2" style={{ fontSize: '2rem', lineHeight: 1 }}>
                             {fmtCompact(totalNetWorth)}
                         </p>
                         <p className="text-slate-400 text-xs">{netWorthAccounts.length} account{netWorthAccounts.length !== 1 ? 's' : ''} tracked</p>
@@ -255,8 +260,17 @@ export default function NetWorthPage() {
                             <p className="text-amber-400 text-xs mt-1.5">⚠ Some foreign accounts excluded — add FX rates in Settings</p>
                         )}
                     </div>
+                    <div className="col-span-1">
+                        <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-1">
+                            <Wallet className="h-3 w-3" /> Liquid Cash
+                        </p>
+                        <p className="text-white font-bold mb-2" style={{ fontSize: '2rem', lineHeight: 1 }}>
+                            {fmtCompact(totalLiquidCash)}
+                        </p>
+                        <p className="text-slate-400 text-xs">{liquidCashAccounts.length} account{liquidCashAccounts.length !== 1 ? 's' : ''}</p>
+                    </div>
                     <div>
-                        <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Deposits</p>
+                        <p className="text-teal-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Deposits</p>
                         <p className="text-white font-bold mb-2" style={{ fontSize: '1.5rem', lineHeight: 1 }}>
                             {fmtCompact(totalDeposits)}
                         </p>

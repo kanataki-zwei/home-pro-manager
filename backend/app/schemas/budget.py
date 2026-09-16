@@ -186,10 +186,12 @@ class BudgetSessionUpdate(BaseModel):
     status: Optional[str] = None  # draft, active, closed
 
 class BudgetSessionItemUpdate(BaseModel):
-    status: Literal["todo", "paid", "reserved", "na"]
+    status: Optional[Literal["todo", "paid", "reserved", "na"]] = None
     notes: Optional[str] = Field(default=None, max_length=1000)
     reference_number: Optional[str] = Field(default=None, max_length=100)
     amount_paid: Optional[Decimal] = Field(default=None, ge=0)
+    allocated_amount: Optional[Decimal] = Field(default=None, gt=0)
+    ad_hoc_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     tag_ids: Optional[List[UUID]] = None  # only applied to ad-hoc items
 
 class AdHocSessionItemCreate(BaseModel):

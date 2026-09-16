@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { ArrowLeft, Trash2, Plus, GripVertical, Wallet, Tag } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, GripVertical, Wallet, Tag, Pencil } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -258,6 +258,9 @@ function SessionDetailView({
     const [addingExtraIncome, setAddingExtraIncome] = useState(false)
     const [deletingExtraIncomeId, setDeletingExtraIncomeId] = useState<string | null>(null)
     const [tagPickerOpenId, setTagPickerOpenId] = useState<string | null>(null)
+    const [editingItemId, setEditingItemId] = useState<string | null>(null)
+    const [editItemForm, setEditItemForm] = useState({ amount: '', name: '' })
+    const [savingItemEdit, setSavingItemEdit] = useState(false)
 
     async function toggleAdHocItemTag(itemId: string, tagId: string) {
         const item = items.find(i => i.id === itemId)
@@ -485,6 +488,29 @@ function SessionDetailView({
         }
     }
 
+    async function saveItemEdit(item: SessionItem) {
+        const newAmount = parseFloat(editItemForm.amount)
+        if (isNaN(newAmount) || newAmount <= 0) return
+        setSavingItemEdit(true)
+        try {
+            const body: Record<string, unknown> = { allocated_amount: newAmount }
+            if (item.expense_id === null && editItemForm.name.trim()) {
+                body.ad_hoc_name = editItemForm.name.trim()
+            }
+            const updated = await apiPatch<SessionItem>(
+                `/api/households/${householdId}/budget/sessions/${session.id}/items/${item.id}`,
+                body
+            )
+            setItems(prev => prev.map(i => i.id === item.id ? updated : i))
+            setEditingItemId(null)
+            toast.success('Updated')
+        } catch {
+            toast.error('Failed to update')
+        } finally {
+            setSavingItemEdit(false)
+        }
+    }
+
     async function closeSession() {
         setClosingSession(true)
         try {
@@ -623,6 +649,7 @@ function SessionDetailView({
                                         if (isActive || disabled) return
                                         if (pendingNa?.itemId === item.id) setPendingNa(null)
                                         if (pendingPaidRef?.itemId === item.id) setPendingPaidRef(null)
+                                        if (editingItemId === item.id) setEditingItemId(null)
                                         if (s === 'na') {
                                             setPendingNa({ itemId: item.id, note: '' })
                                         } else if (s === 'paid') {
@@ -642,11 +669,25 @@ function SessionDetailView({
                                 </button>
                             )
                         })}
+                        {!isReadOnly && editingItemId !== item.id && pendingNa?.itemId !== item.id && pendingPaidRef?.itemId !== item.id && (
+                            <button
+                                onClick={() => {
+                                    setEditingItemId(item.id)
+                                    setEditItemForm({
+                                        amount: Number(item.allocated_amount).toString(),
+                                        name: item.ad_hoc_name || ''
+                                    })
+                                }}
+                                title="Edit amount"
+                                className="ml-1 p-1 text-slate-300 hover:text-sky-500 transition-colors">
+                                <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                        )}
                         {isAdHoc && !isReadOnly && (
                             <button
                                 onClick={() => deleteAdHoc(item.id)}
                                 disabled={deletingId === item.id}
-                                className="ml-1 p-1 text-slate-300 hover:text-red-400 transition-colors disabled:opacity-40">
+                                className="p-1 text-slate-300 hover:text-red-400 transition-colors disabled:opacity-40">
                                 <Trash2 className="h-3.5 w-3.5" />
                             </button>
                         )}
@@ -736,6 +777,50 @@ function SessionDetailView({
                             </button>
                             <button
                                 onClick={() => setPendingNa(null)}
+                                className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {editingItemId === item.id && (
+                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 pt-3">
+                        {isAdHoc && (
+                            <div className="space-y-1.5">
+                                <p className="text-xs font-medium text-slate-600">Name</p>
+                                <input
+                                    type="text"
+                                    value={editItemForm.name}
+                                    onChange={e => setEditItemForm(p => ({ ...p, name: e.target.value }))}
+                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                />
+                            </div>
+                        )}
+                        <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-slate-600">Allocated amount</p>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 shrink-0">KES</span>
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    autoFocus={!isAdHoc}
+                                    value={editItemForm.amount}
+                                    onChange={e => setEditItemForm(p => ({ ...p, amount: e.target.value }))}
+                                    onKeyDown={e => { if (e.key === 'Enter') saveItemEdit(item); if (e.key === 'Escape') setEditingItemId(null) }}
+                                    className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => saveItemEdit(item)}
+                                disabled={savingItemEdit || !editItemForm.amount || parseFloat(editItemForm.amount) <= 0}
+                                className="text-xs font-semibold bg-sky-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-40 hover:bg-sky-700 transition-colors">
+                                {savingItemEdit ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                                onClick={() => setEditingItemId(null)}
                                 className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
                                 Cancel
                             </button>

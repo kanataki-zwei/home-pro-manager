@@ -1291,20 +1291,26 @@ async def update_session_item(
     old_status = item.status
     tag_ids = payload.tag_ids
 
-    for key, value in payload.model_dump(exclude_unset=True, exclude={'tag_ids'}).items():
+    for key, value in payload.model_dump(exclude_unset=True, exclude={'tag_ids', 'ad_hoc_name'}).items():
         setattr(item, key, value)
 
-    # Clear notes when moving away from N/A
-    if payload.status != "na":
-        item.notes = None
+    # Handle ad_hoc_name update (only for ad-hoc items)
+    if payload.ad_hoc_name is not None and item.expense_id is None:
+        item.ad_hoc_name = payload.ad_hoc_name
 
-    # Clear reference number and reset amount_paid when un-paying
-    if payload.status != "paid":
-        item.reference_number = None
-        item.amount_paid = Decimal("0")
-    elif item.amount_paid == Decimal("0"):
-        # Auto-set amount_paid to allocated_amount if not explicitly provided
-        item.amount_paid = item.allocated_amount
+    # Status side-effects only fire when status is explicitly being changed
+    if payload.status is not None:
+        # Clear notes when moving away from N/A
+        if payload.status != "na":
+            item.notes = None
+
+        # Clear reference number and reset amount_paid when un-paying
+        if payload.status != "paid":
+            item.reference_number = None
+            item.amount_paid = Decimal("0")
+        elif item.amount_paid == Decimal("0"):
+            # Auto-set amount_paid to allocated_amount if not explicitly provided
+            item.amount_paid = item.allocated_amount
 
     effective_paid = item.amount_paid if item.amount_paid > Decimal("0") else item.allocated_amount
 
@@ -1328,7 +1334,7 @@ async def update_session_item(
                 account.current_balance = (account.current_balance or Decimal("0")) + effective_paid
 
     # ── Reverse auto-credit when un-paying ───────────────────────
-    elif old_status == "paid" and payload.status != "paid":
+    elif payload.status is not None and old_status == "paid" and payload.status != "paid":
         rev_result = await db.execute(
             select(AccountTransaction).where(AccountTransaction.session_item_id == item.id)
         )

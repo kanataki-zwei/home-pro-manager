@@ -23,7 +23,7 @@ interface Member {
 interface Account {
     id: string; name: string; account_type: string; institution_type: string | null
     ownership: string; current_balance: number; currency: string; is_active: boolean
-    household_member_id: string | null; contributes_to_net_worth: boolean
+    household_member_id: string | null; contributes_to_net_worth: boolean; contributes_to_liquid_cash: boolean
 }
 interface IncomeHistoryEntry {
     id: string
@@ -172,10 +172,10 @@ export default function HouseholdPage() {
     const [creatingUser, setCreatingUser] = useState(false)
 
     const [accountDialog, setAccountDialog] = useState(false)
-    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
+    const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false })
     const [editAccountDialog, setEditAccountDialog] = useState(false)
     const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
+    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false })
     const [savingAccount, setSavingAccount] = useState(false)
 
     // ── Account transactions ──────────────────────────────────────
@@ -197,9 +197,9 @@ export default function HouseholdPage() {
 
     const loadSystemUsers = async () => {
         try {
-            const users = await apiGet<SystemUser[]>('/api/users/')
+            const users = await apiGet<SystemUser[]>('/api/users')
             setSystemUsers(users)
-        } catch { /* non-critical — system users not available */ }
+        } catch { toast.error('Could not load system users') }
     }
 
     const createHousehold = async () => {
@@ -260,6 +260,7 @@ export default function HouseholdPage() {
     }
 
     const openEditMember = (member: Member) => {
+        loadSystemUsers()
         setEditingMember(member)
         setEditMemberData({ name: member.name, member_type_id: member.member_type.id, date_of_birth: member.date_of_birth || '', user_id: member.user_id || '' })
         setEditMemberDialog(true)
@@ -291,7 +292,7 @@ export default function HouseholdPage() {
         if (!newUser.email || !newUser.password) return
         setCreatingUser(true)
         try {
-            const data = await apiPost<SystemUser>('/api/users/', newUser)
+            const data = await apiPost<SystemUser>('/api/users', newUser)
             setSystemUsers(prev => [...prev, data])
             if (memberDialog) setNewMember(prev => ({ ...prev, user_id: data.id }))
             if (editMemberDialog) setEditMemberData(prev => ({ ...prev, user_id: data.id }))
@@ -310,7 +311,7 @@ export default function HouseholdPage() {
                 household_member_id: newAccount.ownership === 'individual' && newAccount.household_member_id ? newAccount.household_member_id : null
             })
             setAccounts([...accounts, data])
-            setNewAccount({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true })
+            setNewAccount({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false })
             setAccountDialog(false); toast.success('Account added!')
         } catch { toast.error('Failed') }
         finally { setSavingAccount(false) }
@@ -318,7 +319,7 @@ export default function HouseholdPage() {
 
     const openEditAccount = (account: Account) => {
         setEditingAccount(account)
-        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '', contributes_to_net_worth: account.contributes_to_net_worth })
+        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '', contributes_to_net_worth: account.contributes_to_net_worth, contributes_to_liquid_cash: account.contributes_to_liquid_cash })
         setEditAccountDialog(true)
     }
 
@@ -337,6 +338,7 @@ export default function HouseholdPage() {
                     ? (editAccountData.household_member_id || null)
                     : null,
                 contributes_to_net_worth: editAccountData.contributes_to_net_worth,
+                contributes_to_liquid_cash: editAccountData.contributes_to_liquid_cash,
             }
             const data = await apiPatch<Account>(`/api/households/${household.id}/accounts/${editingAccount.id}`, payload)
             setAccounts(accounts.map(a => a.id === data.id ? data : a))
@@ -574,14 +576,14 @@ export default function HouseholdPage() {
                         <h2 className="text-lg font-bold text-slate-900">Members</h2>
                         <p className="text-sm text-slate-400">People in your household</p>
                     </div>
-                    <button onClick={() => setMemberDialog(true)}
+                    <button onClick={() => { loadSystemUsers(); setMemberDialog(true) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
                         <Plus className="h-3.5 w-3.5" /> Add Member
                     </button>
                 </div>
 
                 {members.length === 0 ? (
-                    <div onClick={() => setMemberDialog(true)}
+                    <div onClick={() => { loadSystemUsers(); setMemberDialog(true) }}
                         className="flex flex-col items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-sky-300 hover:bg-sky-50 transition-all">
                         <Users className="h-6 w-6 text-slate-300 mb-2" />
                         <p className="text-sm text-slate-400 font-medium">Add your first member</p>
@@ -917,6 +919,11 @@ export default function HouseholdPage() {
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-bold text-slate-900">{account.name}</p>
+                                                    {account.contributes_to_liquid_cash && (
+                                                        <span title="Contributes to liquid cash" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
+                                                            <Wallet className="h-2.5 w-2.5" /> Liquid
+                                                        </span>
+                                                    )}
                                                     {account.contributes_to_net_worth && (
                                                         <span title="Contributes to net worth" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
                                                             <Shield className="h-2.5 w-2.5" /> Net Worth
@@ -1118,12 +1125,13 @@ export default function HouseholdPage() {
                                 <Label className="text-sm font-bold text-slate-700">System User <span className="font-normal text-slate-400">(optional)</span></Label>
                                 <button onClick={() => { setNewUser(prev => ({ ...prev, name: newMember.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
-                            <Select value={newMember.user_id} onValueChange={val => {
+                            <Select value={newMember.user_id || undefined} onValueChange={val => {
                                 const user = systemUsers.find(u => u.id === val)
-                                setNewMember(prev => ({ ...prev, user_id: val, name: user?.name || prev.name }))
+                                setNewMember(prev => ({ ...prev, user_id: val === '__none__' ? '' : val, name: user?.name || prev.name }))
                             }}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
+                                    <SelectItem value="__none__" className="text-slate-400">None</SelectItem>
                                     {systemUsers.map(user => (
                                         <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
                                     ))}
@@ -1168,12 +1176,13 @@ export default function HouseholdPage() {
                                 <Label className="text-sm font-bold text-slate-700">System User</Label>
                                 <button onClick={() => { setNewUser(prev => ({ ...prev, name: editMemberData.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
-                            <Select value={editMemberData.user_id} onValueChange={val => {
+                            <Select value={editMemberData.user_id || undefined} onValueChange={val => {
                                 const user = systemUsers.find(u => u.id === val)
-                                setEditMemberData(prev => ({ ...prev, user_id: val, name: user?.name || prev.name }))
+                                setEditMemberData(prev => ({ ...prev, user_id: val === '__none__' ? '' : val, name: user?.name || prev.name }))
                             }}>
                                 <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
                                 <SelectContent className="rounded-2xl">
+                                    <SelectItem value="__none__" className="text-slate-400">None</SelectItem>
                                     {systemUsers.map(user => (
                                         <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
                                     ))}
@@ -1300,6 +1309,21 @@ export default function HouseholdPage() {
                                 <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${newAccount.contributes_to_net_worth ? 'left-5' : 'left-1'}`} />
                             </div>
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setNewAccount(prev => ({ ...prev, contributes_to_liquid_cash: !prev.contributes_to_liquid_cash }))}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${newAccount.contributes_to_liquid_cash ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'}`}>
+                            <div className="flex items-center gap-3">
+                                <Wallet className={`h-4 w-4 ${newAccount.contributes_to_liquid_cash ? 'text-sky-600' : 'text-slate-400'}`} />
+                                <div className="text-left">
+                                    <p className={`text-sm font-bold ${newAccount.contributes_to_liquid_cash ? 'text-sky-700' : 'text-slate-600'}`}>Contributes to Liquid Cash</p>
+                                    <p className="text-xs text-slate-400">Balance counted as readily accessible cash</p>
+                                </div>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full transition-all relative ${newAccount.contributes_to_liquid_cash ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${newAccount.contributes_to_liquid_cash ? 'left-5' : 'left-1'}`} />
+                            </div>
+                        </button>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" className="rounded-2xl" onClick={() => setAccountDialog(false)}>Cancel</Button>
@@ -1391,6 +1415,21 @@ export default function HouseholdPage() {
                             </div>
                             <div className={`w-10 h-6 rounded-full transition-all relative ${editAccountData.contributes_to_net_worth ? 'bg-emerald-500' : 'bg-slate-200'}`}>
                                 <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${editAccountData.contributes_to_net_worth ? 'left-5' : 'left-1'}`} />
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setEditAccountData(prev => ({ ...prev, contributes_to_liquid_cash: !prev.contributes_to_liquid_cash }))}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${editAccountData.contributes_to_liquid_cash ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'}`}>
+                            <div className="flex items-center gap-3">
+                                <Wallet className={`h-4 w-4 ${editAccountData.contributes_to_liquid_cash ? 'text-sky-600' : 'text-slate-400'}`} />
+                                <div className="text-left">
+                                    <p className={`text-sm font-bold ${editAccountData.contributes_to_liquid_cash ? 'text-sky-700' : 'text-slate-600'}`}>Contributes to Liquid Cash</p>
+                                    <p className="text-xs text-slate-400">Balance counted as readily accessible cash</p>
+                                </div>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full transition-all relative ${editAccountData.contributes_to_liquid_cash ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${editAccountData.contributes_to_liquid_cash ? 'left-5' : 'left-1'}`} />
                             </div>
                         </button>
                     </div>

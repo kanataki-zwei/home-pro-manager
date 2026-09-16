@@ -55,7 +55,7 @@ handlers without event loop contention. No thread executors needed for auth anym
 
 ## Database Schema
 
-### Migration chain (current HEAD: `i9j0k1l2m3n4`)
+### Migration chain (current HEAD: `m3n4o5p6q7r8`)
 ```
 b1c2d3e4f5a6  initial_schema
       ↓
@@ -85,7 +85,15 @@ g7h8i9j0k1l2  add_household_budget_calendar
       ↓
 h8i9j0k1l2m3  add_member_income_history
       ↓
-i9j0k1l2m3n4  add_password_hash                  ← HEAD
+i9j0k1l2m3n4  add_password_hash
+      ↓
+j0k1l2m3n4o5  add_session_extra_income
+      ↓
+k1l2m3n4o5p6  add_session_item_tags
+      ↓
+l2m3n4o5p6q7  add_pay_day_grace_period
+      ↓
+m3n4o5p6q7r8  add_liquid_cash_flag               ← HEAD
 ```
 
 When adding a new migration set `down_revision = 'i9j0k1l2m3n4'`.

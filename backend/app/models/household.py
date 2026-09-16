@@ -69,6 +69,7 @@ class Account(Base, TimestampMixin):
     currency = Column(String(10), default="KES")
     is_active = Column(Boolean, default=True)
     contributes_to_net_worth = Column(Boolean, default=True, nullable=False)
+    contributes_to_liquid_cash = Column(Boolean, default=False, nullable=False)
 
     __table_args__ = (
         CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),

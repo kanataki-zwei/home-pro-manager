@@ -75,8 +75,8 @@ The `alembic/env.py` reads `DATABASE_URL` directly from the environment — do n
 pass it through `config.set_main_option()`, which breaks on `%` characters.
 
 ### Alembic Migration Chain
-See `CONTEXT.md` for the full chain. Current HEAD: `i9j0k1l2m3n4` (`add_password_hash`).
-When adding a new migration, set `down_revision` to `'i9j0k1l2m3n4'`.
+See `CONTEXT.md` for the full chain. Current HEAD: `m3n4o5p6q7r8` (`add_liquid_cash_flag`).
+When adding a new migration, set `down_revision` to `'m3n4o5p6q7r8'`.
 
 ### Frontend API Calls
 All calls go through `src/lib/api.ts` (`apiGet`, `apiPost`, `apiPatch`, `apiPut`, `apiDelete`).

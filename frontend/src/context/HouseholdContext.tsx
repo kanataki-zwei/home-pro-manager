@@ -32,6 +32,7 @@ interface Account {
     is_active: boolean
     household_member_id: string | null
     contributes_to_net_worth: boolean
+    contributes_to_liquid_cash: boolean
 }
 
 interface Household {
