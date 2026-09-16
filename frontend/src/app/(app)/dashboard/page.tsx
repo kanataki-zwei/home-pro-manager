@@ -768,71 +768,92 @@ export default function DashboardPage() {
             {targetAccounts.length > 0 && (
                 <div>
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-bold text-slate-900 text-lg">Savings Targets</h2>
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-sky-500">Goals</p>
+                            <h2 className="font-bold text-slate-900 text-lg mt-0.5">Savings Targets</h2>
+                        </div>
                         <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
                             Manage <ArrowUpRight className="h-3 w-3" />
                         </Link>
                     </div>
-                    <div className={`grid gap-4 ${targetAccounts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <div className={`grid gap-4 ${targetAccounts.length === 1 ? 'grid-cols-1 max-w-md' : targetAccounts.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
                         {targetAccounts.map(row => {
                             const { account, target, balance, monthlyAlloc, remaining, pct, monthsToTarget, isReached, gradient } = row
                             const owner = members.find(m => m.id === account.household_member_id)
+                            const bg = isReached ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)' : gradient.replace('linear-gradient(135deg,', 'linear-gradient(135deg, #0f172a 0%,').replace(/,\s*#/, ', ').replace(/\)$/, ', #0f172a 100%)')
+
+                            // Circular progress ring
+                            const r = 30, circ = 2 * Math.PI * r
+                            const offset = circ * (1 - pct / 100)
+
                             return (
-                                <div key={account.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
-                                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
-                                    <div className="h-1 w-full" style={{ background: isReached ? 'linear-gradient(135deg, #10b981, #34d399)' : gradient }} />
-                                    <div className="p-5">
-                                        {/* Header */}
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                                style={{ background: isReached ? 'linear-gradient(135deg, #10b981, #34d399)' : gradient }}>
-                                                {account.name.charAt(0)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-slate-900 text-sm truncate">{account.name}</p>
-                                                <p className="text-xs text-slate-400 capitalize">
+                                <div key={account.id} className="rounded-2xl overflow-hidden"
+                                    style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.10)' }}>
+
+                                    {/* Dark gradient header */}
+                                    <div className="relative p-5 overflow-hidden" style={{ background: gradient }}>
+                                        {/* Subtle radial glow */}
+                                        <div className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-20 pointer-events-none"
+                                            style={{ background: 'radial-gradient(circle, white, transparent)', transform: 'translate(40%, -40%)' }} />
+
+                                        <div className="relative flex items-center justify-between">
+                                            {/* Left: name + balance */}
+                                            <div className="min-w-0 flex-1 pr-4">
+                                                <p className="text-white/60 text-xs font-semibold uppercase tracking-wider mb-1 truncate">
                                                     {account.account_type} · {account.ownership}{owner ? ` · ${owner.name}` : ''}
                                                 </p>
+                                                <p className="text-white font-black text-lg leading-tight truncate">{account.name}</p>
+                                                <p className="text-white/80 text-sm font-bold mt-1">
+                                                    {account.currency} {balance.toLocaleString('en-KE', { maximumFractionDigits: 0 })}
+                                                    <span className="text-white/40 font-normal text-xs"> / {account.currency} {target.toLocaleString('en-KE', { maximumFractionDigits: 0 })}</span>
+                                                </p>
                                             </div>
-                                            {isReached && (
-                                                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">🎯 Reached!</span>
-                                            )}
-                                        </div>
 
-                                        {/* Progress bar */}
-                                        <div className="mb-3">
-                                            <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
-                                                <span>{account.currency} {balance.toLocaleString('en-KE', { maximumFractionDigits: 0 })}</span>
-                                                <span className="font-semibold">Target: {account.currency} {target.toLocaleString('en-KE', { maximumFractionDigits: 0 })}</span>
+                                            {/* Right: circular progress ring */}
+                                            <div className="flex-shrink-0">
+                                                <svg width="72" height="72" viewBox="0 0 72 72">
+                                                    <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5" />
+                                                    <circle cx="36" cy="36" r={r} fill="none"
+                                                        stroke={isReached ? '#34d399' : 'white'}
+                                                        strokeWidth="5"
+                                                        strokeDasharray={circ}
+                                                        strokeDashoffset={offset}
+                                                        strokeLinecap="round"
+                                                        transform="rotate(-90 36 36)"
+                                                        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                                                    />
+                                                    <text x="36" y="40" textAnchor="middle"
+                                                        fill={isReached ? '#34d399' : 'white'}
+                                                        fontSize="13" fontWeight="900" fontFamily="inherit">
+                                                        {isReached ? '🎯' : `${pct.toFixed(0)}%`}
+                                                    </text>
+                                                </svg>
                                             </div>
-                                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                <div className={`h-full rounded-full transition-all ${isReached ? 'bg-emerald-400' : 'bg-sky-400'}`}
-                                                    style={{ width: `${pct}%` }} />
-                                            </div>
-                                            <p className={`text-xs font-semibold mt-1 ${isReached ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                {pct.toFixed(0)}% complete
-                                            </p>
                                         </div>
+                                    </div>
 
-                                        {/* 3-stat row */}
-                                        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Remaining</p>
-                                                <p className="text-sm font-black text-slate-800">{isReached ? '—' : fmtCompact(remaining)}</p>
+                                    {/* White stats body */}
+                                    <div className="bg-white px-5 py-4">
+                                        <div className="grid grid-cols-3 divide-x divide-slate-100">
+                                            <div className="pr-4">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Remaining</p>
+                                                <p className="text-sm font-black text-slate-800">
+                                                    {isReached ? <span className="text-emerald-600">Done!</span> : fmtCompact(remaining)}
+                                                </p>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Monthly</p>
+                                            <div className="px-4">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Monthly</p>
                                                 {monthlyAlloc > 0
                                                     ? <p className="text-sm font-black text-sky-600">{fmtCompact(monthlyAlloc)}</p>
-                                                    : <p className="text-sm font-black text-slate-300">—</p>
+                                                    : <p className="text-sm font-black text-slate-300">Not set</p>
                                                 }
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">ETA</p>
+                                            <div className="pl-4">
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">ETA</p>
                                                 {isReached
-                                                    ? <p className="text-sm font-black text-emerald-600">Done</p>
+                                                    ? <p className="text-sm font-black text-emerald-600">Reached</p>
                                                     : monthsToTarget !== null
-                                                        ? <p className="text-sm font-black text-slate-800">{monthsToTarget} <span className="text-xs font-normal text-slate-400">mo</span></p>
+                                                        ? <p className="text-sm font-black text-slate-800">{monthsToTarget} <span className="text-xs font-normal text-slate-400">months</span></p>
                                                         : <p className="text-sm font-black text-slate-300">—</p>
                                                 }
                                             </div>
