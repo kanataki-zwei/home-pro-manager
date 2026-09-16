@@ -16,6 +16,7 @@ interface Expense {
     ownership_type: string
     joint_split_husband: number | null
     joint_split_wife: number | null
+    account_id: string | null
     tag_assignments: { id: string; tag: { id: string; name: string; color: string | null } }[]
 }
 
@@ -182,6 +183,22 @@ export default function DashboardPage() {
         ...tagRows,
         ...(untaggedTotal > 0 ? [{ id: '__none', name: 'Untagged', color: '#cbd5e1', total: untaggedTotal }] : []),
     ]
+
+    // ── Savings Targets ───────────────────────────────────────────
+    const targetAccounts = visibleAccounts
+        .filter(a => a.is_active && a.target_amount != null && Number(a.target_amount) > 0)
+        .map((a, i) => {
+            const target = Number(a.target_amount)
+            const balance = Number(a.current_balance)
+            const monthlyAlloc = activeExpenses
+                .filter(e => e.account_id === a.id)
+                .reduce((s, e) => s + Number(e.monthly_amount), 0)
+            const remaining = Math.max(target - balance, 0)
+            const pct = Math.min((balance / target) * 100, 100)
+            const monthsToTarget = monthlyAlloc > 0 && remaining > 0 ? Math.ceil(remaining / monthlyAlloc) : null
+            const isReached = balance >= target
+            return { account: a, target, balance, monthlyAlloc, remaining, pct, monthsToTarget, isReached, gradient: GRADIENTS[i % GRADIENTS.length] }
+        })
 
     return (
         <div className="space-y-6 max-w-5xl">
@@ -743,6 +760,87 @@ export default function DashboardPage() {
                         <span className={isOver ? 'text-red-500 font-semibold' : 'text-emerald-600 font-semibold'}>
                             {isOver ? `${fmt(Math.abs(netRemaining))} over budget` : `${fmt(netRemaining)} unallocated`}
                         </span>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Savings Targets ── */}
+            {targetAccounts.length > 0 && (
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="font-bold text-slate-900 text-lg">Savings Targets</h2>
+                        <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
+                            Manage <ArrowUpRight className="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div className={`grid gap-4 ${targetAccounts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {targetAccounts.map(row => {
+                            const { account, target, balance, monthlyAlloc, remaining, pct, monthsToTarget, isReached, gradient } = row
+                            const owner = members.find(m => m.id === account.household_member_id)
+                            return (
+                                <div key={account.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                                    <div className="h-1 w-full" style={{ background: isReached ? 'linear-gradient(135deg, #10b981, #34d399)' : gradient }} />
+                                    <div className="p-5">
+                                        {/* Header */}
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                style={{ background: isReached ? 'linear-gradient(135deg, #10b981, #34d399)' : gradient }}>
+                                                {account.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-slate-900 text-sm truncate">{account.name}</p>
+                                                <p className="text-xs text-slate-400 capitalize">
+                                                    {account.account_type} · {account.ownership}{owner ? ` · ${owner.name}` : ''}
+                                                </p>
+                                            </div>
+                                            {isReached && (
+                                                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">🎯 Reached!</span>
+                                            )}
+                                        </div>
+
+                                        {/* Progress bar */}
+                                        <div className="mb-3">
+                                            <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+                                                <span>{account.currency} {balance.toLocaleString('en-KE', { maximumFractionDigits: 0 })}</span>
+                                                <span className="font-semibold">Target: {account.currency} {target.toLocaleString('en-KE', { maximumFractionDigits: 0 })}</span>
+                                            </div>
+                                            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all ${isReached ? 'bg-emerald-400' : 'bg-sky-400'}`}
+                                                    style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <p className={`text-xs font-semibold mt-1 ${isReached ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                {pct.toFixed(0)}% complete
+                                            </p>
+                                        </div>
+
+                                        {/* 3-stat row */}
+                                        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Remaining</p>
+                                                <p className="text-sm font-black text-slate-800">{isReached ? '—' : fmtCompact(remaining)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Monthly</p>
+                                                {monthlyAlloc > 0
+                                                    ? <p className="text-sm font-black text-sky-600">{fmtCompact(monthlyAlloc)}</p>
+                                                    : <p className="text-sm font-black text-slate-300">—</p>
+                                                }
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">ETA</p>
+                                                {isReached
+                                                    ? <p className="text-sm font-black text-emerald-600">Done</p>
+                                                    : monthsToTarget !== null
+                                                        ? <p className="text-sm font-black text-slate-800">{monthsToTarget} <span className="text-xs font-normal text-slate-400">mo</span></p>
+                                                        : <p className="text-sm font-black text-slate-300">—</p>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
             )}
