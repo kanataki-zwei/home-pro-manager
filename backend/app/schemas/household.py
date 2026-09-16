@@ -122,6 +122,7 @@ class AccountCreate(BaseModel):
     currency: str = Field(default="KES", max_length=10)
     contributes_to_net_worth: bool = True
     contributes_to_liquid_cash: bool = False
+    target_amount: Optional[float] = None
 
 class AccountUpdate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=255)
@@ -134,6 +135,7 @@ class AccountUpdate(BaseModel):
     is_active: Optional[bool] = None
     contributes_to_net_worth: Optional[bool] = None
     contributes_to_liquid_cash: Optional[bool] = None
+    target_amount: Optional[float] = None
 
 class AccountResponse(BaseModel):
     id: UUID
@@ -148,6 +150,7 @@ class AccountResponse(BaseModel):
     is_active: bool
     contributes_to_net_worth: bool
     contributes_to_liquid_cash: bool
+    target_amount: Optional[float]
     created_at: datetime
 
     class Config:

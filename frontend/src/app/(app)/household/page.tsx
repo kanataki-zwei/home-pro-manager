@@ -24,6 +24,7 @@ interface Account {
     id: string; name: string; account_type: string; institution_type: string | null
     ownership: string; current_balance: number; currency: string; is_active: boolean
     household_member_id: string | null; contributes_to_net_worth: boolean; contributes_to_liquid_cash: boolean
+    target_amount: number | null
 }
 interface IncomeHistoryEntry {
     id: string
@@ -176,7 +177,7 @@ export default function HouseholdPage() {
     const [newAccount, setNewAccount] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false })
     const [editAccountDialog, setEditAccountDialog] = useState(false)
     const [editingAccount, setEditingAccount] = useState<Account | null>(null)
-    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false })
+    const [editAccountData, setEditAccountData] = useState({ name: '', account_type: '', institution_type: '', ownership: 'joint', current_balance: 0, currency: 'KES', household_member_id: '', contributes_to_net_worth: true, contributes_to_liquid_cash: false, target_amount: '' })
     const [savingAccount, setSavingAccount] = useState(false)
 
     // ── Account transactions ──────────────────────────────────────
@@ -192,7 +193,7 @@ export default function HouseholdPage() {
     useEffect(() => {
         if (!contextLoading) {
             setLoading(false)
-            if (household) loadSystemUsers()
+            if (household) { loadSystemUsers(); loadBudgetExpenses() }
         }
     }, [contextLoading, household])
 
@@ -322,7 +323,7 @@ export default function HouseholdPage() {
 
     const openEditAccount = (account: Account) => {
         setEditingAccount(account)
-        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '', contributes_to_net_worth: account.contributes_to_net_worth, contributes_to_liquid_cash: account.contributes_to_liquid_cash })
+        setEditAccountData({ name: account.name, account_type: account.account_type, institution_type: account.institution_type || '', ownership: account.ownership, current_balance: account.current_balance, currency: account.currency, household_member_id: account.household_member_id || '', contributes_to_net_worth: account.contributes_to_net_worth, contributes_to_liquid_cash: account.contributes_to_liquid_cash, target_amount: account.target_amount != null ? String(account.target_amount) : '' })
         setEditAccountDialog(true)
     }
 
@@ -342,6 +343,7 @@ export default function HouseholdPage() {
                     : null,
                 contributes_to_net_worth: editAccountData.contributes_to_net_worth,
                 contributes_to_liquid_cash: editAccountData.contributes_to_liquid_cash,
+                target_amount: editAccountData.target_amount !== '' ? parseFloat(editAccountData.target_amount) : null,
             }
             const data = await apiPatch<Account>(`/api/households/${household.id}/accounts/${editingAccount.id}`, payload)
             setAccounts(accounts.map(a => a.id === data.id ? data : a))
@@ -916,7 +918,8 @@ export default function HouseholdPage() {
                                 <div key={account.id}
                                     className="bg-white rounded-3xl border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                                    <div className="p-5 flex items-center justify-between">
+                                    <div className="p-5">
+                                    <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                                                 style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
@@ -987,6 +990,49 @@ export default function HouseholdPage() {
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                    {/* Target progress */}
+                                    {account.target_amount != null && account.target_amount > 0 && (() => {
+                                        const target = account.target_amount
+                                        const balance = Number(account.current_balance)
+                                        const pct = Math.min((balance / target) * 100, 100)
+                                        const remaining = target - balance
+                                        const linked = budgetExpenses.filter(e => e.account_id === account.id)
+                                        const monthlyAlloc = linked.reduce((s, e) => s + Number(e.monthly_amount), 0)
+                                        const monthsToTarget = monthlyAlloc > 0 && remaining > 0
+                                            ? Math.ceil(remaining / monthlyAlloc)
+                                            : null
+                                        const isReached = balance >= target
+                                        return (
+                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <span className="text-xs font-bold text-slate-500">
+                                                        {isReached ? '🎯 Target reached!' : 'Target progress'}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-500">
+                                                        {account.currency} {balance.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / {account.currency} {target.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </div>
+                                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all ${isReached ? 'bg-emerald-500' : 'bg-sky-400'}`}
+                                                        style={{ width: `${pct}%` }} />
+                                                </div>
+                                                <div className="flex items-center justify-between mt-1.5">
+                                                    <span className={`text-xs font-semibold ${isReached ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                        {pct.toFixed(0)}% complete
+                                                    </span>
+                                                    {!isReached && monthsToTarget !== null && (
+                                                        <span className="text-xs font-semibold text-sky-600">
+                                                            ~{monthsToTarget} month{monthsToTarget !== 1 ? 's' : ''} to target
+                                                        </span>
+                                                    )}
+                                                    {!isReached && monthlyAlloc === 0 && budgetExpensesLoaded && (
+                                                        <span className="text-xs text-slate-300">No budget linked</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })()}
                                     </div>
                                     {isExpanded && (
                                         <div className="border-t border-slate-100">
@@ -1427,6 +1473,13 @@ export default function HouseholdPage() {
                             <Label className="text-sm font-bold text-slate-700">Current Balance</Label>
                             <Input type="number" className="h-12 rounded-2xl" value={editAccountData.current_balance}
                                 onChange={e => setEditAccountData(prev => ({ ...prev, current_balance: parseFloat(e.target.value) || 0 }))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-bold text-slate-700">Target Amount <span className="font-normal text-slate-400">(optional)</span></Label>
+                            <Input type="number" min="0" className="h-12 rounded-2xl" placeholder="e.g. 500000"
+                                value={editAccountData.target_amount}
+                                onChange={e => setEditAccountData(prev => ({ ...prev, target_amount: e.target.value }))} />
+                            <p className="text-xs text-slate-400">Set a savings goal — the system will show how long it takes to reach it based on your monthly budget allocation to this account.</p>
                         </div>
                         <button
                             type="button"

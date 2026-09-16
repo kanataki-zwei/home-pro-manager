@@ -70,6 +70,7 @@ class Account(Base, TimestampMixin):
     is_active = Column(Boolean, default=True)
     contributes_to_net_worth = Column(Boolean, default=True, nullable=False)
     contributes_to_liquid_cash = Column(Boolean, default=False, nullable=False)
+    target_amount = Column(Numeric(15, 2), nullable=True)
 
     __table_args__ = (
         CheckConstraint(account_type.in_(['checking', 'savings', 'cash', 'investment', 'credit']), name='account_type_check'),
