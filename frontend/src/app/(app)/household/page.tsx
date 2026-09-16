@@ -141,6 +141,7 @@ export default function HouseholdPage() {
     const isMeMode = viewMode === 'me'
     const [loading, setLoading] = useState(true)
     const [systemUsers, setSystemUsers] = useState<SystemUser[]>([])
+    const [loadingUsers, setLoadingUsers] = useState(false)
 
     const [householdName, setHouseholdName] = useState('')
     const [creating, setCreating] = useState(false)
@@ -196,10 +197,12 @@ export default function HouseholdPage() {
     }, [contextLoading, household])
 
     const loadSystemUsers = async () => {
+        setLoadingUsers(true)
         try {
             const users = await apiGet<SystemUser[]>('/api/users')
             setSystemUsers(users)
         } catch { toast.error('Could not load system users') }
+        finally { setLoadingUsers(false) }
     }
 
     const createHousehold = async () => {
@@ -259,11 +262,11 @@ export default function HouseholdPage() {
         finally { setSavingMember(false) }
     }
 
-    const openEditMember = (member: Member) => {
-        loadSystemUsers()
+    const openEditMember = async (member: Member) => {
         setEditingMember(member)
         setEditMemberData({ name: member.name, member_type_id: member.member_type.id, date_of_birth: member.date_of_birth || '', user_id: member.user_id || '' })
         setEditMemberDialog(true)
+        await loadSystemUsers()
     }
 
     const updateMember = async () => {
@@ -628,12 +631,15 @@ export default function HouseholdPage() {
                                         </button>
                                     </div>
                                 </div>
-                                {member.user_id && (
-                                    <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-                                        <Link className="h-3 w-3" />
-                                        <span>Linked to system user</span>
-                                    </div>
-                                )}
+                                {member.user_id && (() => {
+                                    const linkedUser = systemUsers.find(u => u.id === member.user_id)
+                                    return (
+                                        <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                                            <Link className="h-3 w-3" />
+                                            <span>{linkedUser ? (linkedUser.name || linkedUser.email) : 'Linked to system user'}</span>
+                                        </div>
+                                    )
+                                })()}
 
                                 {/* Income section */}
                                 <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
@@ -1126,14 +1132,24 @@ export default function HouseholdPage() {
                                 <button onClick={() => { setNewUser(prev => ({ ...prev, name: newMember.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
                             <Select value={newMember.user_id || undefined} onValueChange={val => {
-                                const user = systemUsers.find(u => u.id === val)
-                                setNewMember(prev => ({ ...prev, user_id: val === '__none__' ? '' : val, name: user?.name || prev.name }))
+                                setNewMember(prev => ({ ...prev, user_id: val === '__none__' ? '' : val }))
                             }}>
-                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
+                                <SelectTrigger className="h-12 rounded-2xl">
+                                    {loadingUsers
+                                        ? <span className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading users…</span>
+                                        : <SelectValue placeholder="Link to a user" />}
+                                </SelectTrigger>
                                 <SelectContent className="rounded-2xl">
                                     <SelectItem value="__none__" className="text-slate-400">None</SelectItem>
                                     {systemUsers.map(user => (
-                                        <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
+                                        <SelectItem key={user.id} value={user.id}>
+                                            <span className="flex items-center gap-2">
+                                                {user.name || user.email}
+                                                {user.id === currentUserId && (
+                                                    <span className="text-xs font-bold text-sky-500 bg-sky-50 px-1.5 py-0.5 rounded-full">You</span>
+                                                )}
+                                            </span>
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -1177,14 +1193,24 @@ export default function HouseholdPage() {
                                 <button onClick={() => { setNewUser(prev => ({ ...prev, name: editMemberData.name })); setCreateUserDialog(true) }} className="text-xs font-bold text-sky-500 hover:text-sky-600">+ Create new</button>
                             </div>
                             <Select value={editMemberData.user_id || undefined} onValueChange={val => {
-                                const user = systemUsers.find(u => u.id === val)
-                                setEditMemberData(prev => ({ ...prev, user_id: val === '__none__' ? '' : val, name: user?.name || prev.name }))
+                                setEditMemberData(prev => ({ ...prev, user_id: val === '__none__' ? '' : val }))
                             }}>
-                                <SelectTrigger className="h-12 rounded-2xl"><SelectValue placeholder="Link to a user" /></SelectTrigger>
+                                <SelectTrigger className="h-12 rounded-2xl">
+                                    {loadingUsers
+                                        ? <span className="flex items-center gap-2 text-slate-400 text-sm"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading users…</span>
+                                        : <SelectValue placeholder="Link to a user" />}
+                                </SelectTrigger>
                                 <SelectContent className="rounded-2xl">
-                                    <SelectItem value="__none__" className="text-slate-400">None</SelectItem>
+                                    <SelectItem value="__none__" className="text-slate-400">None (unlink)</SelectItem>
                                     {systemUsers.map(user => (
-                                        <SelectItem key={user.id} value={user.id}>{user.name || user.email}</SelectItem>
+                                        <SelectItem key={user.id} value={user.id}>
+                                            <span className="flex items-center gap-2">
+                                                {user.name || user.email}
+                                                {user.id === currentUserId && (
+                                                    <span className="text-xs font-bold text-sky-500 bg-sky-50 px-1.5 py-0.5 rounded-full">You</span>
+                                                )}
+                                            </span>
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
