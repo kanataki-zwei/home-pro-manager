@@ -975,7 +975,7 @@ export default function HouseholdPage() {
                                                     className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${expandedAccountExpenses === account.id ? 'text-violet-500 bg-violet-50' : 'text-slate-400 hover:text-violet-500 hover:bg-violet-50'}`}>
                                                     <DollarSign className="h-3.5 w-3.5" />
                                                 </button>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-1">
                                                     <button onClick={() => openEditAccount(account)}
                                                         className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
                                                         <Pencil className="h-3.5 w-3.5" />
