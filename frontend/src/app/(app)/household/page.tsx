@@ -903,8 +903,8 @@ export default function HouseholdPage() {
 
                 {/* Account filters */}
                 {(() => {
-                    const chip = (active: boolean, onClick: () => void, label: React.ReactNode) => (
-                        <button key={String(label)} onClick={onClick}
+                    const chip = (active: boolean, onClick: () => void, label: React.ReactNode, chipKey?: string) => (
+                        <button key={chipKey ?? String(label)} onClick={onClick}
                             className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active ? 'bg-slate-800 dark:bg-slate-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
                             {label}
                         </button>
@@ -918,11 +918,11 @@ export default function HouseholdPage() {
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 {chip(filterAccType === 'all', () => setFilterAccType('all'), 'All types')}
-                                {ACCOUNT_TYPES.map(t => chip(filterAccType === t.value, () => setFilterAccType(t.value), <>{t.icon} {t.label}</>))}
+                                {ACCOUNT_TYPES.map(t => chip(filterAccType === t.value, () => setFilterAccType(t.value), <>{t.icon} {t.label}</>, t.value))}
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 {chip(filterInstType === 'all', () => setFilterInstType('all'), 'All institutions')}
-                                {INSTITUTION_TYPES.map(t => chip(filterInstType === t.value, () => setFilterInstType(t.value), <>{t.icon} {t.label}</>))}
+                                {INSTITUTION_TYPES.map(t => chip(filterInstType === t.value, () => setFilterInstType(t.value), <>{t.icon} {t.label}</>, t.value))}
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 {chip(filterNetWorth === 'all', () => setFilterNetWorth('all'), 'All')}
