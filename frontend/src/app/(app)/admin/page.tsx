@@ -5,7 +5,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
 import {
-    ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2,
+    ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,8 @@ interface UserProfile {
 interface MemberType {
     id: string
     name: string
+    bg_color: string | null
+    text_color: string | null
 }
 
 interface FxRate {
@@ -67,6 +69,11 @@ export default function AdminPage() {
     const [newTypeName, setNewTypeName] = useState('')
     const [addingType, setAddingType] = useState(false)
     const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null)
+    const [editingTypeId, setEditingTypeId] = useState<string | null>(null)
+    const [editName, setEditName] = useState('')
+    const [editBgColor, setEditBgColor] = useState<string | null>(null)
+    const [editTextColor, setEditTextColor] = useState<string | null>(null)
+    const [savingEditId, setSavingEditId] = useState<string | null>(null)
 
     // Clear data state
     const [showClearDialog, setShowClearDialog] = useState(false)
@@ -256,6 +263,38 @@ export default function AdminPage() {
             toast.error('Failed to remove member type')
         } finally {
             setDeletingTypeId(null)
+        }
+    }
+
+    const startEditType = (type: MemberType) => {
+        setEditingTypeId(type.id)
+        setEditName(type.name)
+        setEditBgColor(type.bg_color)
+        setEditTextColor(type.text_color)
+    }
+
+    const cancelEditType = () => {
+        setEditingTypeId(null)
+        setEditName('')
+        setEditBgColor(null)
+        setEditTextColor(null)
+    }
+
+    const saveEditType = async () => {
+        if (!household || !editingTypeId || !editName.trim()) return
+        setSavingEditId(editingTypeId)
+        try {
+            const updated = await apiPatch<MemberType>(
+                `/api/households/${household.id}/member-types/${editingTypeId}`,
+                { name: editName.trim(), bg_color: editBgColor, text_color: editTextColor }
+            )
+            setMemberTypes(prev => prev.map(t => t.id === editingTypeId ? updated : t))
+            cancelEditType()
+            toast.success('Member type updated')
+        } catch {
+            toast.error('Failed to update member type')
+        } finally {
+            setSavingEditId(null)
         }
     }
 
@@ -474,29 +513,144 @@ export default function AdminPage() {
                     {usersSubtab === 'member-types' && (
                         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
                             <p className="text-xs text-slate-400 mb-5">
-                                Member types define roles in your household (e.g. Husband, Wife, Child).
+                                Member types define roles in your household (e.g. Husband, Wife, Child). Customise colours to tell them apart at a glance.
                             </p>
                             <div className="space-y-2 mb-4">
                                 {memberTypes.length === 0 ? (
                                     <p className="text-sm text-slate-400 py-2">No member types yet.</p>
                                 ) : (
-                                    memberTypes.map((type) => (
-                                        <div
-                                            key={type.id}
-                                            className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100"
-                                        >
-                                            <span className="text-sm font-medium text-slate-700">{type.name}</span>
-                                            <button
-                                                onClick={() => deleteMemberType(type.id, type.name)}
-                                                disabled={deletingTypeId === type.id}
-                                                className="text-slate-300 hover:text-red-400 transition-colors disabled:opacity-50"
-                                            >
-                                                {deletingTypeId === type.id
-                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                                    : <Trash2 className="h-4 w-4" />}
-                                            </button>
-                                        </div>
-                                    ))
+                                    memberTypes.map((type) => {
+                                        const isEditing = editingTypeId === type.id
+                                        const previewBg = (isEditing ? editBgColor : type.bg_color) ?? '#f1f5f9'
+                                        const previewText = (isEditing ? editTextColor : type.text_color) ?? '#334155'
+                                        return (
+                                            <div key={type.id} className="rounded-xl border border-slate-100 overflow-hidden">
+                                                {/* Row */}
+                                                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50">
+                                                    <span
+                                                        className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                                                        style={{ background: previewBg, color: previewText }}
+                                                    >
+                                                        {isEditing ? (editName || type.name) : type.name}
+                                                    </span>
+                                                    <div className="flex items-center gap-1">
+                                                        {!isEditing ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => startEditType(type)}
+                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all"
+                                                                >
+                                                                    <Pencil className="h-3.5 w-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => deleteMemberType(type.id, type.name)}
+                                                                    disabled={deletingTypeId === type.id}
+                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-50 transition-all disabled:opacity-50"
+                                                                >
+                                                                    {deletingTypeId === type.id
+                                                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                        : <Trash2 className="h-3.5 w-3.5" />}
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button
+                                                                    onClick={saveEditType}
+                                                                    disabled={savingEditId === type.id || !editName.trim()}
+                                                                    className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-all disabled:opacity-50"
+                                                                >
+                                                                    {savingEditId === type.id
+                                                                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                        : <Check className="h-3.5 w-3.5" />}
+                                                                </button>
+                                                                <button
+                                                                    onClick={cancelEditType}
+                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+                                                                >
+                                                                    <X className="h-3.5 w-3.5" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {/* Edit panel */}
+                                                {isEditing && (
+                                                    <div className="px-4 py-4 border-t border-slate-100 space-y-4">
+                                                        <div>
+                                                            <Label className="text-xs font-semibold text-slate-500 mb-1.5 block">Name</Label>
+                                                            <Input
+                                                                value={editName}
+                                                                onChange={e => setEditName(e.target.value)}
+                                                                onKeyDown={e => e.key === 'Enter' && saveEditType()}
+                                                                className="h-9 rounded-xl border-slate-200 focus:border-sky-400 focus:ring-sky-400 text-sm"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-xs font-semibold text-slate-500 mb-1.5 block">Background colour</Label>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {[
+                                                                    null,
+                                                                    '#e0f2fe', '#ede9fe', '#d1fae5', '#fef3c7',
+                                                                    '#ffe4e6', '#f3e8ff', '#dcfce7', '#fef9c3',
+                                                                    '#0f172a', '#0ea5e9', '#8b5cf6', '#10b981',
+                                                                    '#f59e0b', '#f43f5e',
+                                                                ].map(c => {
+                                                                    const bg = c ?? '#f1f5f9'
+                                                                    const active = editBgColor === c
+                                                                    return (
+                                                                        <button
+                                                                            key={c ?? 'default'}
+                                                                            onClick={() => setEditBgColor(c)}
+                                                                            title={c ?? 'default'}
+                                                                            className={cn(
+                                                                                'w-7 h-7 rounded-lg border-2 transition-all',
+                                                                                active ? 'border-sky-500 scale-110' : 'border-transparent hover:border-slate-300'
+                                                                            )}
+                                                                            style={{ background: bg }}
+                                                                        >
+                                                                            {active && (
+                                                                                <Check className="h-3 w-3 mx-auto"
+                                                                                    style={{ color: c && ['#0f172a','#0ea5e9','#8b5cf6','#10b981','#f59e0b','#f43f5e'].includes(c) ? '#fff' : '#334155' }}
+                                                                                />
+                                                                            )}
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-xs font-semibold text-slate-500 mb-1.5 block">Text colour</Label>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {[
+                                                                    null,
+                                                                    '#0c4a6e', '#4c1d95', '#064e3b',
+                                                                    '#78350f', '#881337', '#1e1b4b',
+                                                                    '#ffffff', '#f8fafc',
+                                                                ].map(c => {
+                                                                    const col = c ?? '#334155'
+                                                                    const active = editTextColor === c
+                                                                    return (
+                                                                        <button
+                                                                            key={c ?? 'default'}
+                                                                            onClick={() => setEditTextColor(c)}
+                                                                            title={c ?? 'default'}
+                                                                            className={cn(
+                                                                                'w-7 h-7 rounded-lg border-2 transition-all flex items-center justify-center',
+                                                                                active ? 'border-sky-500 scale-110' : 'border-slate-200 hover:border-slate-400'
+                                                                            )}
+                                                                            style={{ background: col === '#ffffff' || col === '#f8fafc' ? '#e2e8f0' : '#f8fafc' }}
+                                                                        >
+                                                                            <span className="text-xs font-black" style={{ color: col }}>A</span>
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })
                                 )}
                             </div>
                             <div className="flex gap-2">

@@ -14,7 +14,7 @@ from app.models.budget import (
 )
 from app.schemas.household import (
     HouseholdCreate, HouseholdUpdate, HouseholdResponse,
-    MemberTypeCreate, MemberTypeResponse,
+    MemberTypeCreate, MemberTypeUpdate, MemberTypeResponse,
     HouseholdMemberCreate, HouseholdMemberUpdate, HouseholdMemberResponse,
     MemberIncomeUpdate, MemberIncomeHistoryResponse,
     AccountCreate, AccountUpdate, AccountResponse,
@@ -129,6 +129,21 @@ async def get_member_types(household_id: UUID, db: AsyncSession = Depends(get_db
 async def create_member_type(household_id: UUID, payload: MemberTypeCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
     member_type = MemberType(household_id=household_id, name=payload.name)
     db.add(member_type)
+    await db.flush()
+    await db.refresh(member_type)
+    return member_type
+
+
+@router.patch("/{household_id}/member-types/{type_id}", response_model=MemberTypeResponse)
+async def update_member_type(household_id: UUID, type_id: UUID, payload: MemberTypeUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_household_member)):
+    result = await db.execute(
+        select(MemberType).where(MemberType.id == type_id, MemberType.household_id == household_id)
+    )
+    member_type = result.scalar_one_or_none()
+    if not member_type:
+        raise HTTPException(status_code=404, detail="Member type not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(member_type, field, value)
     await db.flush()
     await db.refresh(member_type)
     return member_type

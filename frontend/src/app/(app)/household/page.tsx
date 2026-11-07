@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-interface MemberType { id: string; name: string }
+interface MemberType { id: string; name: string; bg_color: string | null; text_color: string | null }
 interface Member {
     id: string; name: string; date_of_birth: string | null
     is_active: boolean; user_id: string | null; member_type: MemberType
@@ -168,6 +168,11 @@ export default function HouseholdPage() {
     const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set())
 
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
+    const [accountView, setAccountView] = useState<'icon' | 'list'>('icon')
+    const [filterOwnership, setFilterOwnership] = useState('all')
+    const [filterAccType, setFilterAccType] = useState('all')
+    const [filterInstType, setFilterInstType] = useState('all')
+    const [filterNetWorth, setFilterNetWorth] = useState('all')
 
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
@@ -524,6 +529,7 @@ export default function HouseholdPage() {
     }
 
     const myMember = members.find(m => m.user_id === currentUserId)
+    const earners = members.filter(m => m.contributes_income)
     const visibleMembers = isMeMode ? members.filter(m => m.user_id === currentUserId) : members
     const visibleAccounts = (isMeMode || myAccountsOnly)
         ? accounts.filter(a =>
@@ -531,15 +537,144 @@ export default function HouseholdPage() {
             (a.ownership === 'individual' && a.household_member_id === myMember?.id)
           )
         : accounts
+    const filteredAccounts = visibleAccounts
+        .filter(a => filterOwnership === 'all' || a.ownership === filterOwnership)
+        .filter(a => filterAccType === 'all' || a.account_type === filterAccType)
+        .filter(a => filterInstType === 'all' || a.institution_type === filterInstType)
+        .filter(a => filterNetWorth === 'all' ||
+            (filterNetWorth === 'yes' ? a.contributes_to_net_worth : !a.contributes_to_net_worth))
+
+    const spouseGroup = visibleMembers
+        .filter(m => /spouse|partner|husband|wife/i.test(m.member_type.name))
+        .sort((a, b) => {
+            const rank = (n: string) => /husband/i.test(n) ? 0 : /wife/i.test(n) ? 1 : 2
+            return rank(a.member_type.name) - rank(b.member_type.name)
+        })
+    const kidGroup    = visibleMembers.filter(m => /kid|child|son|daughter/i.test(m.member_type.name))
+    const otherGroup  = visibleMembers.filter(m => !/spouse|partner|husband|wife|kid|child|son|daughter/i.test(m.member_type.name))
+    const memberOrder = [...spouseGroup, ...kidGroup, ...otherGroup]
+
+    const memberCard = (member: (typeof members)[number], idx: number) => (
+        <div key={member.id}
+            className="relative bg-white rounded-3xl p-5 border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div className="absolute top-0 left-0 right-0 h-1 rounded-t-3xl"
+                style={{ background: GRADIENTS[idx % GRADIENTS.length] }} />
+            <div className="flex items-start justify-between mt-1">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
+                        style={{ background: GRADIENTS[idx % GRADIENTS.length] }}>
+                        {member.name.charAt(0)}
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-900">{member.name}</p>
+                            {member.user_id === currentUserId && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
+                                    style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+                                    You
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">{member.member_type.name}
+                            {member.date_of_birth ? ` · ${member.date_of_birth}` : ''}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button onClick={() => openEditMember(member)}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                        <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => deleteMember(member.id)}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            </div>
+            {member.user_id && (() => {
+                const linkedUser = systemUsers.find(u => u.id === member.user_id)
+                return (
+                    <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                        <Link className="h-3 w-3" />
+                        <span>{linkedUser ? (linkedUser.name || linkedUser.email) : 'Linked to system user'}</span>
+                    </div>
+                )
+            })()}
+            <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                <button
+                    onClick={() => toggleIncome(member)}
+                    className="flex items-center justify-between w-full">
+                    <span className="text-xs font-semibold text-slate-500">Contributes to income</span>
+                    <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${member.contributes_income ? 'left-4' : 'left-0.5'}`} />
+                    </div>
+                </button>
+                {member.contributes_income && (
+                    <>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-600 font-medium">
+                                {member.income_amount
+                                    ? `${member.income_currency} ${Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / ${member.income_cadence}`
+                                    : <span className="text-slate-400 italic">Not set</span>
+                                }
+                            </span>
+                            <button
+                                onClick={() => openIncomeDialog(member)}
+                                className="text-xs font-semibold text-sky-500 hover:text-sky-700 transition-colors">
+                                {member.income_amount ? 'Edit' : 'Set income'}
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => toggleHistory(member)}
+                            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                            {loadingHistory === member.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <History className="h-3 w-3" />}
+                            <span>Income history</span>
+                            {expandedHistory.has(member.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        {expandedHistory.has(member.id) && (
+                            <div className="mt-1 rounded-xl bg-slate-50 border border-slate-100 divide-y divide-slate-100 text-xs">
+                                {(incomeHistories[member.id] ?? []).length === 0 ? (
+                                    <p className="px-3 py-2 text-slate-400">No history yet.</p>
+                                ) : (incomeHistories[member.id] ?? []).map(h => {
+                                    const icon = h.change_type === 'increase' ? <ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                        : h.change_type === 'decrease' ? <ArrowDownCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                                        : <RotateCcw className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                    return (
+                                        <div key={h.id} className="flex items-start gap-2 px-3 py-2">
+                                            {icon}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-slate-700">
+                                                    {h.income_currency} {Number(h.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {h.income_cadence}
+                                                </p>
+                                                <p className="text-slate-400">
+                                                    Effective {new Date(h.effective_from).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}
+                                                </p>
+                                                {h.change_reason && <p className="text-slate-500 truncate">{h.change_reason}</p>}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    )
 
     return (
-        <div className="max-w-4xl space-y-8">
+        <div className="space-y-6">
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Your Household</p>
                     <h1 className="text-4xl font-black text-slate-900 leading-tight">{household.name}</h1>
-                    <p className="text-slate-400 mt-1">{members.length} members · {accounts.length} accounts</p>
+                    <p className="text-slate-400 mt-1 text-sm">
+                        {members.length} member{members.length !== 1 ? 's' : ''} · {earners.length} earner{earners.length !== 1 ? 's' : ''} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+                    </p>
                 </div>
                 <button onClick={() => { setEditHouseholdName(household.name); setEditHouseholdDialog(true) }}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition-all">
@@ -547,39 +682,152 @@ export default function HouseholdPage() {
                 </button>
             </div>
 
-            {/* Member Types */}
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-900">Member Types</h2>
-                        <p className="text-sm text-slate-400">Roles in your household</p>
-                    </div>
-                    <button onClick={() => setMemberTypeDialog(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
-                        <Plus className="h-3.5 w-3.5" /> Add
-                    </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {household.member_types.map(type => (
-                        <div key={type.id}
-                            className="flex items-center gap-2 pl-4 pr-3 py-2 bg-white rounded-2xl border border-slate-200 hover:border-slate-300 transition-all group"
-                            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                            <span className="text-sm font-semibold text-slate-700">{type.name}</span>
-                            <button onClick={() => deleteMemberType(type.id)}
-                                className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all">
-                                <Trash2 className="h-3 w-3" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {/* Row 1: Roles + Income */}
+            <div className="grid grid-cols-2 gap-6">
 
-            {/* Members */}
+                {/* Member Roles */}
+                <div className="bg-white rounded-3xl p-5 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900">Member Roles</h2>
+                            <p className="text-xs text-slate-400">Types in your household</p>
+                        </div>
+                        <button onClick={() => setMemberTypeDialog(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
+                            <Plus className="h-3.5 w-3.5" /> Add
+                        </button>
+                    </div>
+                    {household.member_types.length === 0 ? (
+                        <p className="text-sm text-slate-400 py-1">No roles yet. Add one to get started.</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {household.member_types.map(type => {
+                                const bg = type.bg_color ?? '#f1f5f9'
+                                const col = type.text_color ?? '#334155'
+                                return (
+                                    <div key={type.id}
+                                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all"
+                                        style={{ background: bg, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                                        <span className="text-sm font-semibold" style={{ color: col }}>{type.name}</span>
+                                        <button onClick={() => deleteMemberType(type.id)}
+                                            className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all">
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Household Income */}
+                {(() => {
+                    const incomeMembers = members.filter(m =>
+                        m.contributes_income && m.income_amount &&
+                        (!isMeMode || m.user_id === currentUserId)
+                    )
+                    const totals: Record<string, number> = {}
+                    for (const m of incomeMembers) {
+                        const currency = m.income_currency ?? 'KES'
+                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                        totals[currency] = (totals[currency] ?? 0) + monthly
+                    }
+                    const rawTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
+                    return (
+                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="p-5 border-b border-slate-50">
+                                <h2 className="text-base font-bold text-slate-900">Household Income</h2>
+                                <p className="text-xs text-slate-400">Monthly income across all members</p>
+                            </div>
+                            {incomeMembers.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center p-10 text-center">
+                                    <TrendingUp className="h-8 w-8 text-slate-200 mb-3" />
+                                    <p className="text-sm text-slate-400 font-medium">No earners yet</p>
+                                    <p className="text-xs text-slate-300 mt-1">Enable income on a member below</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="p-5 flex items-center gap-5 border-b border-slate-50">
+                                        <DonutChart
+                                            slices={incomeMembers.map((m, i) => ({
+                                                color: CHART_COLORS[i % CHART_COLORS.length],
+                                                pct: rawTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawTotal : 1 / incomeMembers.length,
+                                            }))}
+                                            centerLabel={String(incomeMembers.length)}
+                                            centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
+                                        />
+                                        <div className="flex-1 space-y-2.5 min-w-0">
+                                            {incomeMembers.map((m, i) => {
+                                                const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                                                const pct = rawTotal > 0 ? (monthly / rawTotal) * 100 : 100 / incomeMembers.length
+                                                return (
+                                                    <div key={m.id} className="flex items-center gap-2 min-w-0">
+                                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                            style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                        <p className="text-xs font-semibold text-slate-700 truncate flex-1 min-w-0">{m.name}</p>
+                                                        <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {incomeMembers.map((member, i) => {
+                                            const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
+                                            const currency = member.income_currency ?? 'KES'
+                                            return (
+                                                <div key={member.id} className="flex items-center justify-between px-5 py-3.5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                            style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                            {member.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-slate-800 text-sm">{member.name}</p>
+                                                            <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-slate-900 text-sm">
+                                                            {fmtMoney(Number(member.income_amount), currency)}
+                                                            <span className="text-xs font-normal text-slate-400"> / {member.income_cadence}</span>
+                                                        </p>
+                                                        {member.income_cadence !== 'monthly' && (
+                                                            <p className="text-xs text-slate-400">{fmtMoney(monthly, currency)} / mo</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="px-5 py-4 border-t border-slate-100"
+                                        style={{ background: 'linear-gradient(135deg, #f0f9ff, #f5f3ff)' }}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
+                                            <div className="text-right">
+                                                {Object.entries(totals).map(([currency, total]) => (
+                                                    <p key={currency} className="font-black text-slate-900 text-base">
+                                                        {fmtMoney(total, currency)}
+                                                        <span className="text-xs font-normal text-slate-500 ml-1">/ mo</span>
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )
+                })()}
+
+            </div>{/* end Row 1 */}
+
+            {/* Row 2: Members */}
             <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-900">Members</h2>
-                        <p className="text-sm text-slate-400">People in your household</p>
+                        <h2 className="text-base font-bold text-slate-900">Members</h2>
+                        <p className="text-xs text-slate-400">People in your household</p>
                     </div>
                     <button onClick={() => { loadSystemUsers(); setMemberDialog(true) }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
@@ -594,234 +842,33 @@ export default function HouseholdPage() {
                         <p className="text-sm text-slate-400 font-medium">Add your first member</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {visibleMembers.map((member, i) => (
-                            <div key={member.id}
-                                className="relative bg-white rounded-3xl p-5 border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
-                                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                                <div className="absolute top-0 left-0 right-0 h-1 rounded-t-3xl"
-                                    style={{ background: GRADIENTS[i % GRADIENTS.length] }} />
-                                <div className="flex items-start justify-between mt-1">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0"
-                                            style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                            {member.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-slate-900">{member.name}</p>
-                                                {member.user_id === currentUserId && (
-                                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
-                                                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
-                                                        You
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-0.5">{member.member_type.name}
-                                                {member.date_of_birth ? ` · ${member.date_of_birth}` : ''}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <button onClick={() => openEditMember(member)}
-                                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                                            <Pencil className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button onClick={() => deleteMember(member.id)}
-                                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                                {member.user_id && (() => {
-                                    const linkedUser = systemUsers.find(u => u.id === member.user_id)
-                                    return (
-                                        <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-                                            <Link className="h-3 w-3" />
-                                            <span>{linkedUser ? (linkedUser.name || linkedUser.email) : 'Linked to system user'}</span>
-                                        </div>
-                                    )
-                                })()}
-
-                                {/* Income section */}
-                                <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
-                                    <button
-                                        onClick={() => toggleIncome(member)}
-                                        className="flex items-center justify-between w-full">
-                                        <span className="text-xs font-semibold text-slate-500">Contributes to income</span>
-                                        <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200'}`}>
-                                            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${member.contributes_income ? 'left-4' : 'left-0.5'}`} />
-                                        </div>
-                                    </button>
-
-                                    {member.contributes_income && (
-                                        <>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-slate-600 font-medium">
-                                                    {member.income_amount
-                                                        ? `${member.income_currency} ${Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / ${member.income_cadence}`
-                                                        : <span className="text-slate-400 italic">Not set</span>
-                                                    }
-                                                </span>
-                                                <button
-                                                    onClick={() => openIncomeDialog(member)}
-                                                    className="text-xs font-semibold text-sky-500 hover:text-sky-700 transition-colors">
-                                                    {member.income_amount ? 'Edit' : 'Set income'}
-                                                </button>
-                                            </div>
-                                            {/* Income history toggle */}
-                                            <button
-                                                onClick={() => toggleHistory(member)}
-                                                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors">
-                                                {loadingHistory === member.id
-                                                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                                                    : <History className="h-3 w-3" />}
-                                                <span>Income history</span>
-                                                {expandedHistory.has(member.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                            </button>
-                                            {expandedHistory.has(member.id) && (
-                                                <div className="mt-1 rounded-xl bg-slate-50 border border-slate-100 divide-y divide-slate-100 text-xs">
-                                                    {(incomeHistories[member.id] ?? []).length === 0 ? (
-                                                        <p className="px-3 py-2 text-slate-400">No history yet.</p>
-                                                    ) : (incomeHistories[member.id] ?? []).map(h => {
-                                                        const icon = h.change_type === 'increase' ? <ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                                            : h.change_type === 'decrease' ? <ArrowDownCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-                                                            : <RotateCcw className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                        return (
-                                                            <div key={h.id} className="flex items-start gap-2 px-3 py-2">
-                                                                {icon}
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="font-semibold text-slate-700">
-                                                                        {h.income_currency} {Number(h.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {h.income_cadence}
-                                                                    </p>
-                                                                    <p className="text-slate-400">
-                                                                        Effective {new Date(h.effective_from).toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}
-                                                                    </p>
-                                                                    {h.change_reason && <p className="text-slate-500 truncate">{h.change_reason}</p>}
-                                                                </div>
-                                                            </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
+                    <div className="space-y-4">
+                        {spouseGroup.length > 0 && (
+                            <div className="grid grid-cols-2 gap-4">
+                                {spouseGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
                             </div>
-                        ))}
+                        )}
+                        {kidGroup.length > 0 && (
+                            <div className="grid grid-cols-2 gap-4">
+                                {kidGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
+                            </div>
+                        )}
+                        {otherGroup.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                {otherGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
+                            </div>
+                        )}
                     </div>
                 )}
-            </div>
+            </div>{/* end Members */}
 
-            {/* Income Summary */}
-            {(() => {
-                const incomeMembers = members.filter(m =>
-                    m.contributes_income && m.income_amount &&
-                    (!isMeMode || m.user_id === currentUserId)
-                )
-                if (incomeMembers.length === 0) return null
-
-                // Group totals by currency
-                const totals: Record<string, number> = {}
-                for (const m of incomeMembers) {
-                    const currency = m.income_currency ?? 'KES'
-                    const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                    totals[currency] = (totals[currency] ?? 0) + monthly
-                }
-                const rawTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
-
-                return (
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h2 className="text-lg font-bold text-slate-900">Household Income</h2>
-                                <p className="text-sm text-slate-400">Monthly income across all members</p>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            {/* Donut chart */}
-                            <div className="p-5 flex items-center gap-5 border-b border-slate-50">
-                                <DonutChart
-                                    slices={incomeMembers.map((m, i) => ({
-                                        color: CHART_COLORS[i % CHART_COLORS.length],
-                                        pct: rawTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawTotal : 1 / incomeMembers.length,
-                                    }))}
-                                    centerLabel={String(incomeMembers.length)}
-                                    centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
-                                />
-                                <div className="flex-1 space-y-2.5 min-w-0">
-                                    {incomeMembers.map((m, i) => {
-                                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                                        const pct = rawTotal > 0 ? (monthly / rawTotal) * 100 : 100 / incomeMembers.length
-                                        return (
-                                            <div key={m.id} className="flex items-center gap-2 min-w-0">
-                                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                    style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                                <p className="text-xs font-semibold text-slate-700 truncate flex-1 min-w-0">{m.name}</p>
-                                                <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                            {/* Per-member rows */}
-                            <div className="divide-y divide-slate-50">
-                                {incomeMembers.map((member, i) => {
-                                    const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
-                                    const currency = member.income_currency ?? 'KES'
-                                    return (
-                                        <div key={member.id} className="flex items-center justify-between px-5 py-3.5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                                    style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                                    {member.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-slate-800 text-sm">{member.name}</p>
-                                                    <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-bold text-slate-900 text-sm">
-                                                    {fmtMoney(Number(member.income_amount), currency)}
-                                                    <span className="text-xs font-normal text-slate-400"> / {member.income_cadence}</span>
-                                                </p>
-                                                {member.income_cadence !== 'monthly' && (
-                                                    <p className="text-xs text-slate-400">{fmtMoney(monthly, currency)} / mo</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            {/* Total footer */}
-                            <div className="px-5 py-4 border-t border-slate-100"
-                                style={{ background: 'linear-gradient(135deg, #f0f9ff, #f5f3ff)' }}>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
-                                    <div className="text-right">
-                                        {Object.entries(totals).map(([currency, total]) => (
-                                            <p key={currency} className="font-black text-slate-900 text-base">
-                                                {fmtMoney(total, currency)}
-                                                <span className="text-xs font-normal text-slate-500 ml-1">/ mo</span>
-                                            </p>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            })()}
-
-            {/* Accounts */}
+            {/* Row 3: Accounts */}
             <div>
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-900">Accounts</h2>
-                        <p className="text-sm text-slate-400">Bank and cash accounts</p>
-                    </div>
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900">Accounts</h2>
+                            <p className="text-xs text-slate-400">Bank and cash accounts</p>
+                        </div>
                     <div className="flex items-center gap-2">
                         {!isMeMode && (
                             <div className="flex items-center bg-slate-100 rounded-xl p-1">
@@ -835,6 +882,16 @@ export default function HouseholdPage() {
                                 </button>
                             </div>
                         )}
+                        <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                            <button onClick={() => setAccountView('icon')}
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'icon' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <LayoutGrid className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => setAccountView('list')}
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                <List className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                         <button onClick={() => setAccountDialog(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
                             <Plus className="h-3.5 w-3.5" /> Add Account
@@ -842,24 +899,56 @@ export default function HouseholdPage() {
                     </div>
                 </div>
 
-                {visibleAccounts.length > 0 && (() => {
+                {/* Account filters */}
+                {(() => {
+                    const chip = (active: boolean, onClick: () => void, label: React.ReactNode) => (
+                        <button key={String(label)} onClick={onClick}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                            {label}
+                        </button>
+                    )
+                    return (
+                        <div className="mb-4 space-y-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {chip(filterOwnership === 'all', () => setFilterOwnership('all'), 'All')}
+                                {chip(filterOwnership === 'joint', () => setFilterOwnership('joint'), 'Joint')}
+                                {chip(filterOwnership === 'individual', () => setFilterOwnership('individual'), 'Individual')}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {chip(filterAccType === 'all', () => setFilterAccType('all'), 'All types')}
+                                {ACCOUNT_TYPES.map(t => chip(filterAccType === t.value, () => setFilterAccType(t.value), <>{t.icon} {t.label}</>))}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {chip(filterInstType === 'all', () => setFilterInstType('all'), 'All institutions')}
+                                {INSTITUTION_TYPES.map(t => chip(filterInstType === t.value, () => setFilterInstType(t.value), <>{t.icon} {t.label}</>))}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {chip(filterNetWorth === 'all', () => setFilterNetWorth('all'), 'All')}
+                                {chip(filterNetWorth === 'yes', () => setFilterNetWorth('yes'), '✓ Net Worth')}
+                                {chip(filterNetWorth === 'no', () => setFilterNetWorth('no'), '✗ Net Worth')}
+                            </div>
+                        </div>
+                    )
+                })()}
+
+                {filteredAccounts.length > 0 && (() => {
                     const TYPE_COLORS  = ['bg-sky-400','bg-emerald-400','bg-amber-400','bg-rose-400','bg-slate-400']
                     const INST_COLORS  = ['bg-sky-500','bg-teal-400','bg-blue-400','bg-purple-400','bg-orange-400','bg-indigo-400','bg-pink-400']
                     const ownershipItems = [
-                        { label: 'Joint',      color: 'bg-sky-400',    count: visibleAccounts.filter(a => a.ownership === 'joint').length },
-                        { label: 'Individual', color: 'bg-violet-400', count: visibleAccounts.filter(a => a.ownership === 'individual').length },
+                        { label: 'Joint',      color: 'bg-sky-400',    count: filteredAccounts.filter(a => a.ownership === 'joint').length },
+                        { label: 'Individual', color: 'bg-violet-400', count: filteredAccounts.filter(a => a.ownership === 'individual').length },
                     ].filter(g => g.count > 0)
                     const typeItems = ACCOUNT_TYPES.map((t, i) => ({
                         label: t.label, color: TYPE_COLORS[i] ?? 'bg-slate-300',
-                        count: visibleAccounts.filter(a => a.account_type === t.value).length,
+                        count: filteredAccounts.filter(a => a.account_type === t.value).length,
                     })).filter(g => g.count > 0)
                     const instItems = [
                         ...INSTITUTION_TYPES.map((t, i) => ({
                             label: t.label, color: INST_COLORS[i] ?? 'bg-slate-300',
-                            count: visibleAccounts.filter(a => a.institution_type === t.value).length,
+                            count: filteredAccounts.filter(a => a.institution_type === t.value).length,
                         })).filter(g => g.count > 0),
-                        ...(visibleAccounts.filter(a => !a.institution_type).length > 0
-                            ? [{ label: 'Untagged', color: 'bg-slate-200', count: visibleAccounts.filter(a => !a.institution_type).length }]
+                        ...(filteredAccounts.filter(a => !a.institution_type).length > 0
+                            ? [{ label: 'Untagged', color: 'bg-slate-200', count: filteredAccounts.filter(a => !a.institution_type).length }]
                             : []),
                     ]
                     const Bar = ({ items }: { items: { label: string; count: number; color: string }[] }) => {
@@ -900,7 +989,7 @@ export default function HouseholdPage() {
                     )
                 })()}
 
-                {visibleAccounts.length === 0 ? (
+                {filteredAccounts.length === 0 ? (
                     <div onClick={() => setAccountDialog(true)}
                         className="flex flex-col items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-sky-300 hover:bg-sky-50 transition-all">
                         <Wallet className="h-6 w-6 text-slate-300 mb-2" />
@@ -908,9 +997,66 @@ export default function HouseholdPage() {
                             {myAccountsOnly ? 'No accounts linked to you' : 'Add your first account'}
                         </p>
                     </div>
+                ) : accountView === 'icon' ? (
+                    <div className="grid grid-cols-3 gap-4">
+                        {filteredAccounts.map((account, i) => (
+                            <div key={account.id}
+                                className="bg-white rounded-3xl border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all overflow-hidden group"
+                                style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                <div className="h-1 rounded-t-3xl" style={{ background: GRADIENTS[(i + 2) % GRADIENTS.length] }} />
+                                <div className="p-4 flex flex-col items-center text-center">
+                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-3 mt-1"
+                                        style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
+                                        {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
+                                    </div>
+                                    <p className="font-bold text-slate-900 text-sm leading-tight mb-0.5 truncate w-full">{account.name}</p>
+                                    <p className="text-xs text-slate-400 mb-2">{ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type}</p>
+                                    <p className="font-black text-slate-900 text-sm">
+                                        {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </p>
+                                    {account.currency !== 'KES' && (() => {
+                                        const kes = toKES(Number(account.current_balance), account.currency, fxRates)
+                                        return kes != null ? <p className="text-xs text-slate-400">≈ KES {kes.toLocaleString('en-KE', { minimumFractionDigits: 0 })}</p> : null
+                                    })()}
+                                    {(account.contributes_to_liquid_cash || account.contributes_to_net_worth) && (
+                                        <div className="flex gap-1 mt-2 flex-wrap justify-center">
+                                            {account.contributes_to_liquid_cash && (
+                                                <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">Liquid</span>
+                                            )}
+                                            {account.contributes_to_net_worth && (
+                                                <span className="px-1.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">Net Worth</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="px-3 pb-3 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openTxnDialog(account)} title="Add entry"
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                        <Plus className="h-3 w-3" />
+                                    </button>
+                                    <button onClick={() => openEditAccount(account)} title="Edit"
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                        <Pencil className="h-3 w-3" />
+                                    </button>
+                                    <button onClick={() => deleteAccount(account.id)} title="Delete"
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                        <Trash2 className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        <button onClick={() => setAccountDialog(true)}
+                            className="rounded-3xl border-2 border-dashed border-slate-200 hover:border-sky-300 hover:bg-sky-50 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer group"
+                            style={{ minHeight: '180px' }}>
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-sky-100 flex items-center justify-center transition-all">
+                                <Plus className="h-5 w-5 text-slate-300 group-hover:text-sky-500 transition-all" />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-400 group-hover:text-sky-500 transition-all">Add Account</span>
+                        </button>
+                    </div>
                 ) : (
                     <div className="space-y-3">
-                        {visibleAccounts.map((account, i) => {
+                        {filteredAccounts.map((account, i) => {
                             const owner = members.find(m => m.id === account.household_member_id)
                             const isExpanded = expandedAccountId === account.id
                             const txns = accountTxns[account.id] ?? []
@@ -1111,9 +1257,14 @@ export default function HouseholdPage() {
                                 </div>
                             )
                         })}
+                        <button onClick={() => setAccountDialog(true)}
+                            className="w-full flex items-center justify-center gap-2 py-4 rounded-3xl border-2 border-dashed border-slate-200 hover:border-sky-300 hover:bg-sky-50 transition-all text-slate-400 hover:text-sky-500 group">
+                            <Plus className="h-4 w-4 group-hover:text-sky-500 transition-all" />
+                            <span className="text-sm font-semibold">Add Account</span>
+                        </button>
                     </div>
                 )}
-            </div>
+            </div>{/* end accounts */}
 
             {/* ── Dialogs ─────────────────────────────────────── */}
 
