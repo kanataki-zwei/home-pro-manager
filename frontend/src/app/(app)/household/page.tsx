@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
+import { useTheme } from '@/context/ThemeContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
 import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List } from 'lucide-react'
@@ -90,13 +91,14 @@ function DonutChart({ slices, centerLabel, centerSub }: {
     centerLabel: string
     centerSub: string
 }) {
+    const { theme } = useTheme()
     const r = 40, cx = 56, cy = 56, sw = 13
     const C = 2 * Math.PI * r
     let cumulative = 0
     return (
         <div className="relative w-28 h-28 flex-shrink-0">
             <svg width="112" height="112" viewBox="0 0 112 112" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={sw} />
+                <circle cx={cx} cy={cy} r={r} fill="none" stroke={theme === 'dark' ? '#334155' : '#f1f5f9'} strokeWidth={sw} />
                 {slices.map((sl, i) => {
                     const dash = sl.pct * C
                     const offset = -cumulative
@@ -110,7 +112,7 @@ function DonutChart({ slices, centerLabel, centerSub }: {
                 })}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                <p className="text-2xl font-black text-slate-900 leading-none">{centerLabel}</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{centerLabel}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{centerSub}</p>
             </div>
         </div>
@@ -504,7 +506,7 @@ export default function HouseholdPage() {
                             style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
                             🏠
                         </div>
-                        <h1 className="text-3xl font-bold text-slate-900">Your Household</h1>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Your Household</h1>
                         <p className="text-slate-400 mt-2">Give your household a name to begin</p>
                     </div>
                     <div className="bg-white rounded-3xl p-8 border border-slate-100"
@@ -806,7 +808,7 @@ export default function HouseholdPage() {
                                             <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
                                             <div className="text-right">
                                                 {Object.entries(totals).map(([currency, total]) => (
-                                                    <p key={currency} className="font-black text-slate-900 text-base">
+                                                    <p key={currency} className="font-black text-slate-900 dark:text-white text-base">
                                                         {fmtMoney(total, currency)}
                                                         <span className="text-xs font-normal text-slate-500 ml-1">/ mo</span>
                                                     </p>

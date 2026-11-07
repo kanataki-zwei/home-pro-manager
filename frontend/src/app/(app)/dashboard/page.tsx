@@ -206,7 +206,7 @@ export default function DashboardPage() {
             {/* Header */}
             <div>
                 <span className="text-xs font-semibold uppercase tracking-widest text-sky-500">Overview</span>
-                <h1 className="text-3xl font-bold text-slate-900 mt-1">{household.name}</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white mt-1">{household.name}</h1>
                 <p className="text-slate-400 mt-1 text-sm">Here's your household at a glance</p>
             </div>
 
@@ -311,7 +311,7 @@ export default function DashboardPage() {
                         const extraColor = extraRate >= 20 ? '#10b981' : extraRate >= 10 ? '#f59e0b' : '#ef4444'
 
                         return (
-                            <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5"
                                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -361,7 +361,7 @@ export default function DashboardPage() {
 
                                 {/* Breakdown: salary / extra / total */}
                                 {current && salaryIncome > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 space-y-2">
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="text-slate-400">Salary</span>
                                             <div className="flex items-center gap-1.5">
@@ -380,7 +380,7 @@ export default function DashboardPage() {
                                                         <span className="text-slate-500">{fmtCompact(extraInc)} extra</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                                                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-700">
                                                     <span className="text-slate-500 font-semibold">Total</span>
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="font-bold" style={{ color }}>{rate.toFixed(1)}%</span>
@@ -444,13 +444,13 @@ export default function DashboardPage() {
                         }
 
                         return (
-                            <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5"
                                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{monthName}</p>
                                         <div className="flex items-center gap-2">
-                                            <p className="text-xl font-black text-slate-900">{cs.paid_count}/{cs.item_count} resolved</p>
+                                            <p className="text-xl font-black text-slate-900 dark:text-white">{cs.paid_count}/{cs.item_count} resolved</p>
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${statusColors[cs.status] ?? 'bg-slate-100 text-slate-600'}`}>
                                                 {cs.status}
                                             </span>
@@ -467,9 +467,9 @@ export default function DashboardPage() {
                                         <span>{fmt(cs.paid_amount)} resolved</span>
                                         <span>{fmt(cs.total_budgeted)} budgeted</span>
                                     </div>
-                                    <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="relative h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                         {/* Time elapsed ghost bar */}
-                                        <div className="absolute inset-y-0 left-0 bg-slate-200 rounded-full"
+                                        <div className="absolute inset-y-0 left-0 bg-slate-200 dark:bg-slate-600 rounded-full"
                                             style={{ width: `${(timePct * 100).toFixed(1)}%` }} />
                                         {/* Paid bar on top */}
                                         <div className={`absolute inset-y-0 left-0 rounded-full transition-all ${paidPct > timePct + 0.1 ? 'bg-emerald-400' : paidPct < timePct - 0.15 ? 'bg-red-400' : 'bg-sky-400'}`}
@@ -489,7 +489,7 @@ export default function DashboardPage() {
                                     const todoAmount = cs.total_budgeted - cs.paid_amount
                                     if (todoCount === 0 && cs.na_count === 0) return null
                                     return (
-                                        <div className="mt-2 border-t border-slate-100 pt-2">
+                                        <div className="mt-2 border-t border-slate-100 dark:border-slate-700 pt-2">
                                             <button
                                                 onClick={() => setPendingExpanded(v => !v)}
                                                 className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-600 transition-colors"
@@ -548,7 +548,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-4 gap-4 items-start">
 
                 {/* Members — expandable */}
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <button
                         className="w-full p-5 text-left"
@@ -564,14 +564,14 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex items-end justify-between">
                             <div>
-                                <p className="text-xl font-black text-slate-900">{visibleMembers.length}</p>
+                                <p className="text-xl font-black text-slate-900 dark:text-white">{visibleMembers.length}</p>
                                 <p className="text-xs text-slate-400 mt-1">{membersExpanded ? 'Hide members' : 'Show members'}</p>
                             </div>
                             {membersExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 mb-0.5" /> : <ChevronDown className="h-4 w-4 text-slate-400 mb-0.5" />}
                         </div>
                     </button>
                     {membersExpanded && visibleMembers.length > 0 && (
-                        <div className="border-t border-slate-100 divide-y divide-slate-50">
+                        <div className="border-t border-slate-100 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                             {visibleMembers.map((m, i) => (
                                 <div key={m.id} className="flex items-center gap-2 px-5 py-2.5">
                                     <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
@@ -592,7 +592,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Months Tracked */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Months Tracked</p>
@@ -600,12 +600,12 @@ export default function DashboardPage() {
                             <CalendarDays className="h-4 w-4 text-violet-500" />
                         </div>
                     </div>
-                    <p className="text-xl font-black text-slate-900">{monthsTracked}</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white">{monthsTracked}</p>
                     <p className="text-xs text-slate-400 mt-1">{monthsTracked === 0 ? 'No sessions yet' : `${sessions.filter(s => s.status === 'closed').length} closed`}</p>
                 </div>
 
                 {/* Budgeted / mo */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Budgeted / mo</p>
@@ -613,12 +613,12 @@ export default function DashboardPage() {
                             <Wallet className="h-4 w-4 text-amber-500" />
                         </div>
                     </div>
-                    <p className="text-xl font-black text-slate-900">{fmtCompact(totalBudgeted)}</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white">{fmtCompact(totalBudgeted)}</p>
                     <p className="text-xs text-slate-400 mt-1">{totalIncome > 0 ? `${budgetPct.toFixed(0)}% of income` : 'No income set'}</p>
                 </div>
 
                 {/* Amount Not Budgeted */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Amount Not Budgeted</p>
@@ -626,7 +626,7 @@ export default function DashboardPage() {
                             <TrendingUp className={`h-4 w-4 ${isOver ? 'text-red-500' : 'text-emerald-500'}`} />
                         </div>
                     </div>
-                    <p className="text-xl font-black text-slate-900">{fmtCompact(Math.abs(netRemaining))}</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white">{fmtCompact(Math.abs(netRemaining))}</p>
                     <p className="text-xs text-slate-400 mt-1">{isOver ? 'over budget' : 'unallocated'}</p>
                 </div>
 
@@ -636,7 +636,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-4">
 
                 {/* Income contributors */}
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Income Breakdown</p>
@@ -662,7 +662,7 @@ export default function DashboardPage() {
                                     })}
                                 </div>
                             </div>
-                            <div className="divide-y divide-slate-50">
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
                                 {incomeMembers.map((m, i) => {
                                     const income = toMonthly(m.income_amount, m.income_cadence)
                                     const pct = totalIncome > 0 ? ((income / totalIncome) * 100).toFixed(0) : '—'
@@ -676,13 +676,13 @@ export default function DashboardPage() {
                                                 <p className="text-sm font-semibold text-slate-800 truncate">{m.name}</p>
                                                 <p className="text-xs text-slate-400">{m.member_type.name} · {pct}% of household</p>
                                             </div>
-                                            <p className="text-sm font-bold text-slate-900 flex-shrink-0">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
                                         </div>
                                     )
                                 })}
-                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50">
+                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</p>
-                                    <p className="text-sm font-black text-slate-900">{fmt(totalIncome)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalIncome)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
                                 </div>
                             </div>
                         </>
@@ -690,7 +690,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Tag breakdown */}
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses by Tag</p>
@@ -718,7 +718,7 @@ export default function DashboardPage() {
                                     ))}
                                 </div>
                             </div>
-                            <div className="divide-y divide-slate-50">
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
                                 {allTagRows.map(row => (
                                     <div key={row.id} className="flex items-center gap-3 px-5 py-3">
                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color || '#6366f1' }} />
@@ -726,14 +726,14 @@ export default function DashboardPage() {
                                         <p className="text-xs text-slate-400 w-10 text-right">
                                             {((row.total / totalBudgeted) * 100).toFixed(1)}%
                                         </p>
-                                        <p className="text-sm font-bold text-slate-900 w-28 text-right">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white w-28 text-right">
                                             {fmtCompact(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                         </p>
                                     </div>
                                 ))}
-                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50">
+                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total budgeted</p>
-                                    <p className="text-sm font-black text-slate-900">{fmt(totalBudgeted)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalBudgeted)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
                                 </div>
                             </div>
                         </>
@@ -743,7 +743,7 @@ export default function DashboardPage() {
 
             {/* Budget allocation bar */}
             {totalIncome > 0 && totalBudgeted > 0 && (
-                <div className="bg-white rounded-2xl p-5 border border-slate-100"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget vs Income</p>
@@ -751,7 +751,7 @@ export default function DashboardPage() {
                             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">🎯 Zero budgeted</span>
                         )}
                     </div>
-                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden mb-2">
+                    <div className="h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
                         <div className={`h-full rounded-full transition-all ${isOver ? 'bg-red-400' : budgetPct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                             style={{ width: `${budgetPct}%` }} />
                     </div>
@@ -770,7 +770,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-widest text-sky-500">Goals</p>
-                            <h2 className="font-bold text-slate-900 text-lg mt-0.5">Savings Targets</h2>
+                            <h2 className="font-bold text-slate-900 dark:text-white text-lg mt-0.5">Savings Targets</h2>
                         </div>
                         <Link href="/household" className="text-sm text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
                             Manage <ArrowUpRight className="h-3 w-3" />
@@ -833,11 +833,11 @@ export default function DashboardPage() {
                                     </div>
 
                                     {/* White stats body */}
-                                    <div className="bg-white px-5 py-4">
-                                        <div className="grid grid-cols-3 divide-x divide-slate-100">
+                                    <div className="bg-white dark:bg-slate-800 px-5 py-4">
+                                        <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-700">
                                             <div className="pr-4">
                                                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Remaining</p>
-                                                <p className="text-sm font-black text-slate-800">
+                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">
                                                     {isReached ? <span className="text-emerald-600">Done!</span> : fmtCompact(remaining)}
                                                 </p>
                                             </div>
@@ -853,7 +853,7 @@ export default function DashboardPage() {
                                                 {isReached
                                                     ? <p className="text-sm font-black text-emerald-600">Reached</p>
                                                     : monthsToTarget !== null
-                                                        ? <p className="text-sm font-black text-slate-800">{monthsToTarget} <span className="text-xs font-normal text-slate-400">months</span></p>
+                                                        ? <p className="text-sm font-black text-slate-800 dark:text-slate-200">{monthsToTarget} <span className="text-xs font-normal text-slate-400">months</span></p>
                                                         : <p className="text-sm font-black text-slate-300">—</p>
                                                 }
                                             </div>
@@ -869,17 +869,17 @@ export default function DashboardPage() {
             {/* Accounts list */}
             <div>
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-bold text-slate-900 text-lg">Accounts</h2>
+                    <h2 className="font-bold text-slate-900 dark:text-white text-lg">Accounts</h2>
                     <div className="flex items-center gap-3">
                         {!isMeMode && (
-                            <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                            <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                                 <button
                                     onClick={() => setMyAccountsOnly(false)}
-                                    className={`px-3 py-1.5 rounded-lg transition-all ${!myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${!myAccountsOnly ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                                 >All</button>
                                 <button
                                     onClick={() => setMyAccountsOnly(true)}
-                                    className={`px-3 py-1.5 rounded-lg transition-all ${myAccountsOnly ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${myAccountsOnly ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                                 >Mine</button>
                             </div>
                         )}
@@ -889,7 +889,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 {visibleAccounts.length === 0 ? (
-                    <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
+                    <div className="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-8 text-center">
                         <p className="text-slate-400 text-sm">{myAccountsOnly ? 'No accounts linked to you' : 'No accounts yet'}</p>
                         {!myAccountsOnly && <Link href="/household" className="text-sky-500 text-sm font-semibold mt-1 inline-block">Add one →</Link>}
                     </div>
@@ -899,7 +899,7 @@ export default function DashboardPage() {
                             const owner = members.find(m => m.id === account.household_member_id)
                             return (
                                 <div key={account.id}
-                                    className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center justify-between hover:border-sky-200 transition-all"
+                                    className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 flex items-center justify-between hover:border-sky-200 dark:hover:border-sky-700 transition-all"
                                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white"
@@ -907,14 +907,14 @@ export default function DashboardPage() {
                                             {account.name.charAt(0)}
                                         </div>
                                         <div>
-                                            <p className="font-semibold text-slate-900 text-sm">{account.name}</p>
+                                            <p className="font-semibold text-slate-900 dark:text-slate-200 text-sm">{account.name}</p>
                                             <p className="text-xs text-slate-400 capitalize">
                                                 {account.account_type} · {account.ownership}
                                                 {owner ? ` · ${owner.name}` : ''}
                                             </p>
                                         </div>
                                     </div>
-                                    <p className="font-bold text-slate-900">
+                                    <p className="font-bold text-slate-900 dark:text-white">
                                         {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </p>
                                 </div>

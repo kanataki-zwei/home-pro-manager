@@ -52,7 +52,7 @@ function BudgetPageInner() {
             {/* Header */}
             <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Budget</p>
-                <h1 className="text-4xl font-black text-slate-900 leading-tight">Zero-Based Budget</h1>
+                <h1 className="text-4xl font-black text-slate-900 dark:text-white leading-tight">Zero-Based Budget</h1>
                 <p className="text-slate-400 mt-1">Every shilling has a purpose</p>
             </div>
 

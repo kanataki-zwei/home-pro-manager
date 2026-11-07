@@ -282,7 +282,7 @@ export default function BudgetReport() {
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Savings Rate</p>
-                    <p className={`text-lg font-black ${librarySavingsRate >= 20 ? 'text-emerald-600' : librarySavingsRate >= 10 ? 'text-amber-500' : 'text-slate-900'}`}>
+                    <p className={`text-lg font-black ${librarySavingsRate >= 20 ? 'text-emerald-600' : librarySavingsRate >= 10 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
                         {librarySavingsRate.toFixed(1)}%
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">{fmt(totalSavingsMonthly)} tagged</p>
@@ -393,7 +393,7 @@ export default function BudgetReport() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="font-black text-slate-900 text-sm">{member.name}</p>
+                                                <p className="font-black text-slate-900 dark:text-white text-sm">{member.name}</p>
                                                 <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-500">{memberRole}</span>
                                                 {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600">You</span>}
                                             </div>
@@ -471,7 +471,7 @@ export default function BudgetReport() {
                                         )}
                                         <div className="flex items-center justify-between px-4 py-2.5 bg-white/60">
                                             <p className="text-xs font-bold text-slate-700">Total Assigned</p>
-                                            <p className="text-xs font-black text-slate-900">{fmt(allocated)}<span className="text-slate-400 font-normal">/mo</span></p>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white">{fmt(allocated)}<span className="text-slate-400 font-normal">/mo</span></p>
                                         </div>
                                     </div>
 
@@ -523,7 +523,7 @@ export default function BudgetReport() {
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                                     {scope === 'all' ? 'Household Total' : 'Your Savings'}
                                 </p>
-                                <p className="text-sm font-black text-slate-900 mt-1">
+                                <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
                                     {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                 </p>
                                 <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
@@ -607,7 +607,7 @@ export default function BudgetReport() {
                                             ))}
                                             <div className="border-t border-slate-100 pt-1 mt-1 flex items-center justify-between">
                                                 <span className="text-slate-400">Total</span>
-                                                <span className="font-black text-slate-900">{fmtK(total)}</span>
+                                                <span className="font-black text-slate-900 dark:text-white">{fmtK(total)}</span>
                                             </div>
                                         </div>
                                     )
@@ -655,11 +655,11 @@ export default function BudgetReport() {
                             <div className="flex items-center justify-between mb-3">
                                 <div className="text-center">
                                     <p className="text-xs text-slate-400 font-medium">Budgeted</p>
-                                    <p className="text-sm font-black text-slate-900 mt-0.5">{fmt(variance.total_budgeted)}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white mt-0.5">{fmt(variance.total_budgeted)}</p>
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xs text-slate-400 font-medium">Paid</p>
-                                    <p className="text-sm font-black text-slate-900 mt-0.5">{fmt(variance.total_paid)}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white mt-0.5">{fmt(variance.total_paid)}</p>
                                 </div>
                                 <div className="text-center">
                                     <p className="text-xs text-slate-400 font-medium">Variance</p>
@@ -808,7 +808,7 @@ export default function BudgetReport() {
                                                 )}
                                             </div>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-900 flex-shrink-0 ml-3">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
                                             {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                         </p>
                                     </div>
@@ -853,7 +853,7 @@ export default function BudgetReport() {
                                                 {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
                                             </span>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-900 flex-shrink-0 ml-3">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
                                             {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                         </p>
                                     </div>

@@ -387,7 +387,7 @@ export default function AdminPage() {
                     <ShieldCheck className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Admin</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Admin</h1>
                     <p className="text-sm text-slate-500">Manage users, budget settings, and system preferences</p>
                 </div>
             </div>
@@ -1015,7 +1015,7 @@ export default function AdminPage() {
                             <AlertTriangle className="h-5 w-5 text-red-500" />
                         </div>
                         <div>
-                            <h2 className="text-base font-bold text-slate-900">Clear Household Data</h2>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Clear Household Data</h2>
                             <p className="text-xs text-slate-400">Choose what to clear. This cannot be undone.</p>
                         </div>
                     </div>

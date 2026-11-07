@@ -492,7 +492,7 @@ export default function NetWorthPage() {
                                             <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
                                         </div>
                                         <div className="text-right flex-shrink-0">
-                                            <p className="text-sm font-bold text-slate-900">{fmt(Number(a.current_balance), a.currency)}</p>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{fmt(Number(a.current_balance), a.currency)}</p>
                                             {a.currency !== 'KES' && (() => {
                                                 const kes = toKES(Number(a.current_balance), a.currency, fxRates)
                                                 return kes != null
@@ -506,7 +506,7 @@ export default function NetWorthPage() {
                             })}
                             <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Net Worth</p>
-                                <p className="text-sm font-black text-slate-900">{fmt(totalNetWorth)}</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalNetWorth)}</p>
                             </div>
                         </div>
                     )}
