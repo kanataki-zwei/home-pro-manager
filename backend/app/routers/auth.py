@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.auth import get_current_user
+from app.core.limiter import limiter
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from app.models.user import User
 
@@ -36,7 +37,9 @@ class VerifyPasswordPayload(BaseModel):
 
 
 @router.post("/login")
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     payload: LoginPayload,
     response: Response,
     db: AsyncSession = Depends(get_db),

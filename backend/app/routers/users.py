@@ -2,6 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.limiter import limiter
@@ -38,6 +39,8 @@ async def list_users(db: AsyncSession = Depends(get_db), current_user: User = De
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_user(request: Request, payload: UserCreate, db: AsyncSession = Depends(get_db)):
+    if not settings.ALLOW_REGISTRATION:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration is disabled")
     result = await db.execute(select(User).where(User.email == payload.email))
     existing = result.scalar_one_or_none()
 

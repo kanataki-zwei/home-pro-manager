@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Home Pro Manager"
     DEBUG: bool = False
     FRONTEND_URL: str = "http://localhost:3000"
+    ALLOW_REGISTRATION: bool = True  # set False in production after accounts are created
 
     DATABASE_URL: str
     JWT_SECRET_KEY: str
