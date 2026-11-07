@@ -244,7 +244,7 @@ export default function NetWorthPage() {
     const trajectoryColor = trajectoryDelta >= 0 ? '#10b981' : '#f43f5e'
 
     return (
-        <div className="space-y-6 max-w-5xl">
+        <div className="space-y-6">
 
             {/* Header */}
             <div>
@@ -458,7 +458,7 @@ export default function NetWorthPage() {
                     ))}
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 {/* Net worth accounts */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
