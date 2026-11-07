@@ -107,6 +107,13 @@ export default function ExpenseLibrary() {
     const [editTagName, setEditTagName] = useState('')
     const [editTagColor, setEditTagColor] = useState('#0ea5e9')
 
+    // Table edit mode
+    const [editModeGroups, setEditModeGroups] = useState<Set<string>>(new Set())
+    const [ungroupedEditMode, setUngroupedEditMode] = useState(false)
+    const toggleGroupEdit = (id: string) => setEditModeGroups(prev => {
+        const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next
+    })
+
     // Expense dialog
     const [expenseDialog, setExpenseDialog] = useState(false)
     const [editExpenseDialog, setEditExpenseDialog] = useState(false)
@@ -172,8 +179,6 @@ export default function ExpenseLibrary() {
             setGroups(g)
             setExpenses(e)
             setTags(t)
-            // expand all groups by default
-            setExpandedGroups(new Set(g.map(g => g.id)))
         } catch { toast.error('Failed to load expense library') }
         finally { setLoading(false) }
     }
@@ -349,6 +354,10 @@ export default function ExpenseLibrary() {
         try {
             await apiDelete(`/api/households/${household.id}/budget/tags/${id}`)
             setTags(prev => prev.filter(t => t.id !== id))
+            setExpenses(prev => prev.map(e => ({
+                ...e,
+                tag_assignments: e.tag_assignments.filter(ta => ta.tag.id !== id)
+            })))
             toast.success('Tag removed')
         } catch { toast.error('Failed') }
     }
@@ -448,6 +457,12 @@ export default function ExpenseLibrary() {
         } catch { toast.error('Failed') }
     }
 
+    const inlineUpdateExpense = async (id: string, payload: Record<string, unknown>) => {
+        if (!household) return
+        const data = await apiPatch<Expense>(`/api/households/${household.id}/budget/expenses/${id}`, payload)
+        setExpenses(prev => prev.map(e => e.id === id ? data : e))
+    }
+
     const toggleTagOnForm = (tagId: string) => {
         setExpenseForm(prev => ({
             ...prev,
@@ -464,20 +479,33 @@ export default function ExpenseLibrary() {
         ? (accounts as Account[]).filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
         : accounts as Account[]
 
+    const myAccountIds = new Set(
+        (accounts as Account[])
+            .filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
+            .map(a => a.id)
+    )
+
+    const isMyExpense = (e: Expense) =>
+        e.owner_id === currentUserId ||
+        (e.owner_id === null && e.account_id !== null && myAccountIds.has(e.account_id))
+
     const visibleGroups = groups.filter(g =>
         (showDeleted || !g.is_deleted) &&
-        (activeTab === 'household' ? g.owner_id === null : g.owner_id !== null)
+        (isMeMode
+            ? expenses.some(e => e.group_id === g.id && (showDeleted || !e.is_deleted) && isMyExpense(e))
+            : activeTab === 'household' ? g.owner_id === null : g.owner_id !== null)
     )
 
     const ungroupedExpenses = expenses.filter(e =>
         (showDeleted || !e.is_deleted) &&
         e.group_id === null &&
-        (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+        (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
     )
 
     const expensesForGroup = (groupId: string) => expenses.filter(e =>
         (showDeleted || !e.is_deleted) &&
-        e.group_id === groupId
+        e.group_id === groupId &&
+        (!isMeMode || isMyExpense(e))
     )
 
     const totalBudgetedMonthly = expenses
@@ -630,7 +658,7 @@ export default function ExpenseLibrary() {
             {(() => {
                 const visibleExpenses = expenses.filter(e =>
                     !e.is_deleted &&
-                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                    (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
                 )
                 if (visibleExpenses.length === 0 || tags.length === 0) return null
 
@@ -689,7 +717,7 @@ export default function ExpenseLibrary() {
             {(() => {
                 const visibleExpenses = expenses.filter(e =>
                     !e.is_deleted &&
-                    (activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                    (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
                 )
                 if (visibleExpenses.length === 0) return null
 
@@ -883,137 +911,174 @@ export default function ExpenseLibrary() {
 
                     return (
                         <div key={group.id}
-                            className={`bg-white rounded-3xl border transition-all overflow-hidden ${group.is_deleted ? 'opacity-50 border-dashed border-slate-200' : 'border-slate-100'}`}
+                            className={`bg-white rounded-3xl border overflow-hidden transition-all ${group.is_deleted ? 'opacity-50 border-dashed border-slate-200' : 'border-slate-100'}`}
                             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
 
+                            <div className="h-1" style={{ background: GRADIENTS[gi % GRADIENTS.length] }} />
+
                             {/* Group header */}
-                            <div className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors"
+                            <div className="px-5 pt-4 pb-3 cursor-pointer hover:bg-slate-50/60 transition-colors select-none"
                                 onClick={() => toggleGroup(group.id)}>
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                    style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
-                                    {group.name.charAt(0)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="font-bold text-slate-900">{group.name}</p>
-                                        {(() => {
-                                            const seen = new Map<string, ExpenseTag>()
-                                            groupExpenses.filter(e => !e.is_deleted).forEach(e =>
-                                                e.tag_assignments.forEach(ta => seen.set(ta.tag.id, ta.tag))
-                                            )
-                                            return Array.from(seen.values()).map(tag => (
-                                                <span key={tag.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white"
-                                                    style={{ background: tag.color || '#6366f1' }}>
-                                                    {tag.name}
-                                                </span>
-                                            ))
-                                        })()}
+                                {/* Title row */}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-sm font-black"
+                                        style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
+                                        {group.name.charAt(0)}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                        <p className="text-xs text-slate-400">{groupExpenses.filter(e => !e.is_deleted).length} expenses · {formatKES(monthlyTotal)}/mo</p>
-                                        {totalBudgetedMonthly > 0 && monthlyTotal > 0 && (
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-500">
-                                                {((monthlyTotal / totalBudgetedMonthly) * 100).toFixed(1)}% of budget
-                                            </span>
+                                    <p className="font-bold text-slate-900 text-base flex-1 min-w-0 truncate">{group.name}</p>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                        {group.is_deleted ? (
+                                            <button onClick={() => restoreGroup(group.id)}
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                                <RotateCcw className="h-3.5 w-3.5" />
+                                            </button>
+                                        ) : (
+                                            <>
+                                                {tags.length > 0 && (
+                                                    <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                                                        <button
+                                                            onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
+                                                            disabled={applyingTagToGroup === group.id}
+                                                            title="Add or remove a tag across all expenses in this group"
+                                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
+                                                            {applyingTagToGroup === group.id
+                                                                ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                                                                : <Tag className="h-3.5 w-3.5" />}
+                                                        </button>
+                                                        {groupTagPickerOpen === group.id && (
+                                                            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 min-w-max">
+                                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
+                                                                <div className="space-y-0.5">
+                                                                    {tags.map(tag => {
+                                                                        const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
+                                                                        const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
+                                                                        return (
+                                                                            <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                                                    style={{ background: tag.color || '#6366f1' }} />
+                                                                                <span className="text-sm font-semibold text-slate-700 flex-1 mr-3">{tag.name}</span>
+                                                                                <button
+                                                                                    onClick={() => applyTagToGroup(group.id, tag.id)}
+                                                                                    title="Add to all expenses in group"
+                                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                                                                                    <Plus className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => removeTagFromGroup(group.id, tag.id)}
+                                                                                    title="Remove from all expenses in group"
+                                                                                    disabled={!hasTag}
+                                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                                                                                    <X className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button onClick={() => deleteGroup(group.id)}
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button onClick={() => toggleGroupEdit(group.id)}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${editModeGroups.has(group.id) ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
+                                                    {editModeGroups.has(group.id) ? 'Done' : 'Edit'}
+                                                </button>
+                                            </>
                                         )}
                                     </div>
+                                    {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
                                 </div>
-                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                    {group.is_deleted ? (
-                                        <button onClick={() => restoreGroup(group.id)}
-                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
-                                            <RotateCcw className="h-3.5 w-3.5" />
-                                        </button>
-                                    ) : (
-                                        <>
-                                            {/* Tag group button + dropdown */}
-                                            {tags.length > 0 && (
-                                                <div className="relative" onMouseDown={e => e.stopPropagation()}>
-                                                    <button
-                                                        onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
-                                                        disabled={applyingTagToGroup === group.id}
-                                                        title="Add or remove a tag across all expenses in this group"
-                                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
-                                                        {applyingTagToGroup === group.id
-                                                            ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
-                                                            : <Tag className="h-3.5 w-3.5" />}
-                                                    </button>
-                                                    {groupTagPickerOpen === group.id && (
-                                                        <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 min-w-max">
-                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
-                                                            <div className="space-y-0.5">
-                                                                {tags.map(tag => {
-                                                                    const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
-                                                                    const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
-                                                                    return (
-                                                                        <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-                                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                                                style={{ background: tag.color || '#6366f1' }} />
-                                                                            <span className="text-sm font-semibold text-slate-700 flex-1 mr-3">{tag.name}</span>
-                                                                            <button
-                                                                                onClick={() => applyTagToGroup(group.id, tag.id)}
-                                                                                title="Add to all expenses in group"
-                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
-                                                                                <Plus className="h-3.5 w-3.5" />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => removeTagFromGroup(group.id, tag.id)}
-                                                                                title="Remove from all expenses in group"
-                                                                                disabled={!hasTag}
-                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
-                                                                                <X className="h-3.5 w-3.5" />
-                                                                            </button>
-                                                                        </div>
-                                                                    )
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                            <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button onClick={() => deleteGroup(group.id)}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </>
+                                {/* Stats callouts */}
+                                <div className="flex items-center gap-2 mt-3 ml-12 flex-wrap">
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                        {groupExpenses.filter(e => !e.is_deleted).length} expenses
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                        {formatKES(monthlyTotal)}/mo
+                                    </span>
+                                    {totalBudgetedMonthly > 0 && monthlyTotal > 0 && (
+                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-600">
+                                            {((monthlyTotal / totalBudgetedMonthly) * 100).toFixed(1)}% of budget
+                                        </span>
                                     )}
                                 </div>
-                                {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
+                                {/* Tag chips */}
+                                {(() => {
+                                    const seen = new Map<string, ExpenseTag>()
+                                    groupExpenses.filter(e => !e.is_deleted).forEach(e =>
+                                        e.tag_assignments.forEach(ta => seen.set(ta.tag.id, ta.tag))
+                                    )
+                                    const tagArr = Array.from(seen.values())
+                                    if (tagArr.length === 0) return null
+                                    return (
+                                        <div className="flex items-center gap-1.5 mt-2 ml-12 flex-wrap">
+                                            {tagArr.map(tag => (
+                                                <span key={tag.id}
+                                                    className="inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                                                    style={{ background: tag.color || '#6366f1' }}>
+                                                    {tag.name}
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); removeTagFromGroup(group.id, tag.id) }}
+                                                        disabled={applyingTagToGroup === group.id}
+                                                        className="hover:bg-white/30 rounded-full p-0.5 transition-all disabled:opacity-50">
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )
+                                })()}
                             </div>
 
                             {/* Expenses in group */}
                             {isExpanded && (
-                                <div className="border-t border-slate-50">
-                                    {groupExpenses.length > 0 && (
-                                        <div className="divide-y divide-slate-50">
+                                <div className="border-t border-slate-200 bg-slate-50/40">
+                                    <table className="w-full border-collapse table-fixed">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b border-slate-200">
+                                                <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 border-r border-slate-200">Name</th>
+                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Owner</th>
+                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Account</th>
+                                                <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 w-44 border-r border-slate-200">Amount</th>
+                                                <th className="w-14" />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                             {groupExpenses.map(expense => (
-                                                <ExpenseRow
+                                                <ExpenseTableRow
                                                     key={expense.id}
                                                     expense={expense}
                                                     accounts={accounts as Account[]}
                                                     tags={tags}
-                                                    onEdit={() => openEditExpense(expense)}
+                                                    editMode={editModeGroups.has(group.id)}
+                                                    onInlineUpdate={inlineUpdateExpense}
                                                     onDelete={() => deleteExpense(expense.id)}
                                                     onRestore={() => restoreExpense(expense.id)}
                                                     onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
                                                     showDeleted={showDeleted}
                                                 />
                                             ))}
-                                        </div>
-                                    )}
-                                    {/* Add-to-group footer — always visible when expanded and group is not deleted */}
-                                    {!group.is_deleted && (
-                                        <button
-                                            onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
-                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-50">
-                                            <Plus className="h-3.5 w-3.5" />
-                                            Add expense to {group.name}
-                                        </button>
-                                    )}
+                                            {editModeGroups.has(group.id) && !group.is_deleted && (
+                                                <tr>
+                                                    <td colSpan={5}>
+                                                        <button
+                                                            onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
+                                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-200">
+                                                            <Plus className="h-3.5 w-3.5" />
+                                                            Add expense to {group.name}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
                         </div>
@@ -1024,24 +1089,51 @@ export default function ExpenseLibrary() {
                 {ungroupedExpenses.length > 0 && (
                     <div className="bg-white rounded-3xl border border-dashed border-slate-200 overflow-hidden"
                         style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div className="px-5 py-3 bg-slate-50">
+                        <div className="px-5 py-3 bg-slate-50 flex items-center justify-between">
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Ungrouped</p>
+                            <button onClick={() => setUngroupedEditMode(p => !p)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${ungroupedEditMode ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
+                                {ungroupedEditMode ? 'Done' : 'Edit'}
+                            </button>
                         </div>
-                        <div className="divide-y divide-slate-50">
-                            {ungroupedExpenses.map(expense => (
-                                <ExpenseRow
-                                    key={expense.id}
-                                    expense={expense}
-                                    accounts={formAccounts}
-                                    tags={tags}
-                                    onEdit={() => openEditExpense(expense)}
-                                    onDelete={() => deleteExpense(expense.id)}
-                                    onRestore={() => restoreExpense(expense.id)}
-                                    onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
-                                    showDeleted={showDeleted}
-                                />
-                            ))}
-                        </div>
+                        <table className="w-full border-collapse table-fixed">
+                            <thead>
+                                <tr className="bg-slate-100 border-b border-slate-200">
+                                    <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 border-r border-slate-200">Name</th>
+                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Owner</th>
+                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Account</th>
+                                    <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 w-44 border-r border-slate-200">Amount</th>
+                                    <th className="w-14" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {ungroupedExpenses.map(expense => (
+                                    <ExpenseTableRow
+                                        key={expense.id}
+                                        expense={expense}
+                                        accounts={formAccounts}
+                                        tags={tags}
+                                        editMode={ungroupedEditMode}
+                                        onInlineUpdate={inlineUpdateExpense}
+                                        onDelete={() => deleteExpense(expense.id)}
+                                        onRestore={() => restoreExpense(expense.id)}
+                                        onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
+                                        showDeleted={showDeleted}
+                                    />
+                                ))}
+                                {ungroupedEditMode && (
+                                    <tr>
+                                        <td colSpan={5}>
+                                            <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
+                                                className="flex items-center gap-2 w-full px-4 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-200">
+                                                <Plus className="h-3.5 w-3.5" />
+                                                Add ungrouped expense
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 )}
 
@@ -1280,110 +1372,279 @@ export default function ExpenseLibrary() {
     )
 }
 
-// ─── Expense Row ──────────────────────────────────────────────────
+// ─── Expense Table Row ────────────────────────────────────────────
 
-function ExpenseRow({ expense, accounts, tags, onEdit, onDelete, onRestore, onTagToggle, showDeleted }: {
+function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, onDelete, onRestore, onTagToggle, showDeleted }: {
     expense: Expense
     accounts: Account[]
     tags: ExpenseTag[]
-    onEdit: () => void
+    editMode: boolean
+    onInlineUpdate: (id: string, payload: Record<string, unknown>) => Promise<void>
     onDelete: () => void
     onRestore: () => void
     onTagToggle: (tagId: string) => void
     showDeleted: boolean
 }) {
-    const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
+    const [editing, setEditing] = useState<'name' | 'owner' | 'account' | 'amount' | null>(null)
+    const [saving, setSaving] = useState(false)
+    const [draft, setDraft] = useState({
+        name: expense.name,
+        amount: String(expense.amount),
+        frequency: expense.frequency,
+        ownership_type: expense.ownership_type,
+        joint_split_husband: String(expense.joint_split_husband ?? 50),
+        joint_split_wife: String(expense.joint_split_wife ?? 50),
+        account_id: expense.account_id ?? '',
+    })
     const [tagPickerOpen, setTagPickerOpen] = useState(false)
     const tagPickerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+        setDraft({
+            name: expense.name, amount: String(expense.amount), frequency: expense.frequency,
+            ownership_type: expense.ownership_type,
+            joint_split_husband: String(expense.joint_split_husband ?? 50),
+            joint_split_wife: String(expense.joint_split_wife ?? 50),
+            account_id: expense.account_id ?? '',
+        })
+    }, [expense])
+
+    useEffect(() => { if (!editMode) setEditing(null) }, [editMode])
+
+    useEffect(() => {
         if (!tagPickerOpen) return
         const close = (e: MouseEvent) => {
-            if (tagPickerRef.current && !tagPickerRef.current.contains(e.target as Node))
-                setTagPickerOpen(false)
+            if (tagPickerRef.current && !tagPickerRef.current.contains(e.target as Node)) setTagPickerOpen(false)
         }
         document.addEventListener('mousedown', close)
         return () => document.removeEventListener('mousedown', close)
     }, [tagPickerOpen])
 
+    const cancel = () => {
+        setDraft({
+            name: expense.name, amount: String(expense.amount), frequency: expense.frequency,
+            ownership_type: expense.ownership_type,
+            joint_split_husband: String(expense.joint_split_husband ?? 50),
+            joint_split_wife: String(expense.joint_split_wife ?? 50),
+            account_id: expense.account_id ?? '',
+        })
+        setEditing(null)
+    }
+
+    const save = async (field: typeof editing) => {
+        setSaving(true)
+        try {
+            const payload: Record<string, unknown> = {}
+            if (field === 'name') payload.name = draft.name
+            else if (field === 'owner') {
+                payload.ownership_type = draft.ownership_type
+                payload.joint_split_husband = draft.ownership_type === 'joint' ? parseFloat(draft.joint_split_husband) : null
+                payload.joint_split_wife = draft.ownership_type === 'joint' ? parseFloat(draft.joint_split_wife) : null
+            } else if (field === 'account') {
+                payload.account_id = draft.account_id || null
+            } else if (field === 'amount') {
+                payload.amount = parseFloat(draft.amount)
+                payload.frequency = draft.frequency
+            }
+            await onInlineUpdate(expense.id, payload)
+            setEditing(null)
+        } catch { toast.error('Failed to update') }
+        setSaving(false)
+    }
+
+    const startEdit = (field: typeof editing) => { if (editMode && !expense.is_deleted) setEditing(field) }
+    const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
+
+    const nameCls = 'px-4 py-2 align-top bg-slate-50 border-r border-slate-200'
+    const cellCls = 'px-3 py-2 align-top border-r border-slate-100 bg-white'
+    const inputCls = 'w-full text-sm bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400'
+    const selectCls = 'text-sm bg-sky-50 border border-sky-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-sky-400'
+    const saveBtn = 'text-xs font-bold text-sky-600 hover:text-sky-700'
+    const cancelBtn = 'text-xs text-slate-400 hover:text-slate-600'
+
     return (
-        <div className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors group ${expense.is_deleted ? 'opacity-50' : ''}`}>
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-slate-800 text-sm">{expense.name}</p>
-                    {expense.tag_assignments.map(ta => (
-                        <span key={ta.id} className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
-                            style={{ background: ta.tag.color || '#6366f1' }}>
-                            {ta.tag.name}
-                        </span>
-                    ))}
-                </div>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <p className="text-xs text-slate-400">
-                        {OWNERSHIP_LABELS[expense.ownership_type]}
-                        {expense.ownership_type === 'joint' && ` · ${expense.joint_split_husband}% / ${expense.joint_split_wife}%`}
-                        {' · '}{FREQUENCY_LABELS[expense.frequency]}
-                    </p>
-                    {sourceAccount && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500">
-                            <Wallet className="h-2.5 w-2.5" />
-                            {sourceAccount.name}
-                        </span>
-                    )}
-                </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-                <p className="font-black text-slate-900 text-sm">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
-                {expense.frequency !== 'monthly' && (
-                    <p className="text-xs text-slate-400">{formatKES(expense.amount)} {expense.frequency}</p>
-                )}
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-                {expense.is_deleted ? (
-                    <button onClick={onRestore}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
-                        <RotateCcw className="h-3.5 w-3.5" />
-                    </button>
+        <tr className={`border-b border-slate-200 transition-colors ${expense.is_deleted ? 'opacity-40' : editMode ? 'hover:bg-sky-50/30' : ''}`}>
+
+            {/* Name */}
+            <td className={nameCls} onClick={editMode ? () => editing === null && startEdit('name') : undefined}
+                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'text' } : undefined}>
+                {editing === 'name' ? (
+                    <div className="flex flex-col gap-1.5">
+                        <input autoFocus className={inputCls} value={draft.name}
+                            onChange={e => setDraft(p => ({ ...p, name: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') save('name'); if (e.key === 'Escape') cancel() }} />
+                        <div className="flex gap-2">
+                            <button onClick={() => save('name')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                        </div>
+                    </div>
                 ) : (
-                    <>
-                        {tags.length > 0 && (
-                            <div className="relative" ref={tagPickerRef} onMouseDown={e => e.stopPropagation()}>
-                                <button onClick={() => setTagPickerOpen(v => !v)}
-                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-purple-500 hover:bg-purple-50 transition-all">
-                                    <Tag className="h-3.5 w-3.5" />
-                                </button>
-                                {tagPickerOpen && (
-                                    <div className="absolute right-0 top-8 z-50 bg-white rounded-2xl shadow-lg border border-slate-100 p-2 min-w-[160px]">
-                                        {tags.map(tag => {
-                                            const active = expense.tag_assignments.some(ta => ta.tag.id === tag.id)
-                                            return (
-                                                <div key={tag.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-                                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                        style={{ background: tag.color || '#6366f1' }} />
-                                                    <span className="text-xs text-slate-700 flex-1">{tag.name}</span>
-                                                    <button onClick={() => { onTagToggle(tag.id); setTagPickerOpen(false) }}
-                                                        className={`w-5 h-5 rounded flex items-center justify-center transition-all ${active ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
-                                                        {active ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                                                    </button>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-800 text-sm truncate">{expense.name}</span>
+                        {expense.tag_assignments.map(ta => (
+                            <span key={ta.id}
+                                className="inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                                style={{ background: ta.tag.color || '#6366f1' }}>
+                                {ta.tag.name}
+                                {editMode && (
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onTagToggle(ta.tag.id) }}
+                                        className="hover:bg-white/30 rounded-full p-0.5 transition-all">
+                                        <X className="h-2.5 w-2.5" />
+                                    </button>
                                 )}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </td>
+
+            {/* Owner */}
+            <td className={cellCls} onClick={editMode ? () => editing === null && startEdit('owner') : undefined}
+                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
+                {editing === 'owner' ? (
+                    <div className="flex flex-col gap-1.5">
+                        <select className={selectCls} value={draft.ownership_type}
+                            onChange={e => setDraft(p => ({ ...p, ownership_type: e.target.value }))}
+                            onKeyDown={e => e.key === 'Escape' && cancel()}>
+                            <option value="joint">🤝 Joint</option>
+                            <option value="husband">👨 Husband</option>
+                            <option value="wife">👩 Wife</option>
+                        </select>
+                        {draft.ownership_type === 'joint' && (
+                            <div className="flex items-center gap-1.5">
+                                <input type="number" min="0" max="100"
+                                    className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
+                                    value={draft.joint_split_husband}
+                                    onChange={e => { const h = e.target.value; setDraft(p => ({ ...p, joint_split_husband: h, joint_split_wife: String(100 - parseFloat(h || '0')) })) }} />
+                                <span className="text-xs text-slate-300">/</span>
+                                <input type="number" min="0" max="100"
+                                    className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
+                                    value={draft.joint_split_wife}
+                                    onChange={e => setDraft(p => ({ ...p, joint_split_wife: e.target.value }))} />
                             </div>
                         )}
-                        <button onClick={onEdit}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                            <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={onDelete}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                    </>
+                        <div className="flex gap-2">
+                            <button onClick={() => save('owner')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-sm text-slate-700">
+                            {expense.ownership_type === 'joint' ? '🤝 Joint' : expense.ownership_type === 'husband' ? '👨 Husband' : '👩 Wife'}
+                        </span>
+                        {expense.ownership_type === 'joint' && (
+                            <span className="text-xs text-slate-400">{expense.joint_split_husband}%/{expense.joint_split_wife}%</span>
+                        )}
+                    </div>
                 )}
-            </div>
-        </div>
+            </td>
+
+            {/* Account */}
+            <td className={cellCls} onClick={editMode ? () => editing === null && startEdit('account') : undefined}
+                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
+                {editing === 'account' ? (
+                    <div className="flex flex-col gap-1.5">
+                        <select className={`${selectCls} w-full`} value={draft.account_id || 'none'}
+                            onChange={e => setDraft(p => ({ ...p, account_id: e.target.value === 'none' ? '' : e.target.value }))}
+                            onKeyDown={e => e.key === 'Escape' && cancel()}>
+                            <option value="none">— None</option>
+                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                        <div className="flex gap-2">
+                            <button onClick={() => save('account')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                        </div>
+                    </div>
+                ) : (
+                    sourceAccount ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-500">
+                            <Wallet className="h-2.5 w-2.5" />{sourceAccount.name}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                    )
+                )}
+            </td>
+
+            {/* Amount */}
+            <td className={`${cellCls} text-right`} onClick={editMode ? () => editing === null && startEdit('amount') : undefined}
+                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
+                {editing === 'amount' ? (
+                    <div className="flex flex-col gap-1.5 items-end">
+                        <input type="number" autoFocus className="w-24 text-sm text-right bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400"
+                            value={draft.amount}
+                            onChange={e => setDraft(p => ({ ...p, amount: e.target.value }))}
+                            onKeyDown={e => e.key === 'Escape' && cancel()} />
+                        <select className={selectCls} value={draft.frequency}
+                            onChange={e => setDraft(p => ({ ...p, frequency: e.target.value }))}>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="annual">Annual</option>
+                        </select>
+                        <div className="flex gap-2">
+                            <button onClick={() => save('amount')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <p className="font-black text-slate-900 text-sm whitespace-nowrap">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                        {expense.frequency !== 'monthly' && (
+                            <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">{formatKES(expense.amount)} {expense.frequency}</p>
+                        )}
+                    </div>
+                )}
+            </td>
+
+            {/* Actions — only visible in edit mode */}
+            <td className="px-2 py-2 align-top bg-white">
+                {editMode && (
+                    <div className="flex items-center justify-end gap-0.5">
+                        {expense.is_deleted ? (
+                            <button onClick={onRestore}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                        ) : (
+                            <>
+                                {tags.length > 0 && (
+                                    <div className="relative" ref={tagPickerRef} onMouseDown={e => e.stopPropagation()}>
+                                        <button onClick={() => setTagPickerOpen(v => !v)}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all">
+                                            <Tag className="h-3.5 w-3.5" />
+                                        </button>
+                                        {tagPickerOpen && (
+                                            <div className="absolute right-0 top-8 z-50 bg-white rounded-2xl shadow-lg border border-slate-100 p-2 min-w-[160px]">
+                                                {tags.map(tag => {
+                                                    const active = expense.tag_assignments.some(ta => ta.tag.id === tag.id)
+                                                    return (
+                                                        <div key={tag.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: tag.color || '#6366f1' }} />
+                                                            <span className="text-xs text-slate-700 flex-1">{tag.name}</span>
+                                                            <button onClick={() => { onTagToggle(tag.id); setTagPickerOpen(false) }}
+                                                                className={`w-5 h-5 rounded flex items-center justify-center transition-all ${active ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
+                                                                {active ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <button onClick={onDelete}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+            </td>
+        </tr>
     )
 }
 

@@ -48,7 +48,7 @@ function BudgetPageInner() {
     }
 
     return (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-6">
             {/* Header */}
             <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Budget</p>

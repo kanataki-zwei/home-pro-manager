@@ -15,8 +15,8 @@ import { useSidebar } from '@/context/SidebarContext'
 const navigation = [
     { name: 'Home', href: '/home', icon: Home },
     { name: 'Household', href: '/household', icon: Users },
-    { name: 'Budget', href: '/budget', icon: Wallet },
     { name: 'Net Worth', href: '/networth', icon: BarChart3 },
+    { name: 'Budget', href: '/budget', icon: Wallet },
     { name: 'Admin', href: '/admin', icon: ShieldCheck },
 ]
 
