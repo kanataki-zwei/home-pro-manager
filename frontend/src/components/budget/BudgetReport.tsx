@@ -135,8 +135,14 @@ export default function BudgetReport() {
     const isSavingsTagged = (e: Expense) =>
         e.tag_assignments.some(ta => ta.tag.name.toLowerCase() === 'savings')
 
+    const isInvestmentsTagged = (e: Expense) =>
+        e.tag_assignments.some(ta => ['investments', 'investment'].includes(ta.tag.name.toLowerCase()))
+
     const savingsRows = scopedRows.filter(r => isSavingsTagged(r.expense))
     const totalSavingsMonthly = savingsRows.reduce((s, r) => s + r.amount, 0)
+
+    const investmentRows = scopedRows.filter(r => isInvestmentsTagged(r.expense))
+    const totalInvestmentsMonthly = investmentRows.reduce((s, r) => s + r.amount, 0)
 
     const scopedIncome = useMemo(() => {
         const incomeMembers = scope === 'me'
@@ -294,28 +300,86 @@ export default function BudgetReport() {
                 </div>
             </div>
 
-            {/* ── By Group bar chart ── */}
-            {barGroupData.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
-                    <ResponsiveContainer width="100%" height={Math.max(200, barGroupData.length * 42)}>
-                        <BarChart layout="vertical" data={barGroupData}
-                            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                            <CartesianGrid horizontal={false} stroke="#f1f5f9" strokeDasharray="3 3" />
-                            <XAxis type="number" tickFormatter={fmtK}
-                                tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                            <YAxis type="category" dataKey="name" width={110}
-                                tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                            <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={30}>
-                                {barGroupData.map((entry, i) => (
-                                    <Cell key={i} fill={entry.color} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            )}
+            {/* ── By Group bar chart + Budget Split ── */}
+            {barGroupData.length > 0 && (() => {
+                const pureExpenses = Math.max(0, totalMonthly - totalSavingsMonthly - totalInvestmentsMonthly)
+                const expPct  = scopedIncome > 0 ? (pureExpenses             / scopedIncome) * 100 : 0
+                const savPct  = scopedIncome > 0 ? (totalSavingsMonthly      / scopedIncome) * 100 : 0
+                const invPct  = scopedIncome > 0 ? (totalInvestmentsMonthly  / scopedIncome) * 100 : 0
+                const splitTotal = expPct + savPct + invPct
+                return (
+                    <div className="flex gap-4 items-stretch">
+                        {/* Bar chart — 80% */}
+                        <div className="flex-[4] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
+                            <ResponsiveContainer width="100%" height={Math.max(200, barGroupData.length * 42)}>
+                                <BarChart layout="vertical" data={barGroupData}
+                                    margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                                    <CartesianGrid horizontal={false} stroke="#f1f5f9" strokeDasharray="3 3" />
+                                    <XAxis type="number" tickFormatter={fmtK}
+                                        tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                                    <YAxis type="category" dataKey="name" width={110}
+                                        tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                    <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={30}>
+                                        {barGroupData.map((entry, i) => (
+                                            <Cell key={i} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* Budget split card — 20% */}
+                        <div className="flex-[1] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Budget Split</p>
+
+                            {/* Ratio display */}
+                            <div className="flex items-end gap-1 mb-1">
+                                <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">{Math.round(expPct)}</span>
+                                <span className="text-sm font-bold text-slate-300 dark:text-slate-600 mb-0.5">:</span>
+                                <span className="text-2xl font-black text-emerald-500 leading-none">{Math.round(savPct)}</span>
+                                <span className="text-sm font-bold text-slate-300 dark:text-slate-600 mb-0.5">:</span>
+                                <span className="text-2xl font-black text-violet-500 leading-none">{Math.round(invPct)}</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mb-4">Exp · Sav · Inv</p>
+
+                            {/* Stacked bar */}
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px mb-5">
+                                {expPct > 0 && <div style={{ width: `${splitTotal > 0 ? (expPct / splitTotal) * 100 : 0}%`, background: '#0ea5e9' }} />}
+                                {savPct > 0 && <div style={{ width: `${splitTotal > 0 ? (savPct / splitTotal) * 100 : 0}%`, background: '#10b981' }} />}
+                                {invPct > 0 && <div style={{ width: `${splitTotal > 0 ? (invPct / splitTotal) * 100 : 0}%`, background: '#8b5cf6' }} />}
+                                {splitTotal === 0 && <div className="w-full bg-slate-100 dark:bg-slate-700" />}
+                            </div>
+
+                            {/* Rows */}
+                            <div className="space-y-3 mt-auto">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Expenses</p>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-900 dark:text-white">{expPct.toFixed(1)}%</p>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Savings</p>
+                                    </div>
+                                    <p className="text-xs font-black text-emerald-500">{savPct.toFixed(1)}%</p>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Investments</p>
+                                    </div>
+                                    <p className="text-xs font-black text-violet-500">{invPct > 0 ? invPct.toFixed(1) + '%' : '—'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })()}
 
             {/* ── Member Financial Portraits ── */}
             {scope === 'all' && memberRows.length > 0 && (
