@@ -324,7 +324,7 @@ export default function NetWorthPage() {
                                 <span className={`text-sm font-black ${trajectoryDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                     {trajectoryDelta >= 0 ? '+' : '−'}{fmtCompact(Math.abs(trajectoryDelta))}
                                 </span>
-                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${trajectoryDelta >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${trajectoryDelta >= 0 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-500'}`}>
                                     {trajectoryDelta >= 0 ? '▲' : '▼'} {Math.abs(trajectoryDeltaPct).toFixed(1)}%
                                 </span>
                                 <span className="text-xs text-slate-400">over {netWorthTrajectory.length} months</span>
@@ -390,7 +390,7 @@ export default function NetWorthPage() {
                 if (sorted.length < 2) return null // only show when there's more than 1 type
 
                 return (
-                    <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5"
                         style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -425,7 +425,7 @@ export default function NetWorthPage() {
                                                 <span className="text-xs text-slate-400">{count} account{count !== 1 ? 's' : ''}</span>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-sm font-bold text-slate-800">{fmtCompact(kes)}</span>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmtCompact(kes)}</span>
                                                 <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
                                             </div>
                                         </div>
@@ -461,7 +461,7 @@ export default function NetWorthPage() {
             <div className="grid grid-cols-2 gap-4">
 
                 {/* Net worth accounts */}
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -488,7 +488,7 @@ export default function NetWorthPage() {
                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                             style={{ background: SEGMENT_COLORS[i % SEGMENT_COLORS.length] }} />
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-800 truncate">{a.name}</p>
+                                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
                                             <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
                                         </div>
                                         <div className="text-right flex-shrink-0">
@@ -513,7 +513,7 @@ export default function NetWorthPage() {
                 </div>
 
                 {/* Excluded accounts */}
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="px-5 pt-5 pb-3 flex items-center gap-2">
                         <ShieldOff className="h-4 w-4 text-slate-400" />
@@ -533,10 +533,10 @@ export default function NetWorthPage() {
                                         {a.name.charAt(0)}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800 truncate">{a.name}</p>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
                                         <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
                                     </div>
-                                    <p className="text-sm font-bold text-slate-500 flex-shrink-0">{fmt(Number(a.current_balance), a.currency)}</p>
+                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-300 flex-shrink-0">{fmt(Number(a.current_balance), a.currency)}</p>
                                 </div>
                             ))}
                             <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
@@ -551,11 +551,11 @@ export default function NetWorthPage() {
             </div>
 
             {/* Transaction log */}
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
 
                 {/* Log header */}
-                <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-slate-100">
+                <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Transaction Log</p>
                     <div className="flex items-center gap-2">
                         {/* Source filter */}
@@ -586,7 +586,7 @@ export default function NetWorthPage() {
                     </div>
                 ) : filteredTxns.length === 0 ? (
                     <div className="px-5 py-10 text-center">
-                        <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                        <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center mx-auto mb-3">
                             <TrendingUp className="h-5 w-5 text-slate-400" />
                         </div>
                         <p className="text-sm font-medium text-slate-500">No transactions yet</p>
@@ -609,23 +609,23 @@ export default function NetWorthPage() {
                                     <div key={t.id} className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                         {/* Date */}
                                         <div>
-                                            <p className="text-sm font-medium text-slate-700">{fmtDate(t.created_at)}</p>
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{fmtDate(t.created_at)}</p>
                                             <p className="text-xs text-slate-400">{fmtTime(t.created_at)}</p>
                                         </div>
                                         {/* Account + narration */}
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${isCredit ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${isCredit ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40'}`}>
                                                     {isCredit
                                                         ? <TrendingUp className="h-3 w-3 text-emerald-500" />
                                                         : <TrendingDown className="h-3 w-3 text-rose-500" />}
                                                 </div>
-                                                <p className="text-sm font-medium text-slate-800 truncate">{t.narration}</p>
+                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.narration}</p>
                                             </div>
                                             <p className="text-xs text-slate-400 mt-0.5 pl-8">{account?.name ?? 'Unknown account'}</p>
                                         </div>
                                         {/* Source badge */}
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${t.session_item_id ? 'bg-sky-50 text-sky-600' : 'bg-slate-100 text-slate-500'}`}>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${t.session_item_id ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
                                             {t.session_item_id ? 'Session' : 'Manual'}
                                         </span>
                                         {/* Amount */}
