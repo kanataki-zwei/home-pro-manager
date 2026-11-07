@@ -13,7 +13,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { useSidebar } from '@/context/SidebarContext'
 
 const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Home },
+    { name: 'Home', href: '/home', icon: Home },
     { name: 'Household', href: '/household', icon: Users },
     { name: 'Budget', href: '/budget', icon: Wallet },
     { name: 'Net Worth', href: '/networth', icon: BarChart3 },
