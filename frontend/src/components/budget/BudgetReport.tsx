@@ -269,7 +269,7 @@ export default function BudgetReport() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Monthly Total</p>
                     <p className="text-lg font-black text-slate-900 dark:text-white">{fmt(totalMonthly)}</p>

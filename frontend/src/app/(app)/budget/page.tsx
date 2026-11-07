@@ -52,12 +52,12 @@ function BudgetPageInner() {
             {/* Header */}
             <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Budget</p>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white leading-tight">Zero-Based Budget</h1>
+                <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight">Zero-Based Budget</h1>
                 <p className="text-slate-400 mt-1">Every shilling has a purpose</p>
             </div>
 
             {/* Tabs */}
-            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-700 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
                 {TABS.map(tab => {
                     const Icon = tab.icon
                     const active = activeTab === tab.key
@@ -65,13 +65,14 @@ function BudgetPageInner() {
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all -mb-px ${
+                            className={`flex items-center gap-2 px-3 md:px-4 py-3 text-sm font-bold border-b-2 transition-all -mb-px whitespace-nowrap shrink-0 ${
                                 active
                                     ? 'border-sky-500 text-sky-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-200 dark:hover:border-slate-600'
                             }`}>
                             <Icon className="h-4 w-4" />
-                            {tab.label}
+                            <span className="hidden sm:inline">{tab.label}</span>
+                            <span className="sm:hidden">{tab.key === 'library' ? 'Library' : tab.key === 'reports' ? 'Reports' : tab.key === 'templates' ? 'Templates' : 'Sessions'}</span>
                         </button>
                     )
                 })}

@@ -977,7 +977,7 @@ function SessionDetailView({
             })()}
 
             {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
                 <StatCard
                     label="Allocated"
                     value={fmt(totalAllocated)}
@@ -1148,7 +1148,7 @@ function SessionDetailView({
                                 style={{ width: `${(freedUp / totalOriginalAllocated) * 100}%` }} />
                         </div>
                     )}
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-4 gap-2 md:gap-3">
                         {([
                             { label: 'Paid',     dot: 'bg-emerald-400', text: 'text-emerald-700', count: countPaid,     amount: totalPaid },
                             { label: 'Reserved', dot: 'bg-amber-300',   text: 'text-amber-600',   count: countReserved, amount: totalReserved },
@@ -1627,7 +1627,7 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
             {/* ── Year label + grid ──────────────────────────────── */}
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{currentYear}</p>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
                 {MONTH_NAMES.map((name, idx) => {
                     const mStart = monthStart(currentYear, idx)
                     const monthKey = mStart.slice(0, 7)

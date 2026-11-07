@@ -249,12 +249,12 @@ export default function NetWorthPage() {
             {/* Header */}
             <div>
                 <span className="text-xs font-semibold uppercase tracking-widest text-emerald-500">Financial Health</span>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white mt-1">Net Worth</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mt-1">Net Worth</h1>
                 <p className="text-slate-400 mt-1 text-sm">Track your assets and transaction history</p>
             </div>
 
             {/* Hero */}
-            <div className="relative rounded-2xl overflow-hidden p-8"
+            <div className="relative rounded-2xl overflow-hidden p-5 md:p-8"
                 style={{ background: 'linear-gradient(135deg, #0f172a 0%, #064e3b 50%, #0f172a 100%)' }}>
                 <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10"
                     style={{ background: 'radial-gradient(circle, #34d399, transparent)', transform: 'translate(30%, -30%)' }} />
@@ -442,9 +442,9 @@ export default function NetWorthPage() {
             })()}
 
             {/* Account breakdown */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Accounts</p>
-                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold">
+                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold w-fit">
                     {([
                         { key: 'name-asc',    label: 'A → Z' },
                         { key: 'name-desc',   label: 'Z → A' },
@@ -555,15 +555,15 @@ export default function NetWorthPage() {
                 style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
 
                 {/* Log header */}
-                <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                <div className="px-4 md:px-5 pt-4 md:pt-5 pb-3 md:pb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between border-b border-slate-100 dark:border-slate-700">
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Transaction Log</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         {/* Source filter */}
                         <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'manual', 'session'] as const).map(s => (
                                 <button key={s} onClick={() => setSourceFilter(s)}
-                                    className={`px-3 py-1.5 rounded-lg capitalize transition-all ${sourceFilter === s ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                                    {s === 'all' ? 'All Sources' : s === 'manual' ? 'Manual' : 'Session'}
+                                    className={`px-2.5 py-1.5 rounded-lg capitalize transition-all ${sourceFilter === s ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                                    {s === 'all' ? 'All' : s === 'manual' ? 'Manual' : 'Session'}
                                 </button>
                             ))}
                         </div>
@@ -571,7 +571,7 @@ export default function NetWorthPage() {
                         <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'credit', 'debit'] as const).map(f => (
                                 <button key={f} onClick={() => setTxnFilter(f)}
-                                    className={`px-3 py-1.5 rounded-lg transition-all ${txnFilter === f ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                                    className={`px-2.5 py-1.5 rounded-lg transition-all ${txnFilter === f ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                                     {f === 'all' ? 'All' : f === 'credit' ? 'Deposits' : 'Withdrawals'}
                                 </button>
                             ))}
@@ -594,8 +594,8 @@ export default function NetWorthPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Column headers */}
-                        <div className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                        {/* Column headers — desktop only */}
+                        <div className="hidden md:grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600 text-xs font-bold text-slate-400 uppercase tracking-wide">
                             <span>Date</span>
                             <span>Account · Narration</span>
                             <span>Source</span>
@@ -605,40 +605,61 @@ export default function NetWorthPage() {
                             {filteredTxns.map(t => {
                                 const account = accountMap[t.account_id]
                                 const isCredit = t.transaction_type === 'credit'
+                                const badge = (
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${t.session_item_id ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                                        {t.session_item_id ? 'Session' : 'Manual'}
+                                    </span>
+                                )
+                                const amountEl = (
+                                    <div className="text-right flex-shrink-0">
+                                        <p className={`text-sm font-bold ${isCredit ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                            {isCredit ? '+' : '−'}{fmt(Number(t.amount), account?.currency ?? 'KES')}
+                                        </p>
+                                        {account?.currency && account.currency !== 'KES' && (() => {
+                                            const kes = toKES(Number(t.amount), account.currency, fxRates)
+                                            return kes != null ? <p className="text-xs text-slate-400">≈ {fmt(kes)}</p> : null
+                                        })()}
+                                    </div>
+                                )
                                 return (
-                                    <div key={t.id} className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                        {/* Date */}
-                                        <div>
-                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{fmtDate(t.created_at)}</p>
-                                            <p className="text-xs text-slate-400">{fmtTime(t.created_at)}</p>
-                                        </div>
-                                        {/* Account + narration */}
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${isCredit ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40'}`}>
-                                                    {isCredit
-                                                        ? <TrendingUp className="h-3 w-3 text-emerald-500" />
-                                                        : <TrendingDown className="h-3 w-3 text-rose-500" />}
-                                                </div>
-                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.narration}</p>
+                                    <div key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                        {/* Mobile card layout */}
+                                        <div className="flex items-center gap-3 px-4 py-3 md:hidden">
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isCredit ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40'}`}>
+                                                {isCredit
+                                                    ? <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                                                    : <TrendingDown className="h-3.5 w-3.5 text-rose-500" />}
                                             </div>
-                                            <p className="text-xs text-slate-400 mt-0.5 pl-8">{account?.name ?? 'Unknown account'}</p>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.narration}</p>
+                                                    {amountEl}
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <p className="text-xs text-slate-400 truncate">{account?.name ?? 'Unknown'} · {fmtDate(t.created_at)}</p>
+                                                    {badge}
+                                                </div>
+                                            </div>
                                         </div>
-                                        {/* Source badge */}
-                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${t.session_item_id ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                                            {t.session_item_id ? 'Session' : 'Manual'}
-                                        </span>
-                                        {/* Amount */}
-                                        <div className="text-right flex-shrink-0">
-                                            <p className={`text-sm font-bold ${isCredit ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                {isCredit ? '+' : '−'}{fmt(Number(t.amount), account?.currency ?? 'KES')}
-                                            </p>
-                                            {account?.currency && account.currency !== 'KES' && (() => {
-                                                const kes = toKES(Number(t.amount), account.currency, fxRates)
-                                                return kes != null
-                                                    ? <p className="text-xs text-slate-400">≈ {fmt(kes)}</p>
-                                                    : null
-                                            })()}
+                                        {/* Desktop table layout */}
+                                        <div className="hidden md:grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-3.5 items-center">
+                                            <div>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{fmtDate(t.created_at)}</p>
+                                                <p className="text-xs text-slate-400">{fmtTime(t.created_at)}</p>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${isCredit ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40'}`}>
+                                                        {isCredit
+                                                            ? <TrendingUp className="h-3 w-3 text-emerald-500" />
+                                                            : <TrendingDown className="h-3 w-3 text-rose-500" />}
+                                                    </div>
+                                                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.narration}</p>
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-0.5 pl-8">{account?.name ?? 'Unknown account'}</p>
+                                            </div>
+                                            {badge}
+                                            {amountEl}
                                         </div>
                                     </div>
                                 )
