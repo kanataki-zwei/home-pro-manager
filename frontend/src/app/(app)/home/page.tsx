@@ -125,40 +125,40 @@ export default function HomePage() {
             </div>
 
             {/* ── Quick callouts ───────────────────────────────────── */}
-            <div className="grid grid-cols-3 gap-2 md:gap-4">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-4">
                 {/* Monthly Income callout */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl px-3 py-3 md:px-5 md:py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-2 md:gap-4">
-                    <div className="w-7 h-7 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
-                        <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
+                        <TrendingUp className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-xs text-slate-400 font-medium leading-tight">Income</p>
-                        <p className="text-sm md:text-base font-bold text-slate-900 dark:text-white truncate">{fmtCompact(totalIncome)}</p>
+                        <p className="text-xs text-slate-400 font-medium">Monthly Income</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white truncate">{fmtCompact(totalIncome)}</p>
                     </div>
                 </div>
 
                 {/* Members callout */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl px-3 py-3 md:px-5 md:py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-2 md:gap-4">
-                    <div className="w-7 h-7 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' }}>
-                        <Users className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
+                        <Users className="h-4 w-4 text-white" />
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-xs text-slate-400 font-medium leading-tight">Members</p>
-                        <p className="text-sm md:text-base font-bold text-slate-900 dark:text-white truncate">{totalMembers}</p>
+                    <div>
+                        <p className="text-xs text-slate-400 font-medium">Household Members</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white">{totalMembers} {totalMembers === 1 ? 'member' : 'members'}</p>
                     </div>
                 </div>
 
                 {/* Earners callout */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl px-3 py-3 md:px-5 md:py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-2 md:gap-4">
-                    <div className="w-7 h-7 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
-                        <Wallet className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
+                        <Wallet className="h-4 w-4 text-white" />
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-xs text-slate-400 font-medium leading-tight">Earners</p>
-                        <p className="text-sm md:text-base font-bold text-slate-900 dark:text-white truncate">{earners.length}/{totalMembers}</p>
+                    <div>
+                        <p className="text-xs text-slate-400 font-medium">Earners</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white">{earners.length} of {totalMembers}</p>
                     </div>
                 </div>
             </div>
