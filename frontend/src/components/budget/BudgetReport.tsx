@@ -381,6 +381,182 @@ export default function BudgetReport() {
                 )
             })()}
 
+            {/* ── Savings Breakdown ── */}
+            {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
+                <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        {/* Household / scope total */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                    {scope === 'all' ? 'Household Total' : 'Your Savings'}
+                                </p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                                    {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
+                            </div>
+                            <div className={`text-3xl font-black ${
+                                librarySavingsRate >= 20 ? 'text-emerald-600'
+                                : librarySavingsRate >= 10 ? 'text-amber-500'
+                                : 'text-slate-400'
+                            }`}>
+                                {librarySavingsRate.toFixed(1)}%
+                            </div>
+                        </div>
+
+                        {/* Per-member rows (all scope only) */}
+                        {scope === 'all' && (
+                            <div className="divide-y divide-slate-50">
+                                {memberRows.map(row => {
+                                    const isMe = row.member.user_id === currentUserId
+                                    return (
+                                        <div key={row.member.id} className="flex items-center gap-3 px-5 py-3.5">
+                                            <div className="w-8 h-8 rounded-2xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                style={{ background: row.gradient }}>
+                                                {row.member.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <p className="text-sm font-bold text-slate-700 truncate">{row.member.name}</p>
+                                                    {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600 flex-shrink-0">You</span>}
+                                                </div>
+                                                {row.memberSavings > 0
+                                                    ? <p className="text-xs text-slate-400 mt-0.5">{fmt(row.memberSavings)}<span className="text-slate-300">/mo tagged</span></p>
+                                                    : <p className="text-xs text-slate-300 mt-0.5">No savings tagged</p>
+                                                }
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className={`text-xl font-black ${
+                                                    row.savingsRate >= 20 ? 'text-emerald-600'
+                                                    : row.savingsRate >= 10 ? 'text-amber-500'
+                                                    : 'text-slate-300'
+                                                }`}>
+                                                    {row.savingsRate.toFixed(1)}%
+                                                </p>
+                                                <p className="text-xs text-slate-400">of income</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── Group breakdown list ── */}
+            <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
+
+                {scopedRows.length === 0 && (
+                    <div className="flex items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200">
+                        <p className="text-sm text-slate-400">No expenses in this view</p>
+                    </div>
+                )}
+
+                {groups.map((group, gi) => {
+                    const rows = byGroup.get(group.id) ?? []
+                    if (rows.length === 0) return null
+                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
+                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
+                    return (
+                        <div key={group.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="flex items-center gap-3 px-5 py-4">
+                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                    style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
+                                    {group.name.charAt(0)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                                        <p className="font-bold text-slate-900 dark:text-white text-sm">{group.name}</p>
+                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
+                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full transition-all"
+                                                style={{ width: `${pct}%`, background: GRADIENTS[gi % GRADIENTS.length] }} />
+                                        </div>
+                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
+                                {rows.map(({ expense, amount }) => (
+                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                    {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                </span>
+                                                {expense.ownership_type === 'joint' && scope === 'me' && (
+                                                    <span className="text-xs text-slate-400">
+                                                        {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
+                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })}
+
+                {/* Ungrouped */}
+                {(() => {
+                    const rows = byGroup.get(null) ?? []
+                    if (rows.length === 0) return null
+                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
+                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
+                    return (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="flex items-center gap-3 px-5 py-4">
+                                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                                        <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
+                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
+                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
+                                        </div>
+                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
+                                {rows.map(({ expense, amount }) => (
+                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
+                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })()}
+            </div>
+
             {/* ── Member Financial Portraits ── */}
             {scope === 'all' && memberRows.length > 0 && (
                 <div className="space-y-4">
@@ -528,71 +704,6 @@ export default function BudgetReport() {
                                 </div>
                             )
                         })}
-                    </div>
-                </div>
-            )}
-
-            {/* ── Savings Breakdown ── */}
-            {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
-                <div className="space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        {/* Household / scope total */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-                            <div>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                    {scope === 'all' ? 'Household Total' : 'Your Savings'}
-                                </p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                                    {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                </p>
-                                <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
-                            </div>
-                            <div className={`text-3xl font-black ${
-                                librarySavingsRate >= 20 ? 'text-emerald-600'
-                                : librarySavingsRate >= 10 ? 'text-amber-500'
-                                : 'text-slate-400'
-                            }`}>
-                                {librarySavingsRate.toFixed(1)}%
-                            </div>
-                        </div>
-
-                        {/* Per-member rows (all scope only) */}
-                        {scope === 'all' && (
-                            <div className="divide-y divide-slate-50">
-                                {memberRows.map(row => {
-                                    const isMe = row.member.user_id === currentUserId
-                                    return (
-                                        <div key={row.member.id} className="flex items-center gap-3 px-5 py-3.5">
-                                            <div className="w-8 h-8 rounded-2xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                                style={{ background: row.gradient }}>
-                                                {row.member.name.charAt(0)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <p className="text-sm font-bold text-slate-700 truncate">{row.member.name}</p>
-                                                    {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600 flex-shrink-0">You</span>}
-                                                </div>
-                                                {row.memberSavings > 0
-                                                    ? <p className="text-xs text-slate-400 mt-0.5">{fmt(row.memberSavings)}<span className="text-slate-300">/mo tagged</span></p>
-                                                    : <p className="text-xs text-slate-300 mt-0.5">No savings tagged</p>
-                                                }
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <p className={`text-xl font-black ${
-                                                    row.savingsRate >= 20 ? 'text-emerald-600'
-                                                    : row.savingsRate >= 10 ? 'text-amber-500'
-                                                    : 'text-slate-300'
-                                                }`}>
-                                                    {row.savingsRate.toFixed(1)}%
-                                                </p>
-                                                <p className="text-xs text-slate-400">of income</p>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
@@ -773,116 +884,6 @@ export default function BudgetReport() {
                 )
             })()}
 
-            {/* ── Group breakdown list ── */}
-            <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
-
-                {scopedRows.length === 0 && (
-                    <div className="flex items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200">
-                        <p className="text-sm text-slate-400">No expenses in this view</p>
-                    </div>
-                )}
-
-                {groups.map((group, gi) => {
-                    const rows = byGroup.get(group.id) ?? []
-                    if (rows.length === 0) return null
-                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
-                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
-                    return (
-                        <div key={group.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="flex items-center gap-3 px-5 py-4">
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                    style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
-                                    {group.name.charAt(0)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                                        <p className="font-bold text-slate-900 dark:text-white text-sm">{group.name}</p>
-                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full transition-all"
-                                                style={{ width: `${pct}%`, background: GRADIENTS[gi % GRADIENTS.length] }} />
-                                        </div>
-                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
-                                {rows.map(({ expense, amount }) => (
-                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                    {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
-                                                </span>
-                                                {expense.ownership_type === 'joint' && scope === 'me' && (
-                                                    <span className="text-xs text-slate-400">
-                                                        {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })}
-
-                {/* Ungrouped */}
-                {(() => {
-                    const rows = byGroup.get(null) ?? []
-                    if (rows.length === 0) return null
-                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
-                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
-                    return (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="flex items-center gap-3 px-5 py-4">
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                                        <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
-                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
-                                        </div>
-                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
-                                {rows.map(({ expense, amount }) => (
-                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })()}
-            </div>
         </div>
     )
 }
