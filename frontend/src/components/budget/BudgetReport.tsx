@@ -6,8 +6,7 @@ import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
 import { Layers, Receipt } from 'lucide-react'
 import {
-    ResponsiveContainer, PieChart, Pie, Cell, Tooltip as ReTooltip,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
+    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
 } from 'recharts'
 
 interface ExpenseTag { id: string; name: string; color: string | null }
@@ -65,10 +64,15 @@ function ChartTooltip({ active, payload }: any) {
     if (!active || !payload?.length) return null
     const d = payload[0]
     const name = d.name || d.payload?.name
+    const pct: number | undefined = d.payload?.pct
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 px-3 py-2 shadow-lg text-xs">
-            <p className="font-bold text-slate-700 dark:text-slate-300">{name}</p>
-            <p className="font-black text-slate-900 dark:text-white mt-0.5">{fmt(d.value)}<span className="font-normal text-slate-400">/mo</span></p>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 px-3 py-2.5 shadow-lg text-xs min-w-[160px]">
+            <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: d.payload?.color ?? d.fill }} />
+                <p className="font-bold text-slate-700 dark:text-slate-200">{name}</p>
+            </div>
+            <p className="font-black text-slate-900 dark:text-white">{fmt(d.value)}<span className="font-normal text-slate-400">/mo</span></p>
+            {pct !== undefined && <p className="text-slate-400 mt-0.5">{pct.toFixed(1)}% of total</p>}
         </div>
     )
 }
@@ -215,8 +219,9 @@ export default function BudgetReport() {
         })
     }, [expenses, members, scope])
 
-    const totalAllocated = memberRows.reduce((s, r) => s + r.allocated, 0)
-    const barData = memberRows.map(r => ({ name: r.member.name, allocated: r.allocated, color: r.color }))
+    const barGroupData = useMemo(() =>
+        donutData.map(d => ({ ...d, pct: totalMonthly > 0 ? (d.value / totalMonthly) * 100 : 0 })),
+    [donutData, totalMonthly])
 
     // Month-over-month trend chart data
     const { trendChartData, trendGroupNames } = useMemo(() => {
@@ -289,75 +294,26 @@ export default function BudgetReport() {
                 </div>
             </div>
 
-            {/* ── Charts ── */}
-            {scopedRows.length > 0 && (
-                <div className={`grid gap-4 ${scope === 'all' && memberRows.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-
-                    {/* Donut — group breakdown */}
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
-                        <ResponsiveContainer width="100%" height={180}>
-                            <PieChart>
-                                <Pie data={donutData} cx="50%" cy="50%"
-                                    innerRadius={52} outerRadius={78}
-                                    paddingAngle={2} dataKey="value" strokeWidth={0}>
-                                    {donutData.map((entry, i) => (
-                                        <Cell key={i} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <ReTooltip content={<ChartTooltip />} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        {/* Legend */}
-                        <div className="mt-3 space-y-1.5">
-                            {donutData.map((entry, i) => {
-                                const pct = totalMonthly > 0 ? (entry.value / totalMonthly) * 100 : 0
-                                return (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: entry.color }} />
-                                        <p className="text-xs text-slate-600 truncate flex-1 min-w-0">{entry.name}</p>
-                                        <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Horizontal bar — member comparison (all scope) */}
-                    {scope === 'all' && memberRows.length > 0 && (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Member</p>
-                            <ResponsiveContainer width="100%" height={180}>
-                                <BarChart layout="vertical" data={barData}
-                                    margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                                    <CartesianGrid horizontal={false} stroke="#f1f5f9" />
-                                    <XAxis type="number" tickFormatter={fmtK}
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <YAxis type="category" dataKey="name" width={70}
-                                        tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} axisLine={false} tickLine={false} />
-                                    <ReTooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
-                                    <Bar dataKey="allocated" radius={[0, 6, 6, 0]} maxBarSize={28}>
-                                        {barData.map((entry, i) => (
-                                            <Cell key={i} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                            {/* Totals */}
-                            <div className="mt-3 space-y-1.5">
-                                {memberRows.map(row => {
-                                    const pct = totalAllocated > 0 ? (row.allocated / totalAllocated) * 100 : 0
-                                    return (
-                                        <div key={row.member.id} className="flex items-center gap-2">
-                                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color }} />
-                                            <p className="text-xs text-slate-600 truncate flex-1 min-w-0">{row.member.name}</p>
-                                            <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
+            {/* ── By Group bar chart ── */}
+            {barGroupData.length > 0 && (
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
+                    <ResponsiveContainer width="100%" height={Math.max(200, barGroupData.length * 42)}>
+                        <BarChart layout="vertical" data={barGroupData}
+                            margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                            <CartesianGrid horizontal={false} stroke="#f1f5f9" strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={fmtK}
+                                tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                            <YAxis type="category" dataKey="name" width={110}
+                                tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                            <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={30}>
+                                {barGroupData.map((entry, i) => (
+                                    <Cell key={i} fill={entry.color} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             )}
 
