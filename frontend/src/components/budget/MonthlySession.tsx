@@ -977,7 +977,7 @@ function SessionDetailView({
             })()}
 
             {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-2 md:gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3">
                 <StatCard
                     label="Allocated"
                     value={fmt(totalAllocated)}
@@ -1004,7 +1004,7 @@ function SessionDetailView({
 
             {/* Income vs allocated — shown when historical income is available */}
             {session.monthly_income != null && session.monthly_income > 0 && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <StatCard
                         label="Monthly Income"
                         value={fmt(Number(session.monthly_income))}
@@ -1109,7 +1109,7 @@ function SessionDetailView({
 
             {/* Freed-up budget row — appears once any item is marked N/A or extra income added */}
             {(freedUp > 0 || extraIncomeTotal > 0) && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <StatCard
                         label="Freed Up (N/A)"
                         value={fmt(freedUp)}

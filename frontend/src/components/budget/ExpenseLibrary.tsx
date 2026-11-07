@@ -1039,8 +1039,8 @@ export default function ExpenseLibrary() {
 
                             {/* Expenses in group */}
                             {isExpanded && (
-                                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40">
-                                    <table className="w-full border-collapse table-fixed">
+                                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40 overflow-x-auto">
+                                    <table className="w-full min-w-[600px] border-collapse table-fixed">
                                         <thead>
                                             <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
                                                 <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
@@ -1096,7 +1096,8 @@ export default function ExpenseLibrary() {
                                 {ungroupedEditMode ? 'Done' : 'Edit'}
                             </button>
                         </div>
-                        <table className="w-full border-collapse table-fixed">
+                        <div className="overflow-x-auto">
+                        <table className="w-full min-w-[600px] border-collapse table-fixed">
                             <thead>
                                 <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
                                     <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
@@ -1134,6 +1135,7 @@ export default function ExpenseLibrary() {
                                 )}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 )}
 
@@ -1239,7 +1241,8 @@ export default function ExpenseLibrary() {
                 </DialogContent>
             </Dialog>
 
-            {/* ── Floating budget tracker panel ── */}
+            {/* ── Floating budget tracker panel (desktop only — no touch drag on mobile) ── */}
+            <div className="hidden md:block">
             {panelPos !== null && panelVisible && incomeMembers.length > 0 && (
                 <div
                     style={{
@@ -1344,7 +1347,9 @@ export default function ExpenseLibrary() {
                     </div>
                 </div>
             )}
+            </div>
 
+            <div className="hidden md:block">
             {/* Show pill — appears when panel is hidden */}
             {panelPos !== null && !panelVisible && incomeMembers.length > 0 && (
                 <button
@@ -1368,6 +1373,7 @@ export default function ExpenseLibrary() {
                     Budget Tracker
                 </button>
             )}
+            </div>
         </div>
     )
 }

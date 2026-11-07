@@ -561,7 +561,7 @@ export default function BudgetReport() {
             {scope === 'all' && memberRows.length > 0 && (
                 <div className="space-y-4">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
-                    <div className={`grid gap-4 ${memberRows.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <div className={`grid gap-4 grid-cols-1 ${memberRows.length === 1 ? '' : 'md:grid-cols-2'}`}>
                         {memberRows.map(row => {
                             const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
                             const isMe = member.user_id === currentUserId

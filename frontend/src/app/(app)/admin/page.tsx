@@ -467,7 +467,7 @@ export default function AdminPage() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                            className={`flex-1 flex items-center justify-center gap-2 px-2 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all ${
                                 isActive
                                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -816,11 +816,11 @@ export default function AdminPage() {
                                         enter the <span className="font-semibold">latest date</span> — the day the last salary lands.
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-3 pt-1">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 pt-1">
                                     <select
                                         value={payDay}
                                         onChange={e => setPayDay(e.target.value)}
-                                        className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44">
+                                        className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44 shrink-0">
                                         <option value="">Not set</option>
                                         {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                                             <option key={d} value={d}>
@@ -844,11 +844,11 @@ export default function AdminPage() {
                                     <p className="text-xs text-slate-400">
                                         How many days after pay day the editing window stays open. Max 10 days.
                                     </p>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                                         <select
                                             value={gracePeriod}
                                             onChange={e => setGracePeriod(e.target.value)}
-                                            className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44">
+                                            className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-slate-800 w-44 shrink-0">
                                             {Array.from({ length: 10 }, (_, i) => i + 1).map(d => (
                                                 <option key={d} value={d}>
                                                     {d} {d === 1 ? 'day' : 'days'}

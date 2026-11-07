@@ -135,7 +135,7 @@ Recommendation: use the Render default URL to start, switch to a custom subdomai
 | 2. Production env config | 🔲 Not started |
 | 3. Render deploy | 🔲 Not started |
 | 4. Vercel deploy | 🔲 Not started |
-| 5. DNS setup | 🔲 Not started |
+| 5. DNS setup | 🔲 Not started |let's do pwa 
 | 6. UptimeRobot | 🔲 Not started |
 | 7. Mobile UI | 🔲 Not started |
 | 8. PWA setup | 🔲 Not started |

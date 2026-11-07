@@ -7,8 +7,15 @@ import { ThemeProvider } from '@/context/ThemeContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-    title: 'Home Pro Manager',
-    description: 'Manage your household with ease',
+    title: 'HomePro Manager',
+    description: 'Household budgeting and finance manager',
+    manifest: '/manifest.json',
+    themeColor: '#0ea5e9',
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: 'default',
+        title: 'HomePro',
+    },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <head>
                 <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('theme')!=='light')document.documentElement.classList.add('dark')}catch{}` }} />
             </head>
-            <body className={inter.className}>
+            <body className={inter.className} suppressHydrationWarning>
                 <ThemeProvider>
                     {children}
                     <Toaster />

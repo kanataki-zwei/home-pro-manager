@@ -673,7 +673,7 @@ export default function HouseholdPage() {
             <div className="flex items-start justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Your Household</p>
-                    <h1 className="text-4xl font-black text-slate-900 dark:text-white leading-tight">{household.name}</h1>
+                    <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight">{household.name}</h1>
                     <p className="text-slate-400 mt-1 text-sm">
                         {members.length} member{members.length !== 1 ? 's' : ''} · {earners.length} earner{earners.length !== 1 ? 's' : ''} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
                     </p>
@@ -685,7 +685,7 @@ export default function HouseholdPage() {
             </div>
 
             {/* Row 1: Roles + Income */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
                 {/* Member Roles */}
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -846,12 +846,12 @@ export default function HouseholdPage() {
                 ) : (
                     <div className="space-y-4">
                         {spouseGroup.length > 0 && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {spouseGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
                             </div>
                         )}
                         {kidGroup.length > 0 && (
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {kidGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
                             </div>
                         )}
@@ -896,7 +896,7 @@ export default function HouseholdPage() {
                         </div>
                         <button onClick={() => setAccountDialog(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
-                            <Plus className="h-3.5 w-3.5" /> Add Account
+                            <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline"> Add Account</span>
                         </button>
                     </div>
                 </div>
@@ -975,7 +975,7 @@ export default function HouseholdPage() {
                         </div>
                     )
                     return (
-                        <div className="grid grid-cols-3 gap-3 mb-5">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
                             {[
                                 { title: 'By Ownership',    items: ownershipItems },
                                 { title: 'By Type',         items: typeItems },
@@ -1000,7 +1000,7 @@ export default function HouseholdPage() {
                         </p>
                     </div>
                 ) : accountView === 'icon' ? (
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
                         {filteredAccounts.map((account, i) => (
                             <div key={account.id}
                                 className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all overflow-hidden group"
@@ -1031,7 +1031,7 @@ export default function HouseholdPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="px-3 pb-3 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="px-3 pb-3 flex items-center justify-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button onClick={() => openTxnDialog(account)} title="Add entry"
                                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
                                         <Plus className="h-3 w-3" />
@@ -1067,7 +1067,7 @@ export default function HouseholdPage() {
                                     className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     <div className="p-5">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                                                 style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
