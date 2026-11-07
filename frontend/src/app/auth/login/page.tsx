@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,7 +9,7 @@ import { signIn } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Sparkles } from 'lucide-react'
 
@@ -114,14 +113,6 @@ export default function LoginPage() {
                             </Button>
                         </form>
                     </CardContent>
-                    <CardFooter className="justify-center pt-0">
-                        <p className="text-sm text-slate-500">
-                            Don't have an account?{' '}
-                            <Link href="/auth/signup" className="font-semibold text-sky-500 hover:text-sky-600">
-                                Sign up
-                            </Link>
-                        </p>
-                    </CardFooter>
                 </Card>
             </div>
         </div>
