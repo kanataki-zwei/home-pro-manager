@@ -249,7 +249,7 @@ export default function NetWorthPage() {
             {/* Header */}
             <div>
                 <span className="text-xs font-semibold uppercase tracking-widest text-emerald-500">Financial Health</span>
-                <h1 className="text-3xl font-bold text-slate-900 mt-1">Net Worth</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white mt-1">Net Worth</h1>
                 <p className="text-slate-400 mt-1 text-sm">Track your assets and transaction history</p>
             </div>
 
@@ -315,11 +315,11 @@ export default function NetWorthPage() {
 
             {/* Net Worth Trajectory */}
             {netWorthTrajectory.length >= 2 && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-5"
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5"
                     style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-4">
                         <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Net Worth Trajectory</p>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Net Worth Trajectory</p>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={`text-sm font-black ${trajectoryDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                     {trajectoryDelta >= 0 ? '+' : '−'}{fmtCompact(Math.abs(trajectoryDelta))}
@@ -354,9 +354,9 @@ export default function NetWorthPage() {
                                 content={({ active, payload, label }) => {
                                     if (!active || !payload?.length) return null
                                     return (
-                                        <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2 shadow-lg text-xs">
-                                            <p className="font-bold text-slate-500 mb-1">{label}</p>
-                                            <p className="font-black text-slate-900">{fmt(payload[0].value as number)}</p>
+                                        <div className="bg-white dark:bg-slate-700 rounded-2xl border border-slate-100 dark:border-slate-600 px-3 py-2 shadow-lg text-xs">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400 mb-1">{label}</p>
+                                            <p className="font-black text-slate-900 dark:text-white">{fmt(payload[0].value as number)}</p>
                                         </div>
                                     )
                                 }}
@@ -394,8 +394,8 @@ export default function NetWorthPage() {
                         style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
                         <div className="flex items-center justify-between mb-4">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Net Worth Spread</p>
-                                <p className="text-sm font-black text-slate-800 mt-0.5">{fmtCompact(total)} across {sorted.length} account types</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Net Worth Spread</p>
+                                <p className="text-sm font-black text-slate-800 dark:text-slate-200 mt-0.5">{fmtCompact(total)} across {sorted.length} account types</p>
                             </div>
                         </div>
 
@@ -421,7 +421,7 @@ export default function NetWorthPage() {
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                                                <span className="text-sm font-semibold text-slate-700">{label}</span>
+                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
                                                 <span className="text-xs text-slate-400">{count} account{count !== 1 ? 's' : ''}</span>
                                             </div>
                                             <div className="text-right">
@@ -429,7 +429,7 @@ export default function NetWorthPage() {
                                                 <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
                                             </div>
                                         </div>
-                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                             <div className="h-full rounded-full transition-all"
                                                 style={{ width: `${pct}%`, background: color }} />
                                         </div>
@@ -443,8 +443,8 @@ export default function NetWorthPage() {
 
             {/* Account breakdown */}
             <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Accounts</p>
-                <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Accounts</p>
+                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold">
                     {([
                         { key: 'name-asc',    label: 'A → Z' },
                         { key: 'name-desc',   label: 'Z → A' },
@@ -452,7 +452,7 @@ export default function NetWorthPage() {
                         { key: 'amount-asc',  label: 'Amount ↑' },
                     ] as const).map(({ key, label }) => (
                         <button key={key} onClick={() => setAccountSort(key)}
-                            className={`px-3 py-1.5 rounded-lg transition-all ${accountSort === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            className={`px-3 py-1.5 rounded-lg transition-all ${accountSort === key ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                             {label}
                         </button>
                     ))}
@@ -466,7 +466,7 @@ export default function NetWorthPage() {
                     <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Shield className="h-4 w-4 text-emerald-500" />
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Net Worth Accounts</p>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Net Worth Accounts</p>
                         </div>
                         <Link href="/household" className="text-xs text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
                             Manage <ArrowUpRight className="h-3 w-3" />
@@ -479,7 +479,7 @@ export default function NetWorthPage() {
                             <Link href="/household" className="text-xs text-sky-500 font-semibold mt-1 inline-block">Configure accounts →</Link>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
                             {sortAccounts(netWorthAccounts).map((a, i) => {
                                 const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
                                 const pct = totalNetWorth > 0 ? ((kes / totalNetWorth) * 100).toFixed(1) : '0.0'
@@ -504,7 +504,7 @@ export default function NetWorthPage() {
                                     </div>
                                 )
                             })}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50">
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Net Worth</p>
                                 <p className="text-sm font-black text-slate-900">{fmt(totalNetWorth)}</p>
                             </div>
@@ -525,7 +525,7 @@ export default function NetWorthPage() {
                             <p className="text-sm text-slate-400">All accounts are counted in your net worth.</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
                             {sortAccounts(excludedAccounts).map((a, i) => (
                                 <div key={a.id} className="flex items-center gap-3 px-5 py-3">
                                     <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
@@ -539,7 +539,7 @@ export default function NetWorthPage() {
                                     <p className="text-sm font-bold text-slate-500 flex-shrink-0">{fmt(Number(a.current_balance), a.currency)}</p>
                                 </div>
                             ))}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50">
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total (excluded)</p>
                                 <p className="text-sm font-black text-slate-500">
                                     {fmt(excludedAccounts.reduce((s, a) => s + Number(a.current_balance), 0))}
@@ -556,22 +556,22 @@ export default function NetWorthPage() {
 
                 {/* Log header */}
                 <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-slate-100">
-                    <p className="text-sm font-bold text-slate-800">Transaction Log</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Transaction Log</p>
                     <div className="flex items-center gap-2">
                         {/* Source filter */}
-                        <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'manual', 'session'] as const).map(s => (
                                 <button key={s} onClick={() => setSourceFilter(s)}
-                                    className={`px-3 py-1.5 rounded-lg capitalize transition-all ${sourceFilter === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    className={`px-3 py-1.5 rounded-lg capitalize transition-all ${sourceFilter === s ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                                     {s === 'all' ? 'All Sources' : s === 'manual' ? 'Manual' : 'Session'}
                                 </button>
                             ))}
                         </div>
                         {/* Type filter */}
-                        <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'credit', 'debit'] as const).map(f => (
                                 <button key={f} onClick={() => setTxnFilter(f)}
-                                    className={`px-3 py-1.5 rounded-lg transition-all ${txnFilter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    className={`px-3 py-1.5 rounded-lg transition-all ${txnFilter === f ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                                     {f === 'all' ? 'All' : f === 'credit' ? 'Deposits' : 'Withdrawals'}
                                 </button>
                             ))}
@@ -595,18 +595,18 @@ export default function NetWorthPage() {
                 ) : (
                     <>
                         {/* Column headers */}
-                        <div className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-2 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                        <div className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-2 bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600 text-xs font-bold text-slate-400 uppercase tracking-wide">
                             <span>Date</span>
                             <span>Account · Narration</span>
                             <span>Source</span>
                             <span className="text-right">Amount</span>
                         </div>
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
                             {filteredTxns.map(t => {
                                 const account = accountMap[t.account_id]
                                 const isCredit = t.transaction_type === 'credit'
                                 return (
-                                    <div key={t.id} className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50 transition-colors">
+                                    <div key={t.id} className="grid grid-cols-[1fr_1.5fr_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                         {/* Date */}
                                         <div>
                                             <p className="text-sm font-medium text-slate-700">{fmtDate(t.created_at)}</p>
@@ -646,7 +646,7 @@ export default function NetWorthPage() {
                         </div>
 
                         {/* Footer summary */}
-                        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-100 dark:border-slate-600 flex items-center justify-between">
                             <p className="text-xs text-slate-400">{filteredTxns.length} transaction{filteredTxns.length !== 1 ? 's' : ''}</p>
                             <div className="flex items-center gap-4 text-xs font-semibold">
                                 <span className="text-emerald-600">

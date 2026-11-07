@@ -66,9 +66,9 @@ function ChartTooltip({ active, payload }: any) {
     const d = payload[0]
     const name = d.name || d.payload?.name
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2 shadow-lg text-xs">
-            <p className="font-bold text-slate-700">{name}</p>
-            <p className="font-black text-slate-900 mt-0.5">{fmt(d.value)}<span className="font-normal text-slate-400">/mo</span></p>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 px-3 py-2 shadow-lg text-xs">
+            <p className="font-bold text-slate-700 dark:text-slate-300">{name}</p>
+            <p className="font-black text-slate-900 dark:text-white mt-0.5">{fmt(d.value)}<span className="font-normal text-slate-400">/mo</span></p>
         </div>
     )
 }
@@ -251,7 +251,7 @@ export default function BudgetReport() {
             <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1 w-fit">
                 {(['all', 'me'] as const).map(s => (
                     <button key={s} onClick={() => setScope(s)}
-                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all ${scope === s ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all ${scope === s ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                         {s === 'all' ? '🏠 All Household' : '👤 Me'}
                     </button>
                 ))}
@@ -259,28 +259,28 @@ export default function BudgetReport() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-4 gap-3">
-                <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Monthly Total</p>
-                    <p className="text-lg font-black text-slate-900">{fmt(totalMonthly)}</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{fmt(totalMonthly)}</p>
                     <p className="text-xs text-slate-400 mt-0.5">/ mo</p>
                 </div>
-                <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
                         <Receipt className="h-3 w-3 text-slate-400" />
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses</p>
                     </div>
-                    <p className="text-lg font-black text-slate-900">{scopedRows.length}</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{scopedRows.length}</p>
                     <p className="text-xs text-slate-400 mt-0.5">line items</p>
                 </div>
-                <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
                         <Layers className="h-3 w-3 text-slate-400" />
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Groups</p>
                     </div>
-                    <p className="text-lg font-black text-slate-900">{activeGroupCount}</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{activeGroupCount}</p>
                     <p className="text-xs text-slate-400 mt-0.5">active</p>
                 </div>
-                <div className="bg-white rounded-3xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Savings Rate</p>
                     <p className={`text-lg font-black ${librarySavingsRate >= 20 ? 'text-emerald-600' : librarySavingsRate >= 10 ? 'text-amber-500' : 'text-slate-900'}`}>
                         {librarySavingsRate.toFixed(1)}%
@@ -294,7 +294,7 @@ export default function BudgetReport() {
                 <div className={`grid gap-4 ${scope === 'all' && memberRows.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
 
                     {/* Donut — group breakdown */}
-                    <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
                         <ResponsiveContainer width="100%" height={180}>
                             <PieChart>
@@ -325,7 +325,7 @@ export default function BudgetReport() {
 
                     {/* Horizontal bar — member comparison (all scope) */}
                     {scope === 'all' && memberRows.length > 0 && (
-                        <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Member</p>
                             <ResponsiveContainer width="100%" height={180}>
                                 <BarChart layout="vertical" data={barData}
@@ -516,7 +516,7 @@ export default function BudgetReport() {
             {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
                 <div className="space-y-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
-                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                         {/* Household / scope total */}
                         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
                             <div>
@@ -579,7 +579,7 @@ export default function BudgetReport() {
 
             {/* ── Month-over-month trend ── */}
             {scope === 'all' && trendChartData.length >= 2 && (
-                <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Monthly Budget Trend</p>
                         <p className="text-xs text-slate-400">{trendSessions.length} months</p>
@@ -651,7 +651,7 @@ export default function BudgetReport() {
                         </div>
 
                         {/* Summary bar */}
-                        <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <div className="flex items-center justify-between mb-3">
                                 <div className="text-center">
                                     <p className="text-xs text-slate-400 font-medium">Budgeted</p>
@@ -696,7 +696,7 @@ export default function BudgetReport() {
                                 const isExpanded = expandedGroups.has(g.group_name)
                                 const paidPct = g.budgeted > 0 ? Math.min((g.paid / g.budgeted) * 100, 120) : 0
                                 return (
-                                    <div key={g.group_name} className="bg-white rounded-2xl border border-slate-100 overflow-hidden"
+                                    <div key={g.group_name} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                                         style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                                         <button
                                             className="w-full flex items-center gap-3 px-5 py-3.5 text-left"
@@ -778,8 +778,8 @@ export default function BudgetReport() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-3 mb-1.5">
-                                        <p className="font-bold text-slate-900 text-sm">{group.name}</p>
-                                        <p className="font-black text-slate-900 text-sm flex-shrink-0">
+                                        <p className="font-bold text-slate-900 dark:text-white text-sm">{group.name}</p>
+                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
                                             {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                         </p>
                                     </div>
@@ -832,7 +832,7 @@ export default function BudgetReport() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between gap-3 mb-1.5">
                                         <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
-                                        <p className="font-black text-slate-900 text-sm flex-shrink-0">
+                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
                                             {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
                                         </p>
                                     </div>

@@ -563,14 +563,14 @@ export default function ExpenseLibrary() {
                 const over = netRemaining < 0
 
                 return (
-                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden"
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                         style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                         {/* Header */}
                         <div className="p-5">
                             <div className="flex items-start justify-between gap-4 mb-4">
                                 <div>
                                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Total Household Income</p>
-                                    <p className="text-2xl font-black text-slate-900">{fmt(totalIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white">{fmt(totalIncome)}<span className="text-sm font-normal text-slate-400 ml-1">/ mo</span></p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Net Remaining</p>
@@ -581,7 +581,7 @@ export default function ExpenseLibrary() {
                                 </div>
                             </div>
                             {/* Combined progress bar */}
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                 <div className={`h-full rounded-full transition-all ${over ? 'bg-red-400' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                                     style={{ width: `${pct}%` }} />
                             </div>
@@ -589,13 +589,13 @@ export default function ExpenseLibrary() {
                         </div>
 
                         {/* Per-member breakdown */}
-                        <div className="border-t border-slate-50">
+                        <div className="border-t border-slate-50 dark:border-slate-700">
                             {memberRows.map((row, i) => {
                                 const memberPct = row.income > 0 ? Math.min((row.allocated / row.income) * 100, 100) : 0
                                 const zeroBudgeted = row.remaining <= 0
                                 const remainingDisplay = Math.max(0, row.remaining)
                                 return (
-                                    <div key={row.member.id} className="px-5 py-4 border-b border-slate-50 last:border-b-0">
+                                    <div key={row.member.id} className="px-5 py-4 border-b border-slate-50 dark:border-slate-700 last:border-b-0">
                                         <div className="flex items-center justify-between gap-3 mb-2">
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
@@ -603,7 +603,7 @@ export default function ExpenseLibrary() {
                                                     {row.member.name.charAt(0)}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-slate-700 truncate">{row.member.name}</p>
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{row.member.name}</p>
                                                     <p className="text-xs text-slate-400">{row.member.member_type.name} · {fmt(row.income)}/mo</p>
                                                 </div>
                                             </div>
@@ -616,19 +616,19 @@ export default function ExpenseLibrary() {
                                             {row.hhOwned > 0 && (
                                                 <div className="flex justify-between text-xs">
                                                     <span className="text-slate-400">HH · {row.member.member_type.name}</span>
-                                                    <span className="text-slate-600 font-medium">−{fmt(row.hhOwned)}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300 font-medium">−{fmt(row.hhOwned)}</span>
                                                 </div>
                                             )}
                                             {row.hhJoint > 0 && (
                                                 <div className="flex justify-between text-xs">
                                                     <span className="text-slate-400">HH · Joint share</span>
-                                                    <span className="text-slate-600 font-medium">−{fmt(row.hhJoint)}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300 font-medium">−{fmt(row.hhJoint)}</span>
                                                 </div>
                                             )}
                                             {row.personal > 0 && (
                                                 <div className="flex justify-between text-xs">
                                                     <span className="text-slate-400">Personal</span>
-                                                    <span className="text-slate-600 font-medium">−{fmt(row.personal)}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300 font-medium">−{fmt(row.personal)}</span>
                                                 </div>
                                             )}
                                             {row.allocated === 0 && (
@@ -636,7 +636,7 @@ export default function ExpenseLibrary() {
                                             )}
                                         </div>
                                         <div className="ml-9 flex items-center gap-3">
-                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div className={`h-full rounded-full transition-all ${memberPct > 85 ? 'bg-emerald-400' : 'bg-sky-400'}`}
                                                     style={{ width: `${memberPct}%` }} />
                                             </div>
@@ -685,8 +685,8 @@ export default function ExpenseLibrary() {
                 if (allRows.length === 0) return null
 
                 return (
-                    <div className="bg-white rounded-3xl border border-slate-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Expenses by Tag</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-4">Expenses by Tag</p>
 
                         {/* Stacked bar */}
                         <div className="flex h-3 rounded-full overflow-hidden gap-px mb-4">
@@ -702,9 +702,9 @@ export default function ExpenseLibrary() {
                                 return (
                                     <div key={row.id} className="flex items-center gap-3">
                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color }} />
-                                        <span className="text-sm text-slate-600 flex-1">{row.name}</span>
+                                        <span className="text-sm text-slate-600 dark:text-slate-300 flex-1">{row.name}</span>
                                         <span className="text-xs text-slate-400 w-10 text-right">{pct}%</span>
-                                        <span className="text-sm font-bold text-slate-800 w-32 text-right">{formatKES(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span></span>
+                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 w-32 text-right">{formatKES(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span></span>
                                     </div>
                                 )
                             })}
@@ -742,10 +742,10 @@ export default function ExpenseLibrary() {
                 if (linked.length === 0 && unlinked.length === 0) return null
 
                 return (
-                    <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                         <button
                             onClick={() => setAccountDistExpanded(p => !p)}
-                            className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                            className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                             <div className="flex items-center gap-3">
                                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses by Account</p>
                                 <span className="text-xs text-slate-300">{linked.length + (unlinked.length > 0 ? 1 : 0)} group{linked.length + (unlinked.length > 0 ? 1 : 0) !== 1 ? 's' : ''}</span>
@@ -761,7 +761,7 @@ export default function ExpenseLibrary() {
                                     : <ChevronRight className="h-4 w-4 text-slate-400" />}
                             </div>
                         </button>
-                        {accountDistExpanded && <div className="border-t border-slate-50 divide-y divide-slate-50">
+                        {accountDistExpanded && <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                             {linked.map(row => (
                                 <div key={row.acc.id} className="px-5 py-3.5">
                                     <div className="flex items-center justify-between mb-2">
@@ -821,12 +821,12 @@ export default function ExpenseLibrary() {
             {/* ── Toolbar ── */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 {!isMeMode && (
-                    <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-2xl p-1">
                         {(['household', 'personal'] as const).map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                                 {tab === 'household' ? '🏠 Household' : '👤 Personal'}
                             </button>
                         ))}
@@ -856,7 +856,7 @@ export default function ExpenseLibrary() {
             {/* ── Tags bar ── */}
             <div className="flex flex-wrap gap-2 items-center">
                 {tags.map(tag => editingTag?.id === tag.id ? (
-                    <div key={tag.id} className="flex items-center gap-1.5 pl-2 pr-2 py-1 rounded-full bg-white border-2 border-slate-300 shadow-sm">
+                    <div key={tag.id} className="flex items-center gap-1.5 pl-2 pr-2 py-1 rounded-full bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 shadow-sm">
                         <input type="color" value={editTagColor} onChange={e => setEditTagColor(e.target.value)}
                             className="w-5 h-5 rounded-full cursor-pointer border-0 p-0 flex-shrink-0" style={{ background: 'none' }} />
                         <input
@@ -911,13 +911,13 @@ export default function ExpenseLibrary() {
 
                     return (
                         <div key={group.id}
-                            className={`bg-white rounded-3xl border overflow-hidden transition-all ${group.is_deleted ? 'opacity-50 border-dashed border-slate-200' : 'border-slate-100'}`}
+                            className={`bg-white dark:bg-slate-800 rounded-3xl border overflow-hidden transition-all ${group.is_deleted ? 'opacity-50 border-dashed border-slate-200 dark:border-slate-600' : 'border-slate-100 dark:border-slate-700'}`}
                             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
 
                             <div className="h-1" style={{ background: GRADIENTS[gi % GRADIENTS.length] }} />
 
                             {/* Group header */}
-                            <div className="px-5 pt-4 pb-3 cursor-pointer hover:bg-slate-50/60 transition-colors select-none"
+                            <div className="px-5 pt-4 pb-3 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-700/50 transition-colors select-none"
                                 onClick={() => toggleGroup(group.id)}>
                                 {/* Title row */}
                                 <div className="flex items-center gap-3">
@@ -925,7 +925,7 @@ export default function ExpenseLibrary() {
                                         style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
                                         {group.name.charAt(0)}
                                     </div>
-                                    <p className="font-bold text-slate-900 text-base flex-1 min-w-0 truncate">{group.name}</p>
+                                    <p className="font-bold text-slate-900 dark:text-white text-base flex-1 min-w-0 truncate">{group.name}</p>
                                     <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                                         {group.is_deleted ? (
                                             <button onClick={() => restoreGroup(group.id)}
@@ -946,17 +946,17 @@ export default function ExpenseLibrary() {
                                                                 : <Tag className="h-3.5 w-3.5" />}
                                                         </button>
                                                         {groupTagPickerOpen === group.id && (
-                                                            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-100 rounded-2xl shadow-xl p-2 min-w-max">
+                                                            <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl p-2 min-w-max">
                                                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
                                                                 <div className="space-y-0.5">
                                                                     {tags.map(tag => {
                                                                         const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
                                                                         const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
                                                                         return (
-                                                                            <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                                            <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                                                                                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                                                     style={{ background: tag.color || '#6366f1' }} />
-                                                                                <span className="text-sm font-semibold text-slate-700 flex-1 mr-3">{tag.name}</span>
+                                                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 mr-3">{tag.name}</span>
                                                                                 <button
                                                                                     onClick={() => applyTagToGroup(group.id, tag.id)}
                                                                                     title="Add to all expenses in group"
@@ -997,10 +997,10 @@ export default function ExpenseLibrary() {
                                 </div>
                                 {/* Stats callouts */}
                                 <div className="flex items-center gap-2 mt-3 ml-12 flex-wrap">
-                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                                         {groupExpenses.filter(e => !e.is_deleted).length} expenses
                                     </span>
-                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                                         {formatKES(monthlyTotal)}/mo
                                     </span>
                                     {totalBudgetedMonthly > 0 && monthlyTotal > 0 && (
@@ -1039,14 +1039,14 @@ export default function ExpenseLibrary() {
 
                             {/* Expenses in group */}
                             {isExpanded && (
-                                <div className="border-t border-slate-200 bg-slate-50/40">
+                                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40">
                                     <table className="w-full border-collapse table-fixed">
                                         <thead>
-                                            <tr className="bg-slate-100 border-b border-slate-200">
-                                                <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 border-r border-slate-200">Name</th>
-                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Owner</th>
-                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Account</th>
-                                                <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 w-44 border-r border-slate-200">Amount</th>
+                                            <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+                                                <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
+                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Owner</th>
+                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Account</th>
+                                                <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-44 border-r border-slate-200 dark:border-slate-600">Amount</th>
                                                 <th className="w-14" />
                                             </tr>
                                         </thead>
@@ -1070,7 +1070,7 @@ export default function ExpenseLibrary() {
                                                     <td colSpan={5}>
                                                         <button
                                                             onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
-                                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-200">
+                                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-t border-slate-200 dark:border-slate-700">
                                                             <Plus className="h-3.5 w-3.5" />
                                                             Add expense to {group.name}
                                                         </button>
@@ -1087,9 +1087,9 @@ export default function ExpenseLibrary() {
 
                 {/* Ungrouped expenses */}
                 {ungroupedExpenses.length > 0 && (
-                    <div className="bg-white rounded-3xl border border-dashed border-slate-200 overflow-hidden"
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 overflow-hidden"
                         style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div className="px-5 py-3 bg-slate-50 flex items-center justify-between">
+                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 flex items-center justify-between">
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Ungrouped</p>
                             <button onClick={() => setUngroupedEditMode(p => !p)}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${ungroupedEditMode ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
@@ -1098,11 +1098,11 @@ export default function ExpenseLibrary() {
                         </div>
                         <table className="w-full border-collapse table-fixed">
                             <thead>
-                                <tr className="bg-slate-100 border-b border-slate-200">
-                                    <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 border-r border-slate-200">Name</th>
-                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Owner</th>
-                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 w-36 border-r border-slate-200">Account</th>
-                                    <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 w-44 border-r border-slate-200">Amount</th>
+                                <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+                                    <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
+                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Owner</th>
+                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Account</th>
+                                    <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-44 border-r border-slate-200 dark:border-slate-600">Amount</th>
                                     <th className="w-14" />
                                 </tr>
                             </thead>
@@ -1125,7 +1125,7 @@ export default function ExpenseLibrary() {
                                     <tr>
                                         <td colSpan={5}>
                                             <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
-                                                className="flex items-center gap-2 w-full px-4 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors border-t border-slate-200">
+                                                className="flex items-center gap-2 w-full px-4 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-t border-slate-200 dark:border-slate-700">
                                                 <Plus className="h-3.5 w-3.5" />
                                                 Add ungrouped expense
                                             </button>
@@ -1455,15 +1455,15 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
     const startEdit = (field: typeof editing) => { if (editMode && !expense.is_deleted) setEditing(field) }
     const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
 
-    const nameCls = 'px-4 py-2 align-top bg-slate-50 border-r border-slate-200'
-    const cellCls = 'px-3 py-2 align-top border-r border-slate-100 bg-white'
-    const inputCls = 'w-full text-sm bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400'
-    const selectCls = 'text-sm bg-sky-50 border border-sky-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-sky-400'
+    const nameCls = 'px-4 py-2 align-top bg-slate-50 dark:bg-slate-800/60 border-r border-slate-200 dark:border-slate-700'
+    const cellCls = 'px-3 py-2 align-top border-r border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800'
+    const inputCls = 'w-full text-sm bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400 dark:text-slate-200'
+    const selectCls = 'text-sm bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded-xl px-2.5 py-1.5 outline-none focus:border-sky-400 dark:text-slate-200'
     const saveBtn = 'text-xs font-bold text-sky-600 hover:text-sky-700'
     const cancelBtn = 'text-xs text-slate-400 hover:text-slate-600'
 
     return (
-        <tr className={`border-b border-slate-200 transition-colors ${expense.is_deleted ? 'opacity-40' : editMode ? 'hover:bg-sky-50/30' : ''}`}>
+        <tr className={`border-b border-slate-200 dark:border-slate-700 transition-colors ${expense.is_deleted ? 'opacity-40' : editMode ? 'hover:bg-sky-50/30 dark:hover:bg-sky-900/20' : ''}`}>
 
             {/* Name */}
             <td className={nameCls} onClick={editMode ? () => editing === null && startEdit('name') : undefined}
@@ -1480,7 +1480,7 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                     </div>
                 ) : (
                     <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-slate-800 text-sm truncate">{expense.name}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{expense.name}</span>
                         {expense.tag_assignments.map(ta => (
                             <span key={ta.id}
                                 className="inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-0.5 rounded-full text-[10px] font-bold text-white"
@@ -1531,7 +1531,7 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                     </div>
                 ) : (
                     <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-sm text-slate-700">
+                        <span className="text-sm text-slate-700 dark:text-slate-300">
                             {expense.ownership_type === 'joint' ? '🤝 Joint' : expense.ownership_type === 'husband' ? '👨 Husband' : '👩 Wife'}
                         </span>
                         {expense.ownership_type === 'joint' && (
@@ -1559,7 +1559,7 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                     </div>
                 ) : (
                     sourceAccount ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-500">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
                             <Wallet className="h-2.5 w-2.5" />{sourceAccount.name}
                         </span>
                     ) : (
@@ -1591,7 +1591,7 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                     </div>
                 ) : (
                     <div>
-                        <p className="font-black text-slate-900 text-sm whitespace-nowrap">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                        <p className="font-black text-slate-900 dark:text-white text-sm whitespace-nowrap">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
                         {expense.frequency !== 'monthly' && (
                             <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">{formatKES(expense.amount)} {expense.frequency}</p>
                         )}
@@ -1600,7 +1600,7 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
             </td>
 
             {/* Actions — only visible in edit mode */}
-            <td className="px-2 py-2 align-top bg-white">
+            <td className="px-2 py-2 align-top bg-white dark:bg-slate-800">
                 {editMode && (
                     <div className="flex items-center justify-end gap-0.5">
                         {expense.is_deleted ? (
@@ -1617,13 +1617,13 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                                             <Tag className="h-3.5 w-3.5" />
                                         </button>
                                         {tagPickerOpen && (
-                                            <div className="absolute right-0 top-8 z-50 bg-white rounded-2xl shadow-lg border border-slate-100 p-2 min-w-[160px]">
+                                            <div className="absolute right-0 top-8 z-50 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 p-2 min-w-[160px]">
                                                 {tags.map(tag => {
                                                     const active = expense.tag_assignments.some(ta => ta.tag.id === tag.id)
                                                     return (
-                                                        <div key={tag.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                                        <div key={tag.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                                                             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: tag.color || '#6366f1' }} />
-                                                            <span className="text-xs text-slate-700 flex-1">{tag.name}</span>
+                                                            <span className="text-xs text-slate-700 dark:text-slate-300 flex-1">{tag.name}</span>
                                                             <button onClick={() => { onTagToggle(tag.id); setTagPickerOpen(false) }}
                                                                 className={`w-5 h-5 rounded flex items-center justify-center transition-all ${active ? 'text-red-400 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50'}`}>
                                                                 {active ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}

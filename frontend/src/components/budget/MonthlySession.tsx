@@ -580,7 +580,7 @@ function SessionDetailView({
         const isPendingNa = pendingNa?.itemId === item.id
 
         return (
-            <div key={item.id} className={!isLast ? 'border-b border-slate-100' : ''}>
+            <div key={item.id} className={!isLast ? 'border-b border-slate-100 dark:border-slate-700' : ''}>
                 <div className="flex items-center gap-3 px-4 py-4">
                     {dragHandleProps && (
                         <button
@@ -615,7 +615,7 @@ function SessionDetailView({
                                     <Tag className="h-3.5 w-3.5" />
                                 </button>
                                 {tagPickerOpenId === item.id && (
-                                    <div className="absolute right-0 top-6 z-20 bg-white rounded-xl border border-slate-200 shadow-lg p-2 min-w-[140px]"
+                                    <div className="absolute right-0 top-6 z-20 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-2 min-w-[140px]"
                                         style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 pb-1.5">Tags</p>
                                         {tags.map(tag => {
@@ -717,7 +717,7 @@ function SessionDetailView({
                     </div>
                 )}
                 {pendingPaidRef?.itemId === item.id && (
-                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 pt-3">
+                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 dark:border-slate-700 pt-3">
                         <div className="space-y-1.5">
                             <p className="text-xs font-medium text-slate-600">
                                 Actual amount paid
@@ -729,7 +729,7 @@ function SessionDetailView({
                                 placeholder={String(Number(item.allocated_amount))}
                                 value={pendingPaidRef.amountPaid}
                                 onChange={e => setPendingPaidRef({ ...pendingPaidRef, amountPaid: e.target.value })}
-                                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                             />
                         </div>
                         {requiresRef(item) && (
@@ -740,7 +740,7 @@ function SessionDetailView({
                                     placeholder="e.g. TXN-2026-06-001"
                                     value={pendingPaidRef.ref}
                                     onChange={e => setPendingPaidRef({ ...pendingPaidRef, ref: e.target.value })}
-                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                 />
                             </div>
                         )}
@@ -760,7 +760,7 @@ function SessionDetailView({
                     </div>
                 )}
                 {isPendingNa && (
-                    <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
+                    <div className="px-5 pb-4 space-y-2 border-t border-slate-100 dark:border-slate-700 pt-3">
                         <textarea
                             className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-slate-300"
                             placeholder="Why is this N/A? (required)"
@@ -784,7 +784,7 @@ function SessionDetailView({
                     </div>
                 )}
                 {editingItemId === item.id && (
-                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 pt-3">
+                    <div className="px-5 pb-4 space-y-2.5 border-t border-slate-100 dark:border-slate-700 pt-3">
                         {isAdHoc && (
                             <div className="space-y-1.5">
                                 <p className="text-xs font-medium text-slate-600">Name</p>
@@ -792,7 +792,7 @@ function SessionDetailView({
                                     type="text"
                                     value={editItemForm.name}
                                     onChange={e => setEditItemForm(p => ({ ...p, name: e.target.value }))}
-                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                    className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                 />
                             </div>
                         )}
@@ -808,7 +808,7 @@ function SessionDetailView({
                                     value={editItemForm.amount}
                                     onChange={e => setEditItemForm(p => ({ ...p, amount: e.target.value }))}
                                     onKeyDown={e => { if (e.key === 'Enter') saveItemEdit(item); if (e.key === 'Escape') setEditingItemId(null) }}
-                                    className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                    className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                 />
                             </div>
                         </div>
@@ -859,12 +859,12 @@ function SessionDetailView({
                     <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
                         <button
                             onClick={() => setViewByAccount(false)}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!viewByAccount ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${!viewByAccount ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                             By Group
                         </button>
                         <button
                             onClick={() => setViewByAccount(true)}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${viewByAccount ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${viewByAccount ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                             By Account
                         </button>
                     </div>
@@ -1075,7 +1075,7 @@ function SessionDetailView({
                                 placeholder="Narration (e.g. Freelance project, bonus…)"
                                 value={extraIncomeNarration}
                                 onChange={e => setExtraIncomeNarration(e.target.value)}
-                                className="w-full text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                className="w-full text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                             />
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-sky-400 shrink-0">KES</span>
@@ -1086,7 +1086,7 @@ function SessionDetailView({
                                     step="0.01"
                                     value={extraIncomeAmount}
                                     onChange={e => setExtraIncomeAmount(e.target.value)}
-                                    className="flex-1 text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white"
+                                    className="flex-1 text-sm border border-sky-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
@@ -1244,7 +1244,7 @@ function SessionDetailView({
                                             )}
                                         </div>
                                     </div>
-                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                    <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                                         {acctItems.map((item, idx) =>
                                             renderItemRow(item, idx === acctItems.length - 1)
                                         )}
@@ -1283,7 +1283,7 @@ function SessionDetailView({
                                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                                         {groupId === '__none__' ? 'Uncategorized' : (groupMap.get(groupId) ?? 'Unknown group')}
                                     </p>
-                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                    <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                                         {ordered.map((item, idx) => renderItemRow(item, idx === ordered.length - 1))}
                                     </div>
                                 </div>
@@ -1292,7 +1292,7 @@ function SessionDetailView({
                         {filteredAdHoc.length > 0 && (
                             <div className="space-y-2">
                                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">One-time expenses</p>
-                                <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                                     {filteredAdHoc.map((item, idx) => renderItemRow(item, idx === filteredAdHoc.length - 1))}
                                 </div>
                             </div>
@@ -1331,7 +1331,7 @@ function SessionDetailView({
                                                 onDragEnd={(e) => handleItemDragEnd(groupId, groupItems, e)}
                                             >
                                                 <SortableContext items={ordered.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                                                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                                                    <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                                                         {ordered.map((item, idx) => (
                                                             <SortableItemWrapper
                                                                 key={item.id}
@@ -1367,7 +1367,7 @@ function SessionDetailView({
                         )}
                     </div>
                     {adHocItems.length > 0 && (
-                        <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                        <div className="rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                             {adHocItems.map((item, idx) =>
                                 renderItemRow(item, idx === adHocItems.length - 1)
                             )}
@@ -1390,7 +1390,7 @@ function SessionDetailView({
                                 value={adHocName}
                                 onChange={e => setAdHocName(e.target.value)}
                                 disabled={adHocAvailable <= 0}
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white disabled:opacity-40"
+                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200 disabled:opacity-40"
                             />
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-slate-400 shrink-0">KES</span>
@@ -1402,7 +1402,7 @@ function SessionDetailView({
                                     value={adHocAmount}
                                     onChange={e => setAdHocAmount(e.target.value)}
                                     disabled={adHocAvailable <= 0}
-                                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white disabled:opacity-40"
+                                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200 disabled:opacity-40"
                                 />
                             </div>
                             <div className="flex items-center gap-2">
@@ -1644,7 +1644,7 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
 
                     if (!session && !isCurrent && !isFuture) {
                         return (
-                            <div key={idx} className="rounded-2xl border border-slate-100 bg-white p-4">
+                            <div key={idx} className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                                 <p className="text-sm font-bold text-slate-500">{name}</p>
                                 <p className="text-xs text-slate-300 mt-1">No budget</p>
                             </div>
@@ -1686,7 +1686,7 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
                         ? 'border-sky-200 bg-sky-50 hover:border-sky-300'
                         : isFuture
                             ? 'border-violet-200 bg-violet-50 hover:border-violet-300'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
+                            : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-slate-300'
 
                     return (
                         <button

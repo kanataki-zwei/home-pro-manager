@@ -127,38 +127,38 @@ export default function HomePage() {
             {/* ── Quick callouts ───────────────────────────────────── */}
             <div className="grid grid-cols-3 gap-4">
                 {/* Monthly Income callout */}
-                <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-slate-100 flex items-center gap-4">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
                         <TrendingUp className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
                         <p className="text-xs text-slate-400 font-medium">Monthly Income</p>
-                        <p className="text-base font-bold text-slate-900 truncate">{fmtCompact(totalIncome)}</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white truncate">{fmtCompact(totalIncome)}</p>
                     </div>
                 </div>
 
                 {/* Members callout */}
-                <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-slate-100 flex items-center gap-4">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' }}>
                         <Users className="h-4 w-4 text-white" />
                     </div>
                     <div>
                         <p className="text-xs text-slate-400 font-medium">Household Members</p>
-                        <p className="text-base font-bold text-slate-900">{totalMembers} {totalMembers === 1 ? 'member' : 'members'}</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white">{totalMembers} {totalMembers === 1 ? 'member' : 'members'}</p>
                     </div>
                 </div>
 
                 {/* Earners callout */}
-                <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-slate-100 flex items-center gap-4">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl px-5 py-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                         style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
                         <Wallet className="h-4 w-4 text-white" />
                     </div>
                     <div>
                         <p className="text-xs text-slate-400 font-medium">Earners</p>
-                        <p className="text-base font-bold text-slate-900">
+                        <p className="text-base font-bold text-slate-900 dark:text-white">
                             {earners.length} of {totalMembers}
                         </p>
                     </div>
@@ -171,33 +171,33 @@ export default function HomePage() {
                 <div className="grid grid-cols-3 gap-4">
 
                     {/* Monthly Income */}
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
                                 style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
                                 <TrendingUp className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <p className="text-sm font-semibold text-slate-600">Monthly Income</p>
+                            <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Monthly Income</p>
                         </div>
-                        <p className="text-2xl font-bold text-slate-900 mb-1">{fmtCompact(totalIncome)}</p>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{fmtCompact(totalIncome)}</p>
                         <p className="text-xs text-slate-400 mb-4">
                             {fmt(totalIncome)} / month · {earners.length} {earners.length === 1 ? 'earner' : 'earners'}
                         </p>
                         {earners.length > 0 && (
-                            <div className="space-y-3 pt-1 border-t border-slate-50">
+                            <div className="space-y-3 pt-1 border-t border-slate-50 dark:border-slate-700">
                                 {earners.map(m => {
                                     const amount = toMonthly(m.income_amount, m.income_cadence)
                                     const pct = totalIncome > 0 ? (amount / totalIncome) * 100 : 0
                                     return (
                                         <div key={m.id}>
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="text-xs font-medium text-slate-700 truncate max-w-[55%]">{m.name}</span>
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[55%]">{m.name}</span>
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     <span className="text-xs text-slate-400">{fmtCompact(amount)}</span>
                                                     <span className="text-xs font-semibold text-sky-600 w-8 text-right">{pct.toFixed(0)}%</span>
                                                 </div>
                                             </div>
-                                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full rounded-full"
                                                     style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)' }}
@@ -211,15 +211,15 @@ export default function HomePage() {
                     </div>
 
                     {/* Total Net Worth */}
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
                                 style={{ background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' }}>
                                 <Landmark className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <p className="text-sm font-semibold text-slate-600">Total Net Worth</p>
+                            <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Total Net Worth</p>
                         </div>
-                        <p className="text-2xl font-bold text-slate-900 mb-1">{fmtCompact(totalNetWorth)}</p>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{fmtCompact(totalNetWorth)}</p>
                         <p className="text-xs text-slate-400 mb-4">
                             {fmt(totalNetWorth)} · {accounts.filter(a => a.contributes_to_net_worth && a.is_active).length} accounts
                         </p>
@@ -237,19 +237,19 @@ export default function HomePage() {
 
                             if (nwAccounts.length === 0) return null
                             return (
-                                <div className="space-y-3 pt-1 border-t border-slate-50">
+                                <div className="space-y-3 pt-1 border-t border-slate-50 dark:border-slate-700">
                                     {nwAccounts.map(a => {
                                         const pct = totalNetWorth > 0 ? (a.balKes / totalNetWorth) * 100 : 0
                                         return (
                                             <div key={a.id}>
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs font-medium text-slate-700 truncate max-w-[55%]">{a.name}</span>
+                                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[55%]">{a.name}</span>
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                         <span className="text-xs text-slate-400">{fmtCompact(a.balKes)}</span>
                                                         <span className="text-xs font-semibold text-violet-600 w-8 text-right">{pct.toFixed(0)}%</span>
                                                     </div>
                                                 </div>
-                                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                                     <div
                                                         className="h-full rounded-full"
                                                         style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}
@@ -264,13 +264,13 @@ export default function HomePage() {
                     </div>
 
                     {/* Savings vs Expenses */}
-                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
                                 style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
                                 <Wallet className="h-3.5 w-3.5 text-white" />
                             </div>
-                            <p className="text-sm font-semibold text-slate-600">Savings vs Expenses</p>
+                            <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Savings vs Expenses</p>
                         </div>
 
                         {statsLoading ? (
@@ -285,7 +285,7 @@ export default function HomePage() {
                                 </Link>
                             </div>
                         ) : (
-                            <div className="space-y-3 pt-1 border-t border-slate-50">
+                            <div className="space-y-3 pt-1 border-t border-slate-50 dark:border-slate-700">
                                 {monthHistory.map((m, i) => {
                                     const pct = Number(m.total_budgeted) > 0
                                         ? (Number(m.savings_amount) / Number(m.total_budgeted)) * 100 : 0
@@ -297,7 +297,7 @@ export default function HomePage() {
                                     return (
                                         <div key={m.session_id}>
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="text-xs font-medium text-slate-600">{monthLabel}</span>
+                                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{monthLabel}</span>
                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     {delta !== null && (
                                                         <span className={`text-xs font-semibold ${delta > 0 ? 'text-emerald-500' : delta < 0 ? 'text-red-400' : 'text-slate-400'}`}>
@@ -307,7 +307,7 @@ export default function HomePage() {
                                                     <span className="text-xs font-semibold text-emerald-600 w-8 text-right">{pct.toFixed(0)}%</span>
                                                 </div>
                                             </div>
-                                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full rounded-full"
                                                     style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #10b981, #34d399)' }}

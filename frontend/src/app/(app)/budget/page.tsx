@@ -57,7 +57,7 @@ function BudgetPageInner() {
             </div>
 
             {/* Tabs */}
-            <div className="flex items-center gap-1 border-b border-slate-100">
+            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-700">
                 {TABS.map(tab => {
                     const Icon = tab.icon
                     const active = activeTab === tab.key
@@ -68,7 +68,7 @@ function BudgetPageInner() {
                             className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all -mb-px ${
                                 active
                                     ? 'border-sky-500 text-sky-600'
-                                    : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-200'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-200 dark:hover:border-slate-600'
                             }`}>
                             <Icon className="h-4 w-4" />
                             {tab.label}

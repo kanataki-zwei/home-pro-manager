@@ -4,13 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
     Home, Wallet, Users, ShieldCheck, LogOut, Sparkles, BarChart3,
-    Building2, User, PanelLeftClose, PanelLeftOpen,
+    Building2, User, PanelLeftClose, PanelLeftOpen, Sun, Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { useHousehold } from '@/context/HouseholdContext'
 import { useSidebar } from '@/context/SidebarContext'
+import { useTheme } from '@/context/ThemeContext'
 
 const navigation = [
     { name: 'Home', href: '/home', icon: Home },
@@ -25,6 +26,7 @@ export default function Sidebar() {
     const router = useRouter()
     const { household, viewMode, setViewMode } = useHousehold()
     const { isCollapsed, toggleSidebar } = useSidebar()
+    const { theme, toggleTheme } = useTheme()
 
     const handleSignOut = async () => {
         await signOut()
@@ -151,9 +153,20 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            {/* Sign out */}
+            {/* Sign out + dark mode toggle */}
             <div className="p-3 mb-2">
                 <div className="mb-3 mx-1" style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
+                <button
+                    onClick={toggleTheme}
+                    title={isCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
+                    className={cn(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 w-full',
+                        isCollapsed && 'justify-center px-0'
+                    )}
+                >
+                    {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    {!isCollapsed && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
+                </button>
                 <button
                     onClick={handleSignOut}
                     title={isCollapsed ? 'Sign out' : undefined}

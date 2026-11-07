@@ -556,7 +556,7 @@ export default function HouseholdPage() {
 
     const memberCard = (member: (typeof members)[number], idx: number) => (
         <div key={member.id}
-            className="relative bg-white rounded-3xl p-5 border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
+            className="relative bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div className="absolute top-0 left-0 right-0 h-1 rounded-t-3xl"
                 style={{ background: GRADIENTS[idx % GRADIENTS.length] }} />
@@ -568,7 +568,7 @@ export default function HouseholdPage() {
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <p className="font-bold text-slate-900">{member.name}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{member.name}</p>
                             {member.user_id === currentUserId && (
                                 <span className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
                                     style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
@@ -601,19 +601,19 @@ export default function HouseholdPage() {
                     </div>
                 )
             })()}
-            <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+            <div className="mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 space-y-2">
                 <button
                     onClick={() => toggleIncome(member)}
                     className="flex items-center justify-between w-full">
-                    <span className="text-xs font-semibold text-slate-500">Contributes to income</span>
-                    <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200'}`}>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Contributes to income</span>
+                    <div className={`relative w-9 h-5 rounded-full transition-colors ${member.contributes_income ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-600'}`}>
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${member.contributes_income ? 'left-4' : 'left-0.5'}`} />
                     </div>
                 </button>
                 {member.contributes_income && (
                     <>
                         <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-600 font-medium">
+                            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                                 {member.income_amount
                                     ? `${member.income_currency} ${Number(member.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / ${member.income_cadence}`
                                     : <span className="text-slate-400 italic">Not set</span>
@@ -635,7 +635,7 @@ export default function HouseholdPage() {
                             {expandedHistory.has(member.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                         </button>
                         {expandedHistory.has(member.id) && (
-                            <div className="mt-1 rounded-xl bg-slate-50 border border-slate-100 divide-y divide-slate-100 text-xs">
+                            <div className="mt-1 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 text-xs">
                                 {(incomeHistories[member.id] ?? []).length === 0 ? (
                                     <p className="px-3 py-2 text-slate-400">No history yet.</p>
                                 ) : (incomeHistories[member.id] ?? []).map(h => {
@@ -646,7 +646,7 @@ export default function HouseholdPage() {
                                         <div key={h.id} className="flex items-start gap-2 px-3 py-2">
                                             {icon}
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-semibold text-slate-700">
+                                                <p className="font-semibold text-slate-700 dark:text-slate-200">
                                                     {h.income_currency} {Number(h.income_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })} / {h.income_cadence}
                                                 </p>
                                                 <p className="text-slate-400">
@@ -671,7 +671,7 @@ export default function HouseholdPage() {
             <div className="flex items-start justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-sky-500 mb-2">Your Household</p>
-                    <h1 className="text-4xl font-black text-slate-900 leading-tight">{household.name}</h1>
+                    <h1 className="text-4xl font-black text-slate-900 dark:text-white leading-tight">{household.name}</h1>
                     <p className="text-slate-400 mt-1 text-sm">
                         {members.length} member{members.length !== 1 ? 's' : ''} · {earners.length} earner{earners.length !== 1 ? 's' : ''} · {accounts.length} account{accounts.length !== 1 ? 's' : ''}
                     </p>
@@ -686,10 +686,10 @@ export default function HouseholdPage() {
             <div className="grid grid-cols-2 gap-6">
 
                 {/* Member Roles */}
-                <div className="bg-white rounded-3xl p-5 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-4">
                         <div>
-                            <h2 className="text-base font-bold text-slate-900">Member Roles</h2>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Member Roles</h2>
                             <p className="text-xs text-slate-400">Types in your household</p>
                         </div>
                         <button onClick={() => setMemberTypeDialog(true)}
@@ -734,9 +734,9 @@ export default function HouseholdPage() {
                     }
                     const rawTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
                     return (
-                        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="p-5 border-b border-slate-50">
-                                <h2 className="text-base font-bold text-slate-900">Household Income</h2>
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <div className="p-5 border-b border-slate-50 dark:border-slate-700">
+                                <h2 className="text-base font-bold text-slate-900 dark:text-white">Household Income</h2>
                                 <p className="text-xs text-slate-400">Monthly income across all members</p>
                             </div>
                             {incomeMembers.length === 0 ? (
@@ -747,7 +747,7 @@ export default function HouseholdPage() {
                                 </div>
                             ) : (
                                 <>
-                                    <div className="p-5 flex items-center gap-5 border-b border-slate-50">
+                                    <div className="p-5 flex items-center gap-5 border-b border-slate-50 dark:border-slate-700">
                                         <DonutChart
                                             slices={incomeMembers.map((m, i) => ({
                                                 color: CHART_COLORS[i % CHART_COLORS.length],
@@ -764,14 +764,14 @@ export default function HouseholdPage() {
                                                     <div key={m.id} className="flex items-center gap-2 min-w-0">
                                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                                             style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                                        <p className="text-xs font-semibold text-slate-700 truncate flex-1 min-w-0">{m.name}</p>
+                                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{m.name}</p>
                                                         <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
                                                     </div>
                                                 )
                                             })}
                                         </div>
                                     </div>
-                                    <div className="divide-y divide-slate-50">
+                                    <div className="divide-y divide-slate-50 dark:divide-slate-700">
                                         {incomeMembers.map((member, i) => {
                                             const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
                                             const currency = member.income_currency ?? 'KES'
@@ -783,12 +783,12 @@ export default function HouseholdPage() {
                                                             {member.name.charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <p className="font-semibold text-slate-800 text-sm">{member.name}</p>
+                                                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{member.name}</p>
                                                             <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-bold text-slate-900 text-sm">
+                                                        <p className="font-bold text-slate-900 dark:text-white text-sm">
                                                             {fmtMoney(Number(member.income_amount), currency)}
                                                             <span className="text-xs font-normal text-slate-400"> / {member.income_cadence}</span>
                                                         </p>
@@ -800,7 +800,7 @@ export default function HouseholdPage() {
                                             )
                                         })}
                                     </div>
-                                    <div className="px-5 py-4 border-t border-slate-100"
+                                    <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700"
                                         style={{ background: 'linear-gradient(135deg, #f0f9ff, #f5f3ff)' }}>
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
@@ -826,7 +826,7 @@ export default function HouseholdPage() {
             <div>
                 <div className="flex items-center justify-between mb-3">
                     <div>
-                        <h2 className="text-base font-bold text-slate-900">Members</h2>
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white">Members</h2>
                         <p className="text-xs text-slate-400">People in your household</p>
                     </div>
                     <button onClick={() => { loadSystemUsers(); setMemberDialog(true) }}
@@ -866,29 +866,29 @@ export default function HouseholdPage() {
             <div>
                     <div className="flex items-center justify-between mb-3">
                         <div>
-                            <h2 className="text-base font-bold text-slate-900">Accounts</h2>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Accounts</h2>
                             <p className="text-xs text-slate-400">Bank and cash accounts</p>
                         </div>
                     <div className="flex items-center gap-2">
                         {!isMeMode && (
-                            <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
                                 <button onClick={() => setMyAccountsOnly(false)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${!myAccountsOnly ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                                     All
                                 </button>
                                 <button onClick={() => setMyAccountsOnly(true)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${myAccountsOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${myAccountsOnly ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                                     Mine
                                 </button>
                             </div>
                         )}
-                        <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
                             <button onClick={() => setAccountView('icon')}
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'icon' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'icon' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                                 <LayoutGrid className="h-3.5 w-3.5" />
                             </button>
                             <button onClick={() => setAccountView('list')}
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${accountView === 'list' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
                                 <List className="h-3.5 w-3.5" />
                             </button>
                         </div>
@@ -903,7 +903,7 @@ export default function HouseholdPage() {
                 {(() => {
                     const chip = (active: boolean, onClick: () => void, label: React.ReactNode) => (
                         <button key={String(label)} onClick={onClick}
-                            className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                            className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active ? 'bg-slate-800 dark:bg-slate-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
                             {label}
                         </button>
                     )
@@ -965,9 +965,9 @@ export default function HouseholdPage() {
                                 <div key={g.label} className="flex items-center justify-between">
                                     <div className="flex items-center gap-1.5">
                                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${g.color}`} />
-                                        <span className="text-xs text-slate-500">{g.label}</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">{g.label}</span>
                                     </div>
-                                    <span className="text-xs font-bold text-slate-800">{g.count}</span>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{g.count}</span>
                                 </div>
                             ))}
                         </div>
@@ -979,7 +979,7 @@ export default function HouseholdPage() {
                                 { title: 'By Type',         items: typeItems },
                                 { title: 'By Institution',  items: instItems },
                             ].map(({ title, items }) => (
-                                <div key={title} className="bg-white rounded-2xl p-4 border border-slate-100" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                <div key={title} className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">{title}</p>
                                     <Bar items={items} />
                                     <Legend items={items} />
@@ -1001,7 +1001,7 @@ export default function HouseholdPage() {
                     <div className="grid grid-cols-3 gap-4">
                         {filteredAccounts.map((account, i) => (
                             <div key={account.id}
-                                className="bg-white rounded-3xl border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all overflow-hidden group"
+                                className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all overflow-hidden group"
                                 style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                 <div className="h-1 rounded-t-3xl" style={{ background: GRADIENTS[(i + 2) % GRADIENTS.length] }} />
                                 <div className="p-4 flex flex-col items-center text-center">
@@ -1009,9 +1009,9 @@ export default function HouseholdPage() {
                                         style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
                                         {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
                                     </div>
-                                    <p className="font-bold text-slate-900 text-sm leading-tight mb-0.5 truncate w-full">{account.name}</p>
+                                    <p className="font-bold text-slate-900 dark:text-white text-sm leading-tight mb-0.5 truncate w-full">{account.name}</p>
                                     <p className="text-xs text-slate-400 mb-2">{ACCOUNT_TYPE_MAP[account.account_type]?.label ?? account.account_type}</p>
-                                    <p className="font-black text-slate-900 text-sm">
+                                    <p className="font-black text-slate-900 dark:text-white text-sm">
                                         {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </p>
                                     {account.currency !== 'KES' && (() => {
@@ -1062,7 +1062,7 @@ export default function HouseholdPage() {
                             const txns = accountTxns[account.id] ?? []
                             return (
                                 <div key={account.id}
-                                    className="bg-white rounded-3xl border border-slate-100 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
+                                    className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all group overflow-hidden"
                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     <div className="p-5">
                                     <div className="flex items-center justify-between">
@@ -1073,7 +1073,7 @@ export default function HouseholdPage() {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-slate-900">{account.name}</p>
+                                                    <p className="font-bold text-slate-900 dark:text-white">{account.name}</p>
                                                     {account.contributes_to_liquid_cash && (
                                                         <span title="Contributes to liquid cash" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">
                                                             <Wallet className="h-2.5 w-2.5" /> Liquid
@@ -1098,7 +1098,7 @@ export default function HouseholdPage() {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <div>
-                                            <p className="font-black text-slate-900 text-lg" style={{ fontFamily: 'Plus Jakarta Sans' }}>
+                                            <p className="font-black text-slate-900 dark:text-white text-lg" style={{ fontFamily: 'Plus Jakarta Sans' }}>
                                                 {account.currency} {Number(account.current_balance).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </p>
                                             {account.currency !== 'KES' && (() => {
@@ -1150,16 +1150,16 @@ export default function HouseholdPage() {
                                             : null
                                         const isReached = balance >= target
                                         return (
-                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
                                                 <div className="flex items-center justify-between mb-1.5">
-                                                    <span className="text-xs font-bold text-slate-500">
+                                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                                                         {isReached ? '🎯 Target reached!' : 'Target progress'}
                                                     </span>
                                                     <span className="text-xs font-bold text-slate-500">
                                                         {account.currency} {balance.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / {account.currency} {target.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                                     </span>
                                                 </div>
-                                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                                     <div className={`h-full rounded-full transition-all ${isReached ? 'bg-emerald-500' : 'bg-sky-400'}`}
                                                         style={{ width: `${pct}%` }} />
                                                 </div>
@@ -1181,11 +1181,11 @@ export default function HouseholdPage() {
                                     })()}
                                     </div>
                                     {isExpanded && (
-                                        <div className="border-t border-slate-100">
+                                        <div className="border-t border-slate-100 dark:border-slate-700">
                                             {txns.length === 0 ? (
                                                 <p className="px-5 py-4 text-sm text-slate-400">No transactions yet. Use + to add an entry.</p>
                                             ) : (
-                                                <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                                                <div className="divide-y divide-slate-50 dark:divide-slate-700 max-h-64 overflow-y-auto">
                                                     {txns.map(t => (
                                                         <div key={t.id} className="flex items-center gap-3 px-5 py-3">
                                                             <div className={`w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 ${t.transaction_type === 'credit' ? 'bg-emerald-50' : 'bg-red-50'}`}>
@@ -1194,7 +1194,7 @@ export default function HouseholdPage() {
                                                                     : <TrendingDown className="h-3.5 w-3.5 text-red-500" />}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-slate-800 truncate">{t.narration}</p>
+                                                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.narration}</p>
                                                                 <p className="text-xs text-slate-400">{new Date(t.created_at).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                                             </div>
                                                             <div className="text-right flex-shrink-0">
@@ -1218,7 +1218,7 @@ export default function HouseholdPage() {
                                         const linked = budgetExpenses.filter(e => e.account_id === account.id)
                                         const monthlyTotal = linked.reduce((s, e) => s + Number(e.monthly_amount), 0)
                                         return (
-                                            <div className="border-t border-slate-100 bg-violet-50/30">
+                                            <div className="border-t border-slate-100 dark:border-slate-700 bg-violet-50/30 dark:bg-violet-900/10">
                                                 {!budgetExpensesLoaded ? (
                                                     <div className="flex items-center gap-2 px-5 py-4 text-sm text-slate-400">
                                                         <div className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin flex-shrink-0" />
@@ -1233,10 +1233,10 @@ export default function HouseholdPage() {
                                                                 <div key={e.id} className="flex items-center justify-between px-5 py-2.5">
                                                                     <div className="flex items-center gap-2 min-w-0">
                                                                         <DollarSign className="h-3 w-3 text-violet-300 flex-shrink-0" />
-                                                                        <span className="text-sm text-slate-700 font-medium truncate">{e.name}</span>
+                                                                        <span className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate">{e.name}</span>
                                                                         <span className="text-xs text-slate-400 capitalize flex-shrink-0">{e.frequency}</span>
                                                                     </div>
-                                                                    <span className="text-sm font-bold text-slate-800 flex-shrink-0 ml-3">
+                                                                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 flex-shrink-0 ml-3">
                                                                         KES {Number(e.monthly_amount).toLocaleString('en-KE', { minimumFractionDigits: 2 })}
                                                                         <span className="text-xs font-normal text-slate-400">/mo</span>
                                                                     </span>

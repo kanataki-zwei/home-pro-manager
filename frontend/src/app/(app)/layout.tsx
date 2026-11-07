@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     return (
         <HouseholdProvider>
             <SidebarProvider>
-                <div className="flex h-screen" style={{ background: '#f8fafc' }}>
+                <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
                     <Sidebar />
                     <main className="flex-1 overflow-y-auto p-8">
                         {children}

@@ -393,7 +393,7 @@ export default function AdminPage() {
             </div>
 
             {/* Tab bar */}
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
                 {tabs.map((tab) => {
                     const Icon = tab.icon
                     const isActive = activeTab === tab.id
@@ -403,8 +403,8 @@ export default function AdminPage() {
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                                 isActive
-                                    ? 'bg-white text-slate-900 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                             }`}
                         >
                             <Icon className="h-4 w-4" />
@@ -418,7 +418,7 @@ export default function AdminPage() {
             {activeTab === 'users' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200">
+                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
                         {([
                             { id: 'profile', label: 'Profile', icon: User },
                             { id: 'household', label: 'Household', icon: Building2 },
@@ -442,7 +442,7 @@ export default function AdminPage() {
 
                     {/* Profile */}
                     {usersSubtab === 'profile' && (
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="profile-name" className="text-sm text-slate-600">Display name</Label>
@@ -481,7 +481,7 @@ export default function AdminPage() {
 
                     {/* Household */}
                     {usersSubtab === 'household' && (
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="household-name" className="text-sm text-slate-600">Household name</Label>
@@ -511,7 +511,7 @@ export default function AdminPage() {
 
                     {/* Member Types */}
                     {usersSubtab === 'member-types' && (
-                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                             <p className="text-xs text-slate-400 mb-5">
                                 Member types define roles in your household (e.g. Husband, Wife, Child). Customise colours to tell them apart at a glance.
                             </p>
@@ -526,7 +526,7 @@ export default function AdminPage() {
                                         return (
                                             <div key={type.id} className="rounded-xl border border-slate-100 overflow-hidden">
                                                 {/* Row */}
-                                                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50">
+                                                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-slate-700">
                                                     <span
                                                         className="text-xs font-semibold px-2.5 py-1 rounded-full"
                                                         style={{ background: previewBg, color: previewText }}
@@ -680,7 +680,7 @@ export default function AdminPage() {
             {activeTab === 'budget' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200">
+                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
                         {([
                             { id: 'calendar', label: 'Budget Calendar', icon: CalendarDays },
                             { id: 'currency', label: 'Currency & FX Rates', icon: RefreshCw },
@@ -830,7 +830,7 @@ export default function AdminPage() {
                                 <p className="text-sm text-slate-400 py-2">No rates configured yet.</p>
                             ) : (
                                 localFxRates.map((rate) => (
-                                    <div key={rate.currency} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                    <div key={rate.currency} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600">
                                         <span className="text-sm font-bold text-slate-700 w-12 shrink-0">{rate.currency}</span>
                                         <span className="text-xs text-slate-400 shrink-0">=</span>
                                         <Input
@@ -912,7 +912,7 @@ export default function AdminPage() {
             {activeTab === 'system' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200">
+                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
                         {([
                             { id: 'view-mode', label: 'View Mode', icon: Eye },
                             ...(isOwner ? [{ id: 'danger-zone' as SystemSubtab, label: 'Danger Zone', icon: ShieldAlert }] : []),
@@ -985,7 +985,7 @@ export default function AdminPage() {
                         <div className="bg-white rounded-3xl p-6 shadow-sm border border-red-100">
                             <div className="flex items-center gap-2 mb-1">
                                 <ShieldAlert className="h-4 w-4 text-red-500" />
-                                <h2 className="text-base font-semibold text-slate-800">Danger Zone</h2>
+                                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">Danger Zone</h2>
                             </div>
                             <p className="text-xs text-slate-400 mb-5">
                                 Permanently delete household data. These actions cannot be undone.
@@ -1009,8 +1009,8 @@ export default function AdminPage() {
         {showClearDialog && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeClearDialog} />
-                <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                    <div className="flex items-center gap-3 p-6 border-b border-slate-100">
+                <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center gap-3 p-6 border-b border-slate-100 dark:border-slate-700">
                         <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
                             <AlertTriangle className="h-5 w-5 text-red-500" />
                         </div>
@@ -1053,7 +1053,7 @@ export default function AdminPage() {
                         </div>
 
                         {/* Impact list */}
-                        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                        <div className="rounded-2xl bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 p-4">
                             <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Will be deleted</p>
                             <ul className="space-y-1">
                                 {clearLevelMeta[clearLevel].impact.map((item) => (
