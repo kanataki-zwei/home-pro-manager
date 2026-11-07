@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
     ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
+    Smartphone, Clock, CheckCircle2, XCircle, MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,20 @@ import { Label } from '@/components/ui/label'
 type AdminTab = 'users' | 'budget' | 'system'
 type UsersSubtab = 'profile' | 'household' | 'member-types'
 type BudgetSubtab = 'calendar' | 'currency'
-type SystemSubtab = 'view-mode' | 'danger-zone'
+type SystemSubtab = 'view-mode' | 'devices' | 'danger-zone'
+
+interface TrustedDevice {
+    id: string
+    user_id: string
+    user_email: string
+    user_name: string | null
+    nickname: string | null
+    label: string
+    ip_address: string | null
+    status: 'pending' | 'approved' | 'rejected'
+    requested_at: string
+    reviewed_at: string | null
+}
 
 interface UserProfile {
     id: string
@@ -82,6 +96,14 @@ export default function AdminPage() {
     const [clearConfirm, setClearConfirm] = useState('')
     const [clearPasswordError, setClearPasswordError] = useState('')
     const [clearing, setClearing] = useState(false)
+
+    // Trusted devices state
+    const [devices, setDevices] = useState<TrustedDevice[]>([])
+    const [devicesLoaded, setDevicesLoaded] = useState(false)
+    const [reviewingDevice, setReviewingDevice] = useState<string | null>(null)
+    const [renamingDevice, setRenamingDevice] = useState<string | null>(null)
+    const [renameValue, setRenameValue] = useState('')
+    const [savingRename, setSavingRename] = useState(false)
 
     // FX rates state
     const [localFxRates, setLocalFxRates] = useState<FxRate[]>([])
@@ -364,6 +386,50 @@ export default function AdminPage() {
             toast.error('Failed to clear data. Please try again.')
         } finally {
             setClearing(false)
+        }
+    }
+
+    const loadDevices = async () => {
+        try {
+            const data = await apiGet<TrustedDevice[]>('/api/admin/devices')
+            setDevices(data)
+        } catch {
+            toast.error('Failed to load devices')
+        } finally {
+            setDevicesLoaded(true)
+        }
+    }
+
+    const startRename = (device: TrustedDevice) => {
+        setRenamingDevice(device.id)
+        setRenameValue(device.nickname || device.label)
+    }
+
+    const saveRename = async (deviceId: string) => {
+        const name = renameValue.trim()
+        if (!name) return
+        setSavingRename(true)
+        try {
+            const updated = await apiPatch<TrustedDevice>(`/api/admin/devices/${deviceId}/rename`, { nickname: name })
+            setDevices(prev => prev.map(d => d.id === deviceId ? updated : d))
+            setRenamingDevice(null)
+        } catch {
+            toast.error('Failed to rename device')
+        } finally {
+            setSavingRename(false)
+        }
+    }
+
+    const reviewDevice = async (deviceId: string, action: 'approve' | 'reject') => {
+        setReviewingDevice(deviceId)
+        try {
+            const updated = await apiPatch<TrustedDevice>(`/api/admin/devices/${deviceId}/${action}`, {})
+            setDevices(prev => prev.map(d => d.id === deviceId ? updated : d))
+            toast.success(action === 'approve' ? 'Device approved' : 'Device rejected')
+        } catch {
+            toast.error(`Failed to ${action} device`)
+        } finally {
+            setReviewingDevice(null)
         }
     }
 
@@ -915,11 +981,15 @@ export default function AdminPage() {
                     <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
                         {([
                             { id: 'view-mode', label: 'View Mode', icon: Eye },
+                            { id: 'devices', label: 'Trusted Devices', icon: Smartphone },
                             ...(isOwner ? [{ id: 'danger-zone' as SystemSubtab, label: 'Danger Zone', icon: ShieldAlert }] : []),
                         ] as { id: SystemSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
                             <button
                                 key={id}
-                                onClick={() => setSystemSubtab(id)}
+                                onClick={() => {
+                                    setSystemSubtab(id)
+                                    if (id === 'devices' && !devicesLoaded) loadDevices()
+                                }}
                                 className={cn(
                                     'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
                                     systemSubtab === id
@@ -977,6 +1047,155 @@ export default function AdminPage() {
                                 )}
                             </button>
                         </div>
+                    </div>
+                    )}
+
+                    {/* Trusted Devices */}
+                    {systemSubtab === 'devices' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                                <Smartphone className="h-4 w-4 text-sky-500" />
+                                <h2 className="text-base font-semibold text-slate-800 dark:text-white">Trusted Devices</h2>
+                            </div>
+                            <button
+                                onClick={loadDevices}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all"
+                                title="Refresh"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-5">
+                            Approve or reject devices that have attempted to sign in. Only approved devices can access the app.
+                        </p>
+
+                        {!devicesLoaded ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                            </div>
+                        ) : devices.length === 0 ? (
+                            <p className="text-sm text-slate-400 py-4 text-center">No devices on record.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {devices.map((device) => {
+                                    const isPending = device.status === 'pending'
+                                    const isApproved = device.status === 'approved'
+                                    const isReviewing = reviewingDevice === device.id
+                                    const requestedAt = new Date(device.requested_at)
+
+                                    return (
+                                        <div
+                                            key={device.id}
+                                            className={cn(
+                                                'rounded-xl border p-4 transition-colors',
+                                                isPending
+                                                    ? 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800'
+                                                    : isApproved
+                                                    ? 'border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10 dark:border-emerald-900'
+                                                    : 'border-slate-100 bg-slate-50 dark:bg-slate-700 dark:border-slate-600'
+                                            )}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="space-y-1 min-w-0 flex-1">
+                                                    {/* Name row */}
+                                                    {renamingDevice === device.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                value={renameValue}
+                                                                onChange={e => setRenameValue(e.target.value)}
+                                                                onKeyDown={e => { if (e.key === 'Enter') saveRename(device.id); if (e.key === 'Escape') setRenamingDevice(null) }}
+                                                                maxLength={100}
+                                                                className="flex-1 h-7 px-2 text-sm border border-sky-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-400 min-w-0"
+                                                            />
+                                                            <button onClick={() => saveRename(device.id)} disabled={savingRename || !renameValue.trim()} className="text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
+                                                                {savingRename ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                                            </button>
+                                                            <button onClick={() => setRenamingDevice(null)} className="text-slate-400 hover:text-slate-600">
+                                                                <X className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                                                                {device.nickname || device.label}
+                                                            </span>
+                                                            <button onClick={() => startRename(device)} className="text-slate-300 hover:text-sky-500 transition-colors shrink-0" title="Rename">
+                                                                <Pencil className="h-3 w-3" />
+                                                            </button>
+                                                            <span className={cn(
+                                                                'text-xs font-semibold px-2 py-0.5 rounded-full shrink-0',
+                                                                isPending
+                                                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                                                    : isApproved
+                                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                                                    : 'bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300'
+                                                            )}>
+                                                                {device.status}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    {/* Show UA label as subtitle when nickname is set */}
+                                                    {device.nickname && (
+                                                        <p className="text-xs text-slate-400 dark:text-slate-500">{device.label}</p>
+                                                    )}
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                        {device.user_name || device.user_email} · {device.user_email}
+                                                    </p>
+                                                    <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock className="h-3 w-3" />
+                                                            {requestedAt.toLocaleDateString()} {requestedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                        {device.ip_address && (
+                                                            <span className="flex items-center gap-1">
+                                                                <MapPin className="h-3 w-3" />
+                                                                {device.ip_address}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {isPending && (
+                                                    <div className="flex gap-1.5 shrink-0">
+                                                        <button
+                                                            onClick={() => reviewDevice(device.id, 'approve')}
+                                                            disabled={isReviewing}
+                                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {isReviewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                                            Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={() => reviewDevice(device.id, 'reject')}
+                                                            disabled={isReviewing}
+                                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {isReviewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                                            Reject
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {!isPending && (
+                                                    <button
+                                                        onClick={() => reviewDevice(device.id, device.status === 'approved' ? 'reject' : 'approve')}
+                                                        disabled={isReviewing}
+                                                        className="shrink-0 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-50 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600"
+                                                    >
+                                                        {isReviewing
+                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                            : device.status === 'approved' ? 'Revoke' : 'Re-approve'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
                     )}
 

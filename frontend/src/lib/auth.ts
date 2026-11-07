@@ -1,7 +1,12 @@
+export type SignInResult =
+    | { error: { message: string }; deviceStatus?: never }
+    | { error: null; deviceStatus?: never }
+    | { error: null; deviceStatus: 'pending' | 'rejected' }
+
 export async function signIn(
     email: string,
     password: string,
-): Promise<{ error: { message: string } | null }> {
+): Promise<SignInResult> {
     try {
         const res = await fetch("/api/auth/login", {
             method: "POST",
@@ -11,7 +16,9 @@ export async function signIn(
         });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            return { error: { message: data.detail || "Invalid credentials" } };
+            if (data.detail === "device_pending") return { error: null, deviceStatus: 'pending' }
+            if (data.detail === "device_rejected") return { error: null, deviceStatus: 'rejected' }
+            return { error: { message: data.detail || "Invalid credentials" } }
         }
         return { error: null };
     } catch {

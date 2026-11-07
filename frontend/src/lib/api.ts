@@ -10,12 +10,25 @@ async function refreshToken(): Promise<boolean> {
     }
 }
 
+function redirectToLogin() {
+    if (typeof window !== "undefined") window.location.href = "/auth/login";
+}
+
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const res = await fetch(path, {
         ...init,
         credentials: "include",
         headers: { "Content-Type": "application/json", ...(init.headers as Record<string, string> || {}) },
     });
+
+    // Device not approved — kick back to login to re-authenticate with the right device
+    if (res.status === 403) {
+        const body = await res.clone().json().catch(() => ({}));
+        if (body.detail === "device_not_approved") {
+            redirectToLogin();
+            throw new Error("Device not approved");
+        }
+    }
 
     if (res.status === 401) {
         const refreshed = await refreshToken();
@@ -25,10 +38,14 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
                 credentials: "include",
                 headers: { "Content-Type": "application/json", ...(init.headers as Record<string, string> || {}) },
             });
-            if (!retry.ok) throw new Error(await retry.text());
+            // If retry also fails (e.g. device cookie missing), force re-login
+            if (!retry.ok) {
+                redirectToLogin();
+                throw new Error("Session expired");
+            }
             return retry;
         }
-        if (typeof window !== "undefined") window.location.href = "/auth/login";
+        redirectToLogin();
         throw new Error("Session expired");
     }
 

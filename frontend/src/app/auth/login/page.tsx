@@ -30,11 +30,19 @@ export default function LoginPage() {
 
     const onSubmit = async (data: FormData) => {
         setLoading(true)
-        const { error } = await signIn(data.email, data.password)
+        const result = await signIn(data.email, data.password)
         setLoading(false)
 
-        if (error) {
-            toast.error(error.message)
+        if (result.deviceStatus === 'pending') {
+            router.push('/auth/device-pending')
+            return
+        }
+        if (result.deviceStatus === 'rejected') {
+            toast.error('This device has been blocked. Contact your household admin.')
+            return
+        }
+        if (result.error) {
+            toast.error(result.error.message)
             return
         }
 
