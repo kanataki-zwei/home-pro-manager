@@ -41,7 +41,7 @@ interface AccountTransaction {
     id: string; account_id: string; amount: string; narration: string
     transaction_type: 'credit' | 'debit'; session_item_id: string | null; created_at: string
 }
-interface Household { id: string; name: string; created_by: string | null; financial_start_month: string | null; pay_day: number | null; member_types: MemberType[] }
+interface Household { id: string; name: string; created_by: string | null; financial_start_month: string | null; pay_day: number | null; pay_day_grace_period: number | null; member_types: MemberType[] }
 interface SystemUser { id: string; email: string; name: string | null }
 interface BudgetExpense { id: string; name: string; monthly_amount: number; frequency: string; account_id: string | null; is_deleted: boolean }
 
