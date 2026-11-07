@@ -27,6 +27,8 @@ class MemberType(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     household_id = Column(UUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)
+    bg_color = Column(String(20), nullable=True)
+    text_color = Column(String(20), nullable=True)
 
     from sqlalchemy import Column, DateTime, func
     created_at = Column(DateTime(timezone=True), server_default=func.now())

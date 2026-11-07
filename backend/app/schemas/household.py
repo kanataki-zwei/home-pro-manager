@@ -8,9 +8,16 @@ from decimal import Decimal
 # ─── Member Type ────────────────────────────────────────────────
 class MemberTypeBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
+    bg_color: Optional[str] = Field(default=None, max_length=20)
+    text_color: Optional[str] = Field(default=None, max_length=20)
 
 class MemberTypeCreate(MemberTypeBase):
     pass
+
+class MemberTypeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    bg_color: Optional[str] = Field(default=None, max_length=20)
+    text_color: Optional[str] = Field(default=None, max_length=20)
 
 class MemberTypeResponse(MemberTypeBase):
     id: UUID

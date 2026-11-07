@@ -6,6 +6,8 @@ import { apiGet, apiPost } from '@/lib/api'
 interface MemberType {
     id: string
     name: string
+    bg_color: string | null
+    text_color: string | null
 }
 
 interface Member {
