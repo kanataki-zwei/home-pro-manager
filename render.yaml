@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: homepro-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: ALLOW_REGISTRATION
+        value: "False"
+      - key: APP_NAME
+        value: Home Pro Manager
+      # Set these manually in the Render dashboard (never commit secret values):
+      #   FRONTEND_URL   → https://homepro.gichiniwaruingi.com
+      #   JWT_SECRET_KEY → your 128-char hex secret
+      #   DATABASE_URL   → your Supabase transaction pooler URL
