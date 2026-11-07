@@ -31,6 +31,23 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    # Device check — every protected request must come from an approved device
+    device_id = request.cookies.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Device authentication required")
+
+    from app.models.trusted_device import TrustedDevice
+    td_result = await db.execute(
+        select(TrustedDevice).where(
+            TrustedDevice.user_id == user.id,
+            TrustedDevice.device_id == device_id,
+            TrustedDevice.status == "approved",
+        )
+    )
+    if td_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="device_not_approved")
+
     return user
 
 

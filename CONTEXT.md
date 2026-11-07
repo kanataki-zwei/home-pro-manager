@@ -97,10 +97,14 @@ m3n4o5p6q7r8  add_liquid_cash_flag
       ↓
 n4o5p6q7r8s9  add_account_target_amount
       ↓
-o5p6q7r8s9t0  add_member_type_colors             ← HEAD
+o5p6q7r8s9t0  add_member_type_colors
+      ↓
+p6q7r8s9t0u1  add_trusted_devices
+      ↓
+q7r8s9t0u1v2  add_device_nickname                ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'o5p6q7r8s9t0'`.
+When adding a new migration set `down_revision = 'q7r8s9t0u1v2'`.
 
 ### Tables
 

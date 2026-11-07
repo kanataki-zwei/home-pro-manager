@@ -15,6 +15,7 @@ from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.households import router as households_router
 from app.routers.budget import router as budget_router
+from app.routers.admin import router as admin_router
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/users", tags=["Users"])
 app.include_router(households_router, prefix="/api/households", tags=["Households"])
 app.include_router(budget_router, prefix="/api")
+app.include_router(admin_router)
 
 
 @app.get("/health")
@@ -98,6 +100,5 @@ async def health():
 @app.get("/health/db")
 async def health_db():
     async with engine.connect() as conn:
-        result = await conn.execute(text("SELECT version()"))
-        version = result.scalar()
-        return {"status": "ok", "database": version}
+        await conn.execute(text("SELECT 1"))
+        return {"status": "ok"}
