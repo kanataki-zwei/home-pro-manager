@@ -15,6 +15,7 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
     reactCompiler: true,
+    turbopack: {},
     async rewrites() {
         return [
             {
