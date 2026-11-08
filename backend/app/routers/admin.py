@@ -250,6 +250,33 @@ async def update_member_details(
     return {"message": "Member updated"}
 
 
+class PlaygroundDisablePayload(BaseModel):
+    reauth_token: str
+
+
+@router.post("/playground/enable")
+async def enable_playground(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.playground_mode = True
+    await db.commit()
+    return {"playground_mode": True}
+
+
+@router.post("/playground/disable")
+async def disable_playground(
+    payload: PlaygroundDisablePayload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.routers.auth import verify_reauth_token
+    verify_reauth_token(payload.reauth_token, str(current_user.id), settings.JWT_SECRET_KEY)
+    current_user.playground_mode = False
+    await db.commit()
+    return {"playground_mode": False}
+
+
 @router.patch("/devices/{device_id}/rename", response_model=DeviceResponse)
 async def rename_device(
     device_id: UUID,

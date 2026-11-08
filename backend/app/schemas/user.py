@@ -9,6 +9,7 @@ class UserResponse(BaseModel):
     email: str
     name: Optional[str]
     created_at: datetime
+    playground_mode: bool = False
 
     class Config:
         from_attributes = True

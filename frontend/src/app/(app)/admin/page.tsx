@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import {
     ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
-    Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint,
+    Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint, FlaskConical,
 } from 'lucide-react'
 import {
     isBiometricSupported,
@@ -20,11 +20,12 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { usePlayground } from '@/context/PlaygroundContext'
 
 type AdminTab = 'users' | 'budget' | 'system'
 type UsersSubtab = 'profile' | 'household' | 'member-types' | 'accounts'
 type BudgetSubtab = 'calendar' | 'currency'
-type SystemSubtab = 'view-mode' | 'devices' | 'danger-zone'
+type SystemSubtab = 'view-mode' | 'devices' | 'playground' | 'danger-zone'
 
 interface TrustedDevice {
     id: string
@@ -158,6 +159,34 @@ export default function AdminPage() {
     const [editError, setEditError] = useState('')
     const [saving, setSaving] = useState(false)
     const canUseBiometricReauth = isBiometricSupported() && isBiometricRegistered()
+
+    // Playground state
+    const { isPlayground, enablePlayground, disablePlayground } = usePlayground()
+    const [showDisableDialog, setShowDisableDialog] = useState(false)
+    const [pgReauthTab, setPgReauthTab] = useState<'biometric' | 'password'>('biometric')
+    const [pgPassword, setPgPassword] = useState('')
+    const [pgError, setPgError] = useState('')
+    const [pgWorking, setPgWorking] = useState(false)
+
+    const submitDisablePlayground = async () => {
+        setPgError('')
+        setPgWorking(true)
+        try {
+            let reauth_token: string
+            if (pgReauthTab === 'biometric') {
+                reauth_token = await reauthWithBiometric()
+            } else {
+                const res = await apiPost<{ reauth_token: string }>('/api/auth/reauth/password', { password: pgPassword })
+                reauth_token = res.reauth_token
+            }
+            await disablePlayground(reauth_token)
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : 'Verification failed'
+            if (!msg.toLowerCase().includes('cancel')) setPgError(msg)
+        } finally {
+            setPgWorking(false)
+        }
+    }
 
     useEffect(() => {
         apiGet<UserProfile>('/api/users/me').then((u) => {
@@ -1408,6 +1437,7 @@ export default function AdminPage() {
                         {([
                             { id: 'view-mode', label: 'View Mode', icon: Eye },
                             { id: 'devices', label: 'Trusted Devices', icon: Smartphone },
+                            { id: 'playground', label: 'Playground', icon: FlaskConical },
                             ...(isOwner ? [{ id: 'danger-zone' as SystemSubtab, label: 'Danger Zone', icon: ShieldAlert }] : []),
                         ] as { id: SystemSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
                             <button
@@ -1708,6 +1738,65 @@ export default function AdminPage() {
                     </div>
                     )}
 
+                    {/* Playground Mode */}
+                    {systemSubtab === 'playground' && (
+                        <div className="space-y-4">
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <FlaskConical className="h-4 w-4 text-amber-500" />
+                                    <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">Playground Mode</h2>
+                                    {isPlayground && (
+                                        <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+                                    Replace all financial data with convincing demo numbers so you can share the app with someone without exposing real figures.
+                                    Switching back to real data requires your password or biometric.
+                                </p>
+
+                                {!isPlayground ? (
+                                    <div className="space-y-4">
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/30 p-4 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+                                            <p className="font-semibold">What playground mode does:</p>
+                                            <ul className="space-y-1 ml-3 list-disc text-amber-700 dark:text-amber-400">
+                                                <li>Replaces all account balances, transactions, and budget data with demo figures</li>
+                                                <li>Shows a persistent banner so the viewer knows it&apos;s demo data</li>
+                                                <li>Saves edits as no-ops — no real data is modified</li>
+                                                <li>Disabling requires your password or biometric</li>
+                                            </ul>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                try { await enablePlayground() }
+                                                catch { toast.error('Could not enable playground mode') }
+                                            }}
+                                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700/40"
+                                        >
+                                            <FlaskConical className="h-4 w-4" />
+                                            Enable Playground Mode
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/30 px-4 py-3 flex items-center gap-3">
+                                            <FlaskConical className="h-4 w-4 text-amber-600 shrink-0" />
+                                            <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                                                Playground is active — all data shown is demo-only.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setShowDisableDialog(true); setPgPassword(''); setPgError(''); setPgReauthTab(canUseBiometricReauth ? 'biometric' : 'password') }}
+                                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-colors dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                                        >
+                                            <ShieldCheck className="h-4 w-4" />
+                                            Disable Playground Mode
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Danger Zone */}
                     {systemSubtab === 'danger-zone' && isOwner && (
                         <div className="bg-white rounded-3xl p-6 shadow-sm border border-red-100">
@@ -1732,6 +1821,56 @@ export default function AdminPage() {
             )}
 
         </div>
+
+        {/* Disable Playground Dialog */}
+        {showDisableDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDisableDialog(false)} />
+                <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md">
+                    <div className="flex items-center gap-3 p-6 border-b border-slate-100 dark:border-slate-700">
+                        <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                            <FlaskConical className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Disable Playground Mode</h2>
+                            <p className="text-xs text-slate-400">Verify your identity to restore real data</p>
+                        </div>
+                        <button onClick={() => setShowDisableDialog(false)} className="ml-auto p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        {canUseBiometricReauth && (
+                            <div className="flex rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden text-sm font-semibold">
+                                {(['biometric', 'password'] as const).map(tab => (
+                                    <button key={tab} onClick={() => setPgReauthTab(tab)}
+                                        className={cn('flex-1 py-2.5 flex items-center justify-center gap-1.5 transition-colors capitalize',
+                                            pgReauthTab === tab ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300')}>
+                                        {tab === 'biometric' ? <Fingerprint className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                                        {tab}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {pgReauthTab === 'biometric' ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-2">You will be prompted for biometric verification.</p>
+                        ) : (
+                            <div>
+                                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Password</Label>
+                                <Input type="password" placeholder="Enter your password" value={pgPassword} onChange={e => setPgPassword(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && submitDisablePlayground()}
+                                    className="rounded-xl" />
+                            </div>
+                        )}
+                        {pgError && <p className="text-xs text-red-500">{pgError}</p>}
+                        <Button onClick={submitDisablePlayground} disabled={pgWorking || (pgReauthTab === 'password' && !pgPassword.trim())}
+                            className="w-full rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold">
+                            {pgWorking ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verifying…</> : 'Confirm & Disable'}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Clear Data Dialog */}
         {showClearDialog && (

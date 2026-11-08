@@ -1,3 +1,5 @@
+import { isPlaygroundActive, getMockResponse, isPlaygroundPassthrough } from './playground-data'
+
 async function refreshToken(): Promise<boolean> {
     try {
         const res = await fetch("/api/auth/refresh", {
@@ -54,21 +56,34 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
+    if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
+        return getMockResponse(path) as T
+    }
     return (await apiFetch(path)).json();
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+    if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
+        return { success: true } as unknown as T
+    }
     return (await apiFetch(path, { method: "POST", body: JSON.stringify(body) })).json();
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+    if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
+        return { success: true } as unknown as T
+    }
     return (await apiFetch(path, { method: "PATCH", body: JSON.stringify(body) })).json();
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+    if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
+        return { success: true } as unknown as T
+    }
     return (await apiFetch(path, { method: "PUT", body: JSON.stringify(body) })).json();
 }
 
 export async function apiDelete(path: string): Promise<void> {
+    if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) return
     await apiFetch(path, { method: "DELETE" });
 }

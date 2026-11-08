@@ -103,10 +103,12 @@ p6q7r8s9t0u1  add_trusted_devices
       ↓
 q7r8s9t0u1v2  add_device_nickname
       ↓
-r8s9t0u1v2w3  add_webauthn_credentials           ← HEAD
+r8s9t0u1v2w3  add_webauthn_credentials
+      ↓
+s0t1u2v3w4x5  add_playground_mode                ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'r8s9t0u1v2w3'`.
+When adding a new migration set `down_revision = 's0t1u2v3w4x5'`.
 
 ### Tables
 
