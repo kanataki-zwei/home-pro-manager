@@ -11,6 +11,10 @@ export const metadata: Metadata = {
     description: 'Household budgeting and finance manager',
     manifest: '/manifest.json',
     themeColor: '#0ea5e9',
+    icons: {
+        icon: '/icons/icon-192.png',
+        apple: '/icons/icon-192.png',
+    },
     appleWebApp: {
         capable: true,
         statusBarStyle: 'default',
