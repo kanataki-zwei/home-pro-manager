@@ -101,10 +101,12 @@ o5p6q7r8s9t0  add_member_type_colors
       ↓
 p6q7r8s9t0u1  add_trusted_devices
       ↓
-q7r8s9t0u1v2  add_device_nickname                ← HEAD
+q7r8s9t0u1v2  add_device_nickname
+      ↓
+r8s9t0u1v2w3  add_webauthn_credentials           ← HEAD
 ```
 
-When adding a new migration set `down_revision = 'q7r8s9t0u1v2'`.
+When adding a new migration set `down_revision = 'r8s9t0u1v2w3'`.
 
 ### Tables
 

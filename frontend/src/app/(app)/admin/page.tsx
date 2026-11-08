@@ -7,8 +7,14 @@ import { toast } from 'sonner'
 import {
     ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
-    Smartphone, Clock, CheckCircle2, XCircle, MapPin,
+    Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint,
 } from 'lucide-react'
+import {
+    isBiometricSupported,
+    isBiometricRegistered,
+    registerBiometric as doRegisterBiometric,
+    setBiometricRegistered,
+} from '@/lib/webauthn'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -104,6 +110,15 @@ export default function AdminPage() {
     const [renamingDevice, setRenamingDevice] = useState<string | null>(null)
     const [renameValue, setRenameValue] = useState('')
     const [savingRename, setSavingRename] = useState(false)
+
+    // Biometric state
+    interface BiometricCred { id: string; credential_id: string; device_id: string | null; is_this_device: boolean; created_at: string | null }
+    const [biometricCreds, setBiometricCreds] = useState<BiometricCred[]>([])
+    const [biometricLoaded, setBiometricLoaded] = useState(false)
+    const [registeringBiometric, setRegisteringBiometric] = useState(false)
+    const [removingCredId, setRemovingCredId] = useState<string | null>(null)
+    const [biometricSupported] = useState(() => isBiometricSupported())
+    const [biometricRegisteredLocally, setBiometricRegisteredLocally] = useState(false)
 
     // FX rates state
     const [localFxRates, setLocalFxRates] = useState<FxRate[]>([])
@@ -397,6 +412,52 @@ export default function AdminPage() {
             toast.error('Failed to load devices')
         } finally {
             setDevicesLoaded(true)
+        }
+    }
+
+    const loadBiometricCreds = async () => {
+        try {
+            const data = await apiGet<BiometricCred[]>('/api/auth/webauthn/credentials')
+            setBiometricCreds(data)
+        } catch {
+            // ignore
+        } finally {
+            setBiometricLoaded(true)
+            setBiometricRegisteredLocally(isBiometricRegistered())
+        }
+    }
+
+    const handleRegisterBiometric = async () => {
+        setRegisteringBiometric(true)
+        try {
+            await doRegisterBiometric()
+            toast.success('Biometric registered for this device')
+            await loadBiometricCreds()
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Registration failed'
+            if (!msg.includes('cancelled') && !msg.includes('NotAllowedError')) {
+                toast.error(msg)
+            }
+        } finally {
+            setRegisteringBiometric(false)
+        }
+    }
+
+    const removeCredential = async (credId: string) => {
+        setRemovingCredId(credId)
+        try {
+            await apiDelete(`/api/auth/webauthn/credentials/${credId}`)
+            const updated = biometricCreds.filter(c => c.id !== credId)
+            setBiometricCreds(updated)
+            if (!updated.some(c => c.is_this_device)) {
+                setBiometricRegistered(false)
+                setBiometricRegisteredLocally(false)
+            }
+            toast.success('Biometric removed')
+        } catch {
+            toast.error('Failed to remove biometric')
+        } finally {
+            setRemovingCredId(null)
         }
     }
 
@@ -988,7 +1049,10 @@ export default function AdminPage() {
                                 key={id}
                                 onClick={() => {
                                     setSystemSubtab(id)
-                                    if (id === 'devices' && !devicesLoaded) loadDevices()
+                                    if (id === 'devices') {
+                                        if (!devicesLoaded) loadDevices()
+                                        if (!biometricLoaded) loadBiometricCreds()
+                                    }
                                 }}
                                 className={cn(
                                     'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
@@ -1052,6 +1116,7 @@ export default function AdminPage() {
 
                     {/* Trusted Devices */}
                     {systemSubtab === 'devices' && (
+                    <div className="space-y-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
@@ -1196,6 +1261,85 @@ export default function AdminPage() {
                                 })}
                             </div>
                         )}
+                    </div>
+
+                    {/* Biometric Login card */}
+                    {biometricSupported && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Fingerprint className="h-4 w-4 text-sky-500" />
+                                <h2 className="text-base font-semibold text-slate-800 dark:text-white">Biometric Login</h2>
+                            </div>
+                            <p className="text-xs text-slate-400 mb-5">
+                                Register your fingerprint or face ID on this device for password-free sign-in.
+                            </p>
+
+                            {!biometricLoaded ? (
+                                <div className="flex justify-center py-6">
+                                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                </div>
+                            ) : (
+                                <>
+                                    {biometricCreds.length === 0 ? (
+                                        <p className="text-sm text-slate-400 py-2">No biometric credentials registered yet.</p>
+                                    ) : (
+                                        <div className="space-y-2 mb-4">
+                                            {biometricCreds.map(cred => (
+                                                <div key={cred.id} className={cn(
+                                                    'flex items-center justify-between gap-3 rounded-xl border p-3',
+                                                    cred.is_this_device
+                                                        ? 'border-sky-200 bg-sky-50 dark:bg-sky-950/20 dark:border-sky-800'
+                                                        : 'border-slate-100 bg-slate-50 dark:bg-slate-700 dark:border-slate-600'
+                                                )}>
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <Fingerprint className={cn('h-4 w-4 shrink-0', cred.is_this_device ? 'text-sky-500' : 'text-slate-400')} />
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                                                                {cred.is_this_device ? 'This device' : 'Other device'}
+                                                            </p>
+                                                            {cred.created_at && (
+                                                                <p className="text-xs text-slate-400">
+                                                                    Registered {new Date(cred.created_at).toLocaleDateString()}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeCredential(cred.id)}
+                                                        disabled={removingCredId === cred.id}
+                                                        className="shrink-0 text-xs text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    >
+                                                        {removingCredId === cred.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {!biometricRegisteredLocally && (
+                                        <Button
+                                            onClick={handleRegisterBiometric}
+                                            disabled={registeringBiometric}
+                                            className="h-9 rounded-xl text-sm font-semibold text-white border-0"
+                                            style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}
+                                        >
+                                            {registeringBiometric ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Registering...
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2">
+                                                    <Fingerprint className="h-4 w-4" />
+                                                    Register biometric for this device
+                                                </div>
+                                            )}
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                     </div>
                     )}
 

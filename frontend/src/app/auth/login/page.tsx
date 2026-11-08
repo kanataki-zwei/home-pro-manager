@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Fingerprint } from 'lucide-react'
+import { isBiometricSupported, isBiometricRegistered, loginWithBiometric } from '@/lib/webauthn'
 
 const schema = z.object({
     email: z.string().email('Invalid email address'),
@@ -23,8 +24,14 @@ type FormData = z.infer<typeof schema>
 export default function LoginPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
+    const [biometricLoading, setBiometricLoading] = useState(false)
+    const [showBiometric, setShowBiometric] = useState(false)
 
-    const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    useEffect(() => {
+        setShowBiometric(isBiometricSupported() && isBiometricRegistered())
+    }, [])
+
+    const { register, handleSubmit, getValues, formState: { errors } } = useForm<FormData>({
         resolver: zodResolver(schema)
     })
 
@@ -47,6 +54,26 @@ export default function LoginPage() {
         }
 
         router.push('/home')
+    }
+
+    const handleBiometricLogin = async () => {
+        const email = getValues('email')
+        if (!email) {
+            toast.error('Enter your email address first')
+            return
+        }
+        setBiometricLoading(true)
+        try {
+            await loginWithBiometric(email)
+            router.push('/home')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Biometric login failed'
+            if (!msg.includes('cancelled') && !msg.includes('NotAllowedError')) {
+                toast.error(msg)
+            }
+        } finally {
+            setBiometricLoading(false)
+        }
     }
 
     return (
@@ -119,6 +146,35 @@ export default function LoginPage() {
                                     </div>
                                 ) : 'Sign in'}
                             </Button>
+
+                            {showBiometric && (
+                                <>
+                                    <div className="flex items-center gap-3 py-1">
+                                        <div className="flex-1 h-px bg-slate-200" />
+                                        <span className="text-xs text-slate-400 font-medium">or</span>
+                                        <div className="flex-1 h-px bg-slate-200" />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full h-11 rounded-xl font-semibold border-slate-200 text-slate-700 hover:bg-slate-50"
+                                        onClick={handleBiometricLogin}
+                                        disabled={biometricLoading}
+                                    >
+                                        {biometricLoading ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" />
+                                                Verifying...
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Fingerprint className="h-5 w-5 text-sky-500" />
+                                                Sign in with biometric
+                                            </div>
+                                        )}
+                                    </Button>
+                                </>
+                            )}
                         </form>
                     </CardContent>
                 </Card>
