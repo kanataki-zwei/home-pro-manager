@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
     Home, Wallet, Users, ShieldCheck, LogOut, Sparkles, BarChart3,
-    Building2, User, PanelLeftClose, PanelLeftOpen, Sun, Moon, X,
+    Building2, User, PanelLeftClose, PanelLeftOpen, Sun, Moon, X, Compass,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/auth'
@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { useHousehold } from '@/context/HouseholdContext'
 import { useSidebar } from '@/context/SidebarContext'
 import { useTheme } from '@/context/ThemeContext'
+import { useTour } from '@/context/TourContext'
 
 const navigation = [
     { name: 'Home', href: '/home', icon: Home },
@@ -30,6 +31,7 @@ export default function Sidebar() {
     const { household, viewMode, setViewMode } = useHousehold()
     const { isCollapsed, toggleSidebar, isMobileOpen, setMobileOpen } = useSidebar()
     const { theme, toggleTheme } = useTheme()
+    const { startTour } = useTour()
 
     const handleSignOut = async () => {
         await signOut()
@@ -37,7 +39,7 @@ export default function Sidebar() {
     }
 
     const viewModeToggle = (mobile = false) => (
-        <div className={cn('flex rounded-lg overflow-hidden border border-white/10 text-xs font-semibold', mobile ? 'mx-5 mb-4' : 'mt-3')}>
+        <div data-tour="view-mode" className={cn('flex rounded-lg overflow-hidden border border-white/10 text-xs font-semibold', mobile ? 'mx-5 mb-4' : 'mt-3')}>
             <button
                 onClick={() => setViewMode('household')}
                 className={cn(
@@ -59,7 +61,7 @@ export default function Sidebar() {
     )
 
     const navLinks = (onNavigate?: () => void) => (
-        <nav className="flex-1 px-3 space-y-0.5">
+        <nav data-tour="sidebar-nav" className="flex-1 px-3 space-y-0.5">
             {navigation.map((item) => {
                 const isActive = pathname.startsWith(item.href)
                 return (
@@ -88,6 +90,13 @@ export default function Sidebar() {
     const footer = () => (
         <div className="p-3 mb-2">
             <div className="mb-3 mx-1" style={DIVIDER} />
+            <button
+                onClick={startTour}
+                className="flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 w-full min-h-[44px]"
+            >
+                <Compass className="h-4 w-4" />
+                <span>Take a tour</span>
+            </button>
             <button
                 onClick={toggleTheme}
                 className="flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 w-full min-h-[44px]"
@@ -203,7 +212,7 @@ export default function Sidebar() {
 
                 <div className="mx-4 mb-4" style={DIVIDER} />
 
-                <nav className="flex-1 px-3 space-y-1">
+                <nav data-tour="sidebar-nav" className="flex-1 px-3 space-y-1">
                     {navigation.map((item) => {
                         const isActive = pathname.startsWith(item.href)
                         return (
@@ -235,6 +244,17 @@ export default function Sidebar() {
 
                 <div className="p-3 mb-2">
                     <div className="mb-3 mx-1" style={DIVIDER} />
+                    <button
+                        onClick={startTour}
+                        title={isCollapsed ? 'Take a tour' : undefined}
+                        className={cn(
+                            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-200 w-full',
+                            isCollapsed && 'justify-center px-0'
+                        )}
+                    >
+                        <Compass className="h-4 w-4" />
+                        {!isCollapsed && <span>Take a tour</span>}
+                    </button>
                     <button
                         onClick={toggleTheme}
                         title={isCollapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
