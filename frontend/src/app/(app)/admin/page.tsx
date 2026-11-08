@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 type AdminTab = 'users' | 'budget' | 'system'
-type UsersSubtab = 'profile' | 'household' | 'member-types'
+type UsersSubtab = 'profile' | 'household' | 'member-types' | 'accounts'
 type BudgetSubtab = 'calendar' | 'currency'
 type SystemSubtab = 'view-mode' | 'devices' | 'danger-zone'
 
@@ -57,6 +57,17 @@ interface FxRate {
     currency: string
     rate_to_kes: string
     updated_at: string
+}
+
+interface HouseholdAccount {
+    member_id: string
+    member_name: string
+    member_type_name: string
+    member_type_bg_color: string | null
+    member_type_text_color: string | null
+    user_id: string
+    email: string
+    is_self: boolean
 }
 
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'UGX', 'ZAR', 'INR', 'AED', 'CAD', 'AUD']
@@ -127,6 +138,15 @@ export default function AdminPage() {
     const [savingRate, setSavingRate] = useState<string | null>(null)
     const [deletingRate, setDeletingRate] = useState<string | null>(null)
     const [editRates, setEditRates] = useState<Record<string, string>>({})
+
+    // Household accounts state
+    const [householdAccounts, setHouseholdAccounts] = useState<HouseholdAccount[]>([])
+    const [accountsLoaded, setAccountsLoaded] = useState(false)
+    const [resetTarget, setResetTarget] = useState<HouseholdAccount | null>(null)
+    const [resetPassword, setResetPassword] = useState('')
+    const [resetConfirm, setResetConfirm] = useState('')
+    const [resetError, setResetError] = useState('')
+    const [resetting, setResetting] = useState(false)
 
     useEffect(() => {
         apiGet<UserProfile>('/api/users/me').then((u) => {
@@ -415,6 +435,45 @@ export default function AdminPage() {
         }
     }
 
+    const loadHouseholdAccounts = async () => {
+        try {
+            const data = await apiGet<HouseholdAccount[]>('/api/admin/household-accounts')
+            setHouseholdAccounts(data)
+        } catch {
+            toast.error('Failed to load household accounts')
+        } finally {
+            setAccountsLoaded(true)
+        }
+    }
+
+    const submitPasswordReset = async () => {
+        if (!resetTarget) return
+        if (resetPassword.length < 8) {
+            setResetError('Password must be at least 8 characters')
+            return
+        }
+        if (resetPassword !== resetConfirm) {
+            setResetError('Passwords do not match')
+            return
+        }
+        setResetting(true)
+        setResetError('')
+        try {
+            await apiPost(`/api/admin/household-accounts/${resetTarget.user_id}/reset-password`, {
+                new_password: resetPassword,
+            })
+            toast.success(`Password reset for ${resetTarget.member_name}`)
+            setResetTarget(null)
+            setResetPassword('')
+            setResetConfirm('')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Password reset failed'
+            setResetError(msg)
+        } finally {
+            setResetting(false)
+        }
+    }
+
     const loadBiometricCreds = async () => {
         try {
             const data = await apiGet<BiometricCred[]>('/api/auth/webauthn/credentials')
@@ -550,10 +609,14 @@ export default function AdminPage() {
                             { id: 'profile', label: 'Profile', icon: User },
                             { id: 'household', label: 'Household', icon: Building2 },
                             { id: 'member-types', label: 'Member Types', icon: Tags },
+                            ...(isOwner ? [{ id: 'accounts' as UsersSubtab, label: 'Accounts', icon: ShieldCheck }] : []),
                         ] as { id: UsersSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
                             <button
                                 key={id}
-                                onClick={() => setUsersSubtab(id)}
+                                onClick={() => {
+                                    setUsersSubtab(id)
+                                    if (id === 'accounts' && !accountsLoaded) loadHouseholdAccounts()
+                                }}
                                 className={cn(
                                     'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
                                     usersSubtab === id
@@ -798,6 +861,136 @@ export default function AdminPage() {
                                     Add
                                 </Button>
                             </div>
+                        </div>
+                    )}
+                    {/* Household Accounts */}
+                    {usersSubtab === 'accounts' && isOwner && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex items-center gap-2 mb-1">
+                                <ShieldCheck className="h-4 w-4 text-sky-500" />
+                                <h2 className="text-base font-semibold text-slate-800 dark:text-white">Household Accounts</h2>
+                            </div>
+                            <p className="text-xs text-slate-400 mb-5">
+                                Household members who have app accounts. Use this to reset a password if someone is locked out.
+                            </p>
+
+                            {!accountsLoaded ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                </div>
+                            ) : householdAccounts.length === 0 ? (
+                                <p className="text-sm text-slate-400 py-4 text-center">No linked accounts found.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {householdAccounts.map(account => (
+                                        <div key={account.user_id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 p-4">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm font-semibold text-slate-800 dark:text-white">{account.member_name}</span>
+                                                    {account.is_self && (
+                                                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400">You</span>
+                                                    )}
+                                                    <span
+                                                        className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                                        style={{
+                                                            background: account.member_type_bg_color ?? '#e2e8f0',
+                                                            color: account.member_type_text_color ?? '#475569',
+                                                        }}
+                                                    >
+                                                        {account.member_type_name}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-0.5">{account.email}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setResetTarget(account)
+                                                    setResetPassword('')
+                                                    setResetConfirm('')
+                                                    setResetError('')
+                                                }}
+                                                className="shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
+                                            >
+                                                <ShieldCheck className="h-3.5 w-3.5" />
+                                                Reset password
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Reset password dialog */}
+                            {resetTarget && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <h3 className="text-base font-semibold text-slate-800 dark:text-white">Reset password</h3>
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    Set a new password for <span className="font-semibold text-slate-700 dark:text-slate-200">{resetTarget.member_name}</span>
+                                                </p>
+                                            </div>
+                                            <button onClick={() => setResetTarget(null)} className="text-slate-400 hover:text-slate-600 mt-0.5">
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">New password</Label>
+                                                <Input
+                                                    type="password"
+                                                    value={resetPassword}
+                                                    onChange={e => { setResetPassword(e.target.value); setResetError('') }}
+                                                    placeholder="Min. 8 characters"
+                                                    className="h-9 rounded-xl text-sm"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Confirm password</Label>
+                                                <Input
+                                                    type="password"
+                                                    value={resetConfirm}
+                                                    onChange={e => { setResetConfirm(e.target.value); setResetError('') }}
+                                                    placeholder="Repeat new password"
+                                                    className="h-9 rounded-xl text-sm"
+                                                    onKeyDown={e => { if (e.key === 'Enter') submitPasswordReset() }}
+                                                />
+                                            </div>
+                                            {resetError && (
+                                                <p className="text-xs text-red-500 flex items-center gap-1">
+                                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                                    {resetError}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-2 pt-1">
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 h-9 rounded-xl text-sm"
+                                                onClick={() => setResetTarget(null)}
+                                                disabled={resetting}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                className="flex-1 h-9 rounded-xl text-sm font-semibold text-white border-0"
+                                                style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}
+                                                onClick={submitPasswordReset}
+                                                disabled={resetting || !resetPassword || !resetConfirm}
+                                            >
+                                                {resetting ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        Saving...
+                                                    </div>
+                                                ) : 'Set password'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
