@@ -14,14 +14,14 @@ const svgSource = `
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="100" fill="url(#bg)"/>
-  <!-- House roof -->
-  <polygon points="256,112 388,232 124,232" fill="white"/>
-  <!-- House body -->
-  <rect x="156" y="232" width="200" height="168" rx="6" fill="white"/>
-  <!-- Door -->
-  <rect x="216" y="300" width="80" height="100" rx="8" fill="#0ea5e9"/>
   <!-- Chimney -->
-  <rect x="314" y="140" width="30" height="60" rx="4" fill="white"/>
+  <rect x="312" y="128" width="34" height="72" rx="5" fill="white"/>
+  <!-- Roof -->
+  <polygon points="256,88 408,234 104,234" fill="white"/>
+  <!-- House body -->
+  <rect x="132" y="234" width="248" height="190" rx="8" fill="white"/>
+  <!-- Dollar sign -->
+  <text x="256" y="374" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="148" font-weight="900" fill="#0ea5e9">$</text>
 </svg>
 `
 
