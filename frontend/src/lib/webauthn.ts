@@ -95,6 +95,45 @@ export async function registerBiometric(): Promise<void> {
     setBiometricRegistered(true)
 }
 
+export async function reauthWithBiometric(): Promise<string> {
+    const { options, challenge_token } = await apiPost<{ options: RawAuthenticationOptions; challenge_token: string }>(
+        '/api/auth/webauthn/reauth/begin',
+        {}
+    )
+
+    const publicKey: PublicKeyCredentialRequestOptions = {
+        challenge: base64urlToBuffer(options.challenge),
+        rpId: options.rpId,
+        timeout: options.timeout,
+        allowCredentials: (options.allowCredentials ?? []).map(c => ({
+            id: base64urlToBuffer(c.id),
+            type: 'public-key' as PublicKeyCredentialType,
+            transports: c.transports as AuthenticatorTransport[],
+        })),
+        userVerification: options.userVerification,
+    }
+
+    const assertion = await navigator.credentials.get({ publicKey }) as PublicKeyCredential | null
+    if (!assertion) throw new Error('Biometric cancelled')
+
+    const assertionResponse = assertion.response as AuthenticatorAssertionResponse
+    const { reauth_token } = await apiPost<{ reauth_token: string }>('/api/auth/webauthn/reauth/complete', {
+        challenge_token,
+        credential: {
+            id: assertion.id,
+            rawId: bufferToBase64url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                clientDataJSON: bufferToBase64url(assertionResponse.clientDataJSON),
+                authenticatorData: bufferToBase64url(assertionResponse.authenticatorData),
+                signature: bufferToBase64url(assertionResponse.signature),
+                userHandle: assertionResponse.userHandle ? bufferToBase64url(assertionResponse.userHandle) : null,
+            },
+        },
+    })
+    return reauth_token
+}
+
 export async function loginWithBiometric(email: string): Promise<{ id: string; email: string; name: string | null }> {
     const { options, challenge_token } = await apiPost<{ options: RawAuthenticationOptions; challenge_token: string }>(
         '/api/auth/webauthn/login/begin',

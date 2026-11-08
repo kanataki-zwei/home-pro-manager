@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, field_validator
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.core.security import hash_password
@@ -197,6 +198,56 @@ async def reset_member_password(
     target_user.password_hash = hash_password(payload.new_password)
     await db.commit()
     return {"message": f"Password reset for {target_user.email}"}
+
+
+class MemberDetailsPayload(BaseModel):
+    name: str | None = None
+    member_type_id: str | None = None
+    reauth_token: str
+
+
+@router.patch("/household-members/{member_id}")
+async def update_member_details(
+    member_id: UUID,
+    payload: MemberDetailsPayload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Verify re-auth token (lazy import to avoid circular dependency)
+    from app.routers.auth import verify_reauth_token
+    verify_reauth_token(payload.reauth_token, str(current_user.id), settings.JWT_SECRET_KEY)
+
+    household = await _require_owner(current_user, db)
+
+    member_result = await db.execute(
+        select(HouseholdMember).where(
+            HouseholdMember.id == member_id,
+            HouseholdMember.household_id == household.id,
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Name cannot be empty")
+        member.name = name
+
+    if payload.member_type_id is not None:
+        mt_result = await db.execute(
+            select(MemberType).where(
+                MemberType.id == UUID(payload.member_type_id),
+                MemberType.household_id == household.id,
+            )
+        )
+        if not mt_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Member type not found")
+        member.member_type_id = UUID(payload.member_type_id)
+
+    await db.commit()
+    return {"message": "Member updated"}
 
 
 @router.patch("/devices/{device_id}/rename", response_model=DeviceResponse)

@@ -62,6 +62,30 @@ def _decode_challenge_token(token: str, secret: str) -> str:
         raise ValueError("wrong token type")
     return payload["ch"]
 
+
+def create_reauth_token(user_id: str, secret: str) -> str:
+    exp = datetime.now(timezone.utc) + timedelta(minutes=2)
+    return pyjwt.encode(
+        {"type": "reauth", "sub": user_id, "exp": exp},
+        secret,
+        algorithm="HS256",
+    )
+
+
+def verify_reauth_token(token: str, expected_user_id: str, secret: str) -> None:
+    """Raises HTTPException if the token is invalid, expired, or for a different user."""
+    try:
+        payload = pyjwt.decode(token, secret, algorithms=["HS256"])
+        if payload.get("type") != "reauth":
+            raise ValueError("wrong type")
+        if payload.get("sub") != expected_user_id:
+            raise ValueError("wrong user")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Re-authentication required or expired",
+        )
+
 router = APIRouter()
 
 _COOKIE = dict(httponly=True, samesite="lax", secure=not settings.DEBUG)
@@ -490,3 +514,87 @@ async def delete_webauthn_credential(
     await db.delete(cred)
     await db.commit()
     return {"message": "Credential removed"}
+
+
+# ── Re-authentication (produces a short-lived reauth token) ──────────────────
+
+@router.post("/reauth/password")
+async def reauth_password(
+    payload: VerifyPasswordPayload,
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.password_hash or not verify_password(payload.password, current_user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect password")
+    return {"reauth_token": create_reauth_token(str(current_user.id), settings.JWT_SECRET_KEY)}
+
+
+@router.post("/webauthn/reauth/begin")
+async def webauthn_reauth_begin(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    creds = (await db.execute(
+        select(WebAuthnCredential).where(WebAuthnCredential.user_id == current_user.id)
+    )).scalars().all()
+    if not creds:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No biometric registered")
+
+    allow = [PublicKeyCredentialDescriptor(id=base64url_to_bytes(c.credential_id)) for c in creds]
+    opts = generate_authentication_options(
+        rp_id=_webauthn_rp_id(),
+        allow_credentials=allow,
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    challenge_token = _create_challenge_token(bytes_to_base64url(opts.challenge), settings.JWT_SECRET_KEY)
+    return {"options": json.loads(options_to_json(opts)), "challenge_token": challenge_token}
+
+
+@router.post("/webauthn/reauth/complete")
+async def webauthn_reauth_complete(
+    payload: WebAuthnLoginCompletePayload,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        expected_challenge_b64 = _decode_challenge_token(payload.challenge_token, settings.JWT_SECRET_KEY)
+    except Exception:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired challenge")
+
+    credential_id_str = payload.credential.get("id", "")
+    cred = (await db.execute(
+        select(WebAuthnCredential).where(
+            WebAuthnCredential.credential_id == credential_id_str,
+            WebAuthnCredential.user_id == current_user.id,
+        )
+    )).scalar_one_or_none()
+    if not cred:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown credential")
+
+    cred_data = payload.credential
+    try:
+        user_handle = cred_data["response"].get("userHandle")
+        credential = AuthenticationCredential(
+            id=cred_data["id"],
+            raw_id=base64url_to_bytes(cred_data["rawId"]),
+            response=AuthenticatorAssertionResponse(
+                client_data_json=base64url_to_bytes(cred_data["response"]["clientDataJSON"]),
+                authenticator_data=base64url_to_bytes(cred_data["response"]["authenticatorData"]),
+                signature=base64url_to_bytes(cred_data["response"]["signature"]),
+                user_handle=base64url_to_bytes(user_handle) if user_handle else None,
+            ),
+            type=cred_data.get("type", "public-key"),
+        )
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=base64url_to_bytes(expected_challenge_b64),
+            expected_rp_id=_webauthn_rp_id(),
+            expected_origin=_webauthn_origin(),
+            credential_public_key=base64url_to_bytes(cred.public_key),
+            credential_current_sign_count=cred.sign_count,
+        )
+    except Exception as e:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Biometric verification failed: {e}")
+
+    cred.sign_count = verification.new_sign_count
+    await db.commit()
+    return {"reauth_token": create_reauth_token(str(current_user.id), settings.JWT_SECRET_KEY)}
