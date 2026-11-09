@@ -6,7 +6,7 @@ httptools==0.7.1
 websockets==15.0.1
 
 # Database
-sqlalchemy==2.0.46
+sqlalchemy==2.1.8
 asyncpg==0.31.0
 alembic==1.18.4
 greenlet==3.3.2
