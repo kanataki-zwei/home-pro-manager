@@ -5,6 +5,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { Users, TrendingUp, Wallet, ArrowUpRight, Landmark } from 'lucide-react'
 import Link from 'next/link'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -76,8 +77,14 @@ export default function HomePage() {
     }, [household?.id])
 
     if (loading) return (
-        <div className="flex items-center justify-center h-64">
-            <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+        <div className="space-y-6">
+            <Skeleton className="h-28 rounded-3xl" />
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-4">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-2xl" />)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-44 rounded-3xl" />)}
+            </div>
         </div>
     )
 

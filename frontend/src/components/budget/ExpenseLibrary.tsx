@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
+import { useQuickAdd } from '@/context/QuickAddContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
 import {
     Plus, Trash2, Pencil, ChevronDown, ChevronRight, Layers,
-    Wallet, RotateCcw, X, Tag
+    Wallet, RotateCcw, X, Tag, Search, BookOpen,
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,6 +83,7 @@ function toMonthly(amount: number, cadence: string): number {
 
 export default function ExpenseLibrary() {
     const { household, accounts, members, currentUserId, viewMode } = useHousehold()
+    const { register } = useQuickAdd()
     const isMeMode = viewMode === 'me'
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
     const [expenses, setExpenses] = useState<Expense[]>([])
@@ -90,6 +93,7 @@ export default function ExpenseLibrary() {
     const [loading, setLoading] = useState(true)
     const [showDeleted, setShowDeleted] = useState(false)
     const [activeTab, setActiveTab] = useState<'household' | 'personal'>(isMeMode ? 'personal' : 'household')
+    const [searchQuery, setSearchQuery] = useState('')
 
     // Group dialog
     const [groupDialog, setGroupDialog] = useState(false)
@@ -164,6 +168,11 @@ export default function ExpenseLibrary() {
     }
 
     useEffect(() => { if (isMeMode) setActiveTab('personal') }, [isMeMode])
+
+    useEffect(() => {
+        register(() => { resetExpenseForm(); setExpenseDialog(true) })
+        return () => register(null)
+    }, [register])
 
     useEffect(() => { if (household) loadAll() }, [household?.id, showDeleted])
 
@@ -414,15 +423,45 @@ export default function ExpenseLibrary() {
     const createExpense = async () => {
         if (!expenseForm.name || !expenseForm.amount || !household) return
         setSavingExpense(true)
+        const payload = buildExpensePayload()
+        const savedForm = { ...expenseForm }
+
+        // Optimistic: add temp item immediately so UI feels instant
+        const tempId = `temp-${Date.now()}`
+        const amount = parseFloat(expenseForm.amount)
+        const tempExpense: Expense = {
+            id: tempId,
+            name: expenseForm.name,
+            amount,
+            frequency: expenseForm.frequency,
+            monthly_amount: toMonthly(amount, expenseForm.frequency),
+            ownership_type: expenseForm.ownership_type,
+            joint_split_husband: expenseForm.ownership_type === 'joint' ? parseFloat(expenseForm.joint_split_husband) : null,
+            joint_split_wife: expenseForm.ownership_type === 'joint' ? parseFloat(expenseForm.joint_split_wife) : null,
+            group_id: expenseForm.group_id || null,
+            account_id: expenseForm.account_id || null,
+            owner_id: activeTab === 'personal' ? (currentUserId ?? null) : null,
+            is_deleted: false,
+            tag_assignments: expenseForm.tag_ids
+                .map(id => { const tag = tags.find(t => t.id === id); return tag ? { id: `ta-${id}`, tag } : null })
+                .filter(Boolean) as { id: string; tag: ExpenseTag }[],
+        }
+        setExpenses(prev => [...prev, tempExpense])
+        resetExpenseForm()
+        setExpenseDialog(false)
+
         try {
-            const data = await apiPost<Expense>(`/api/households/${household.id}/budget/expenses`, buildExpensePayload())
-            setExpenses(prev => [...prev, data])
-            resetExpenseForm(); setExpenseDialog(false)
+            const data = await apiPost<Expense>(`/api/households/${household.id}/budget/expenses`, payload)
+            setExpenses(prev => prev.map(e => e.id === tempId ? data : e))
             toast.success('Expense added!')
         } catch (e: any) {
+            setExpenses(prev => prev.filter(e => e.id !== tempId))
+            setExpenseForm(savedForm)
+            setExpenseDialog(true)
             toast.error(e.message || 'Failed to add expense')
+        } finally {
+            setSavingExpense(false)
         }
-        finally { setSavingExpense(false) }
     }
 
     const updateExpense = async () => {
@@ -546,9 +585,34 @@ export default function ExpenseLibrary() {
 
     // ── Floating panel state ──────────────────────────────────────
 
+    // ── Search-filtered views (used only in render, not stats) ──────
+    const searchLower = searchQuery.toLowerCase()
+    const matchesSearch = (e: Expense) => !searchQuery || e.name.toLowerCase().includes(searchLower)
+    const visibleGroupsFiltered = visibleGroups.filter(g =>
+        expensesForGroup(g.id).some(e => matchesSearch(e))
+    )
+    const ungroupedFiltered = ungroupedExpenses.filter(matchesSearch)
+
     if (loading) return (
-        <div className="flex items-center justify-center h-48">
-            <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+        <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <div className="h-1 rounded-full"><Skeleton className="h-1" /></div>
+                    <div className="px-5 py-4 flex items-center gap-3">
+                        <Skeleton className="w-9 h-9 rounded-xl flex-shrink-0" />
+                        <Skeleton className="h-4 flex-1 max-w-[160px]" />
+                        <Skeleton className="h-4 w-16 ml-auto" />
+                    </div>
+                    <div className="px-5 pb-4 space-y-2">
+                        {[1, 2].map(j => (
+                            <div key={j} className="flex items-center gap-3">
+                                <Skeleton className="h-3 flex-1" />
+                                <Skeleton className="h-3 w-20" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
         </div>
     )
 
@@ -902,10 +966,49 @@ export default function ExpenseLibrary() {
                 )}
             </div>
 
+            {/* ── Search ── */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <input
+                    type="text"
+                    placeholder="Search expenses…"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
+                />
+                {searchQuery && (
+                    <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X className="h-4 w-4" />
+                    </button>
+                )}
+            </div>
+
             {/* ── Groups + Expenses ── */}
             <div className="space-y-4">
-                {visibleGroups.map((group, gi) => {
+                {visibleGroupsFiltered.length === 0 && ungroupedFiltered.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700/60">
+                        {searchQuery ? (
+                            <>
+                                <Search className="h-8 w-8 text-slate-300 mb-3" />
+                                <p className="text-sm font-semibold text-slate-400">No results for &ldquo;{searchQuery}&rdquo;</p>
+                                <button onClick={() => setSearchQuery('')} className="mt-2 text-xs text-sky-500 hover:text-sky-600 font-semibold">
+                                    Clear search
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <BookOpen className="h-8 w-8 text-slate-300 mb-3" />
+                                <p className="text-sm font-semibold text-slate-400">No expenses yet</p>
+                                <p className="text-xs text-slate-300 mt-1">Tap &ldquo;Add Expense&rdquo; to get started</p>
+                            </>
+                        )}
+                    </div>
+                )}
+                {visibleGroupsFiltered.map((group, gi) => {
                     const groupExpenses = expensesForGroup(group.id)
+                    const displayExpenses = searchQuery ? groupExpenses.filter(matchesSearch) : groupExpenses
                     const isExpanded = expandedGroups.has(group.id)
                     const monthlyTotal = groupExpenses.filter(e => !e.is_deleted).reduce((sum, e) => sum + Number(e.monthly_amount), 0)
 
@@ -1051,7 +1154,7 @@ export default function ExpenseLibrary() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {groupExpenses.map(expense => (
+                                            {displayExpenses.map(expense => (
                                                 <ExpenseTableRow
                                                     key={expense.id}
                                                     expense={expense}
@@ -1086,7 +1189,7 @@ export default function ExpenseLibrary() {
                 })}
 
                 {/* Ungrouped expenses */}
-                {ungroupedExpenses.length > 0 && (
+                {ungroupedFiltered.length > 0 && (
                     <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 overflow-hidden"
                         style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                         <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 flex items-center justify-between">
@@ -1108,7 +1211,7 @@ export default function ExpenseLibrary() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {ungroupedExpenses.map(expense => (
+                                {ungroupedFiltered.map(expense => (
                                     <ExpenseTableRow
                                         key={expense.id}
                                         expense={expense}
