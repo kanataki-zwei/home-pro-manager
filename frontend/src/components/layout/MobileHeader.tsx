@@ -10,7 +10,11 @@ export default function MobileHeader() {
     const { theme, toggleTheme } = useTheme()
 
     return (
-        <div className="md:hidden flex items-center gap-3 h-14 px-4 border-b border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900 shrink-0">
+        <div
+            className="md:hidden bg-white dark:bg-slate-900 shrink-0"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
+        <div className="flex items-center gap-3 h-14 px-4 border-b border-slate-200 dark:border-slate-700/50">
             <div className="flex items-center gap-2 flex-1">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                     style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
@@ -54,6 +58,7 @@ export default function MobileHeader() {
             >
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
+        </div>
         </div>
     )
 }
