@@ -4,6 +4,7 @@ import Sidebar from '@/components/layout/Sidebar'
 import MobileHeader from '@/components/layout/MobileHeader'
 import BottomNav from '@/components/layout/BottomNav'
 import SwipeNavContainer from '@/components/layout/SwipeNavContainer'
+import PageShell from '@/components/layout/PageShell'
 import PlaygroundBanner from '@/components/PlaygroundBanner'
 import { HouseholdProvider } from '@/context/HouseholdContext'
 import { SidebarProvider } from '@/context/SidebarContext'
@@ -25,9 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                             <SwipeNavContainer>
                                 <MobileHeader />
                                 <PlaygroundBanner />
-                                <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+                                <PageShell className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                                     {children}
-                                </main>
+                                </PageShell>
                             </SwipeNavContainer>
                         </div>
                         <AppTour />
