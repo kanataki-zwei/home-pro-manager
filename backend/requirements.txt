@@ -12,7 +12,7 @@ alembic==1.18.4
 greenlet==3.3.2
 
 # Data validation & settings
-pydantic==2.12.5
+pydantic==2.14.3
 pydantic-settings==2.16.2
 pydantic_core==2.41.5
 annotated-types==0.7.0
