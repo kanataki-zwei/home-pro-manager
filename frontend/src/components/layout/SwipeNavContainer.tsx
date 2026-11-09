@@ -45,7 +45,7 @@ export default function SwipeNavContainer({ children }: { children: React.ReactN
                     transition: snapping
                         ? 'transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
                         : 'none',
-                    willChange: snapping || offset !== 0 ? 'transform' : 'auto',
+                    willChange: offset !== 0 ? 'transform' : 'auto',
                 }}
                 onTouchStart={e => {
                     if (snapping) return
@@ -82,8 +82,8 @@ export default function SwipeNavContainer({ children }: { children: React.ReactN
                             return
                         }
                     }
-                    // Not enough — spring back
-                    snapTo(0)
+                    // Spring back only if content actually moved horizontally
+                    if (offset !== 0) snapTo(0)
                 }}
             >
                 {children}
