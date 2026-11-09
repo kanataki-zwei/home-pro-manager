@@ -720,6 +720,7 @@ export default function AdminPage() {
 
                     {/* Profile */}
                     {usersSubtab === 'profile' && (
+                        <>
                         <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
@@ -767,6 +768,7 @@ export default function AdminPage() {
                                 Sign out
                             </Button>
                         </div>
+                        </>
                     )}
 
                     {/* Household */}
