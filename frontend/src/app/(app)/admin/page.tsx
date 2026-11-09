@@ -10,6 +10,7 @@ import {
     ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
     Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint, FlaskConical, LogOut,
+    Sun, Moon,
 } from 'lucide-react'
 import {
     isBiometricSupported,
@@ -23,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePlayground } from '@/context/PlaygroundContext'
+import { useTheme } from '@/context/ThemeContext'
 
 type AdminTab = 'users' | 'budget' | 'system'
 type UsersSubtab = 'profile' | 'household' | 'member-types' | 'accounts'
@@ -170,6 +172,7 @@ export default function AdminPage() {
 
     // Playground state
     const { isPlayground, enablePlayground, disablePlayground } = usePlayground()
+    const { theme, toggleTheme } = useTheme()
     const [showDisableDialog, setShowDisableDialog] = useState(false)
     const [pgReauthTab, setPgReauthTab] = useState<'biometric' | 'password'>('biometric')
     const [pgPassword, setPgPassword] = useState('')
@@ -1526,6 +1529,46 @@ export default function AdminPage() {
                                 {viewMode === 'me' && (
                                     <span className="text-xs font-bold text-violet-600 bg-violet-100 px-3 py-0.5 rounded-full">Active</span>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                    )}
+
+                    {systemSubtab === 'view-mode' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center gap-2 mb-1">
+                            {theme === 'dark' ? <Moon className="h-4 w-4 text-sky-500" /> : <Sun className="h-4 w-4 text-sky-500" />}
+                            <h2 className="text-base font-semibold text-slate-800 dark:text-white">Appearance</h2>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-5">Choose between light and dark mode.</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => theme === 'dark' && toggleTheme()}
+                                className={cn(
+                                    'flex-1 flex flex-col items-center gap-2.5 p-5 rounded-2xl border-2 transition-all',
+                                    theme === 'light'
+                                        ? 'border-sky-400 bg-sky-50 dark:bg-sky-500/10'
+                                        : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 bg-white dark:bg-slate-700/50'
+                                )}>
+                                <Sun className={cn('h-6 w-6', theme === 'light' ? 'text-sky-500' : 'text-slate-400')} />
+                                <div className="text-center">
+                                    <p className={cn('text-sm font-bold', theme === 'light' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-600 dark:text-slate-300')}>Light</p>
+                                </div>
+                                {theme === 'light' && <span className="text-xs font-bold text-sky-600 bg-sky-100 px-3 py-0.5 rounded-full">Active</span>}
+                            </button>
+                            <button
+                                onClick={() => theme === 'light' && toggleTheme()}
+                                className={cn(
+                                    'flex-1 flex flex-col items-center gap-2.5 p-5 rounded-2xl border-2 transition-all',
+                                    theme === 'dark'
+                                        ? 'border-sky-400 bg-sky-50 dark:bg-sky-500/10'
+                                        : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 bg-white dark:bg-slate-700/50'
+                                )}>
+                                <Moon className={cn('h-6 w-6', theme === 'dark' ? 'text-sky-500' : 'text-slate-400')} />
+                                <div className="text-center">
+                                    <p className={cn('text-sm font-bold', theme === 'dark' ? 'text-sky-700 dark:text-sky-300' : 'text-slate-600 dark:text-slate-300')}>Dark</p>
+                                </div>
+                                {theme === 'dark' && <span className="text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-500/20 px-3 py-0.5 rounded-full">Active</span>}
                             </button>
                         </div>
                     </div>
