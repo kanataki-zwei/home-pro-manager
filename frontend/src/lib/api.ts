@@ -1,4 +1,5 @@
 import { isPlaygroundActive, getMockResponse, isPlaygroundPassthrough } from './playground-data'
+import { getCached, setCached, clearCache } from './cache'
 
 async function refreshToken(): Promise<boolean> {
     try {
@@ -59,31 +60,42 @@ export async function apiGet<T>(path: string): Promise<T> {
     if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
         return getMockResponse(path) as T
     }
-    return (await apiFetch(path)).json();
+    const cached = getCached<T>(path)
+    if (cached !== undefined) return cached
+    const data = await (await apiFetch(path)).json() as T
+    setCached(path, data)
+    return data
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
         return { success: true } as unknown as T
     }
-    return (await apiFetch(path, { method: "POST", body: JSON.stringify(body) })).json();
+    const data = await (await apiFetch(path, { method: "POST", body: JSON.stringify(body) })).json() as T
+    clearCache()
+    return data
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
         return { success: true } as unknown as T
     }
-    return (await apiFetch(path, { method: "PATCH", body: JSON.stringify(body) })).json();
+    const data = await (await apiFetch(path, { method: "PATCH", body: JSON.stringify(body) })).json() as T
+    clearCache()
+    return data
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
     if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) {
         return { success: true } as unknown as T
     }
-    return (await apiFetch(path, { method: "PUT", body: JSON.stringify(body) })).json();
+    const data = await (await apiFetch(path, { method: "PUT", body: JSON.stringify(body) })).json() as T
+    clearCache()
+    return data
 }
 
 export async function apiDelete(path: string): Promise<void> {
     if (isPlaygroundActive() && !isPlaygroundPassthrough(path)) return
-    await apiFetch(path, { method: "DELETE" });
+    await apiFetch(path, { method: "DELETE" })
+    clearCache()
 }

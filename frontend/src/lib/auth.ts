@@ -1,3 +1,5 @@
+import { clearCache } from './cache'
+
 export type SignInResult =
     | { error: { message: string }; deviceStatus?: never }
     | { error: null; deviceStatus?: never }
@@ -27,6 +29,8 @@ export async function signIn(
 }
 
 export async function signOut(): Promise<void> {
+    // Wipe in-memory cache so a subsequent login never sees stale data
+    clearCache()
     await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
