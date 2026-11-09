@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '@/lib/api'
+import { signOut } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
     ShieldCheck, User, Building2, Tags, Plus, Trash2, Save, Loader2, Pencil, X, Check,
     RefreshCw, Eye, CalendarDays, AlertTriangle, ShieldAlert, Users, Settings, Banknote,
-    Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint, FlaskConical,
+    Smartphone, Clock, CheckCircle2, XCircle, MapPin, Fingerprint, FlaskConical, LogOut,
 } from 'lucide-react'
 import {
     isBiometricSupported,
@@ -75,7 +77,13 @@ interface HouseholdAccount {
 const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'UGX', 'ZAR', 'INR', 'AED', 'CAD', 'AUD']
 
 export default function AdminPage() {
+    const router = useRouter()
     const { household, fxRates, setFxRates, refreshHousehold, viewMode, setViewMode, currentUserId } = useHousehold()
+
+    const handleSignOut = async () => {
+        await signOut()
+        router.push('/auth/login')
+    }
 
     const [activeTab, setActiveTab] = useState<AdminTab>('users')
     const [usersSubtab, setUsersSubtab] = useState<UsersSubtab>('profile')
@@ -746,6 +754,18 @@ export default function AdminPage() {
                                     </Button>
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 md:hidden">
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Signed in as <span className="font-semibold text-slate-700 dark:text-slate-200">{profile?.email}</span></p>
+                            <Button
+                                variant="outline"
+                                onClick={handleSignOut}
+                                className="rounded-xl gap-2 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                Sign out
+                            </Button>
                         </div>
                     )}
 

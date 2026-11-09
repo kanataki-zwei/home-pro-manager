@@ -1,24 +1,16 @@
 'use client'
 
-import { Menu, Sparkles, Building2, User } from 'lucide-react'
+import { Sparkles, Building2, User, Sun, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useSidebar } from '@/context/SidebarContext'
 import { useHousehold } from '@/context/HouseholdContext'
+import { useTheme } from '@/context/ThemeContext'
 
 export default function MobileHeader() {
-    const { setMobileOpen } = useSidebar()
     const { viewMode, setViewMode } = useHousehold()
+    const { theme, toggleTheme } = useTheme()
 
     return (
-        <div className="md:hidden flex items-center gap-3 h-14 px-3 border-b border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900 shrink-0">
-            <button
-                onClick={() => setMobileOpen(true)}
-                className="p-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
-                aria-label="Open menu"
-            >
-                <Menu className="h-5 w-5" />
-            </button>
-
+        <div className="md:hidden flex items-center gap-3 h-14 px-4 border-b border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-900 shrink-0">
             <div className="flex items-center gap-2 flex-1">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                     style={{ background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)' }}>
@@ -29,7 +21,7 @@ export default function MobileHeader() {
                 </span>
             </div>
 
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-semibold">
+            <div data-tour="view-mode" className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 text-xs font-semibold">
                 <button
                     onClick={() => setViewMode('household')}
                     className={cn(
@@ -54,6 +46,14 @@ export default function MobileHeader() {
                     <User className="h-3 w-3" /> Me
                 </button>
             </div>
+
+            <button
+                onClick={toggleTheme}
+                className="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Toggle theme"
+            >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
         </div>
     )
 }
