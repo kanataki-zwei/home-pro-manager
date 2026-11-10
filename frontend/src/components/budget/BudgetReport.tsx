@@ -84,10 +84,8 @@ export default function BudgetReport() {
     const [trendSessions, setTrendSessions] = useState<SessionTrend[]>([])
     const [variance, setVariance] = useState<VarianceData | null>(null)
     const [loading, setLoading] = useState(true)
-    const [scope, setScope] = useState<'all' | 'me'>(() => viewMode === 'me' ? 'me' : 'all')
+    const scope = viewMode === 'me' ? 'me' : 'all'
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-
-    useEffect(() => { setScope(viewMode === 'me' ? 'me' : 'all') }, [viewMode])
 
     useEffect(() => {
         if (!household) return
@@ -258,16 +256,6 @@ export default function BudgetReport() {
 
     return (
         <div className="space-y-6">
-            {/* Scope toggle */}
-            <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1 w-fit">
-                {(['all', 'me'] as const).map(s => (
-                    <button key={s} onClick={() => setScope(s)}
-                        className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all ${scope === s ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                        {s === 'all' ? '🏠 All Household' : '👤 Me'}
-                    </button>
-                ))}
-            </div>
-
             {/* Summary cards */}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
