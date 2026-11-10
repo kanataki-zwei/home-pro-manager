@@ -5,7 +5,7 @@ import { useHousehold } from '@/context/HouseholdContext'
 import { useTheme } from '@/context/ThemeContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -171,10 +171,14 @@ export default function HouseholdPage() {
 
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
     const [accountView, setAccountView] = useState<'icon' | 'list'>('icon')
-    const [filterOwnership, setFilterOwnership] = useState('all')
-    const [filterAccType, setFilterAccType] = useState('all')
-    const [filterInstType, setFilterInstType] = useState('all')
-    const [filterNetWorth, setFilterNetWorth] = useState('all')
+    const [filterOwnership, setFilterOwnership] = useState<Set<string>>(new Set())
+    const [filterAccType, setFilterAccType] = useState<Set<string>>(new Set())
+    const [filterInstType, setFilterInstType] = useState<Set<string>>(new Set())
+    const [filterNetWorth, setFilterNetWorth] = useState<Set<string>>(new Set())
+    const [rolesOpen, setRolesOpen] = useState(false)
+    const [localRoleOrder, setLocalRoleOrder] = useState<string[]>([])
+    const [roleDragOver, setRoleDragOver] = useState<number | null>(null)
+    const [viewAccount, setViewAccount] = useState<Account | null>(null)
 
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
@@ -203,6 +207,17 @@ export default function HouseholdPage() {
             if (household) { loadSystemUsers(); loadBudgetExpenses() }
         }
     }, [contextLoading, household])
+
+    useEffect(() => {
+        if (!household?.id) return
+        const saved = localStorage.getItem(`role-order-${household.id}`)
+        if (saved) {
+            try { setLocalRoleOrder(JSON.parse(saved)) } catch { setLocalRoleOrder(household.member_types.map(t => t.id)) }
+        } else {
+            setLocalRoleOrder(household.member_types.map(t => t.id))
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [household?.id])
 
     const loadSystemUsers = async () => {
         setLoadingUsers(true)
@@ -241,6 +256,7 @@ export default function HouseholdPage() {
         try {
             const data = await apiPost<MemberType>(`/api/households/${household.id}/member-types`, { name: newMemberTypeName })
             setHousehold({ ...household, member_types: [...household.member_types, data] })
+            setLocalRoleOrder(prev => [...prev, data.id])
             setNewMemberTypeName(''); setMemberTypeDialog(false)
             toast.success('Added!')
         } catch { toast.error('Failed') }
@@ -252,6 +268,7 @@ export default function HouseholdPage() {
         try {
             await apiDelete(`/api/households/${household.id}/member-types/${typeId}`)
             setHousehold({ ...household, member_types: household.member_types.filter(t => t.id !== typeId) })
+            setLocalRoleOrder(prev => prev.filter(id => id !== typeId))
         } catch { toast.error('Failed') }
     }
 
@@ -540,11 +557,12 @@ export default function HouseholdPage() {
           )
         : accounts
     const filteredAccounts = visibleAccounts
-        .filter(a => filterOwnership === 'all' || a.ownership === filterOwnership)
-        .filter(a => filterAccType === 'all' || a.account_type === filterAccType)
-        .filter(a => filterInstType === 'all' || a.institution_type === filterInstType)
-        .filter(a => filterNetWorth === 'all' ||
-            (filterNetWorth === 'yes' ? a.contributes_to_net_worth : !a.contributes_to_net_worth))
+        .filter(a => filterOwnership.size === 0 || filterOwnership.has(a.ownership))
+        .filter(a => filterAccType.size === 0 || filterAccType.has(a.account_type))
+        .filter(a => filterInstType.size === 0 || (a.institution_type != null && filterInstType.has(a.institution_type)))
+        .filter(a => filterNetWorth.size === 0 ||
+            (filterNetWorth.has('yes') && a.contributes_to_net_worth) ||
+            (filterNetWorth.has('no') && !a.contributes_to_net_worth))
 
     const spouseGroup = visibleMembers
         .filter(m => /spouse|partner|husband|wife/i.test(m.member_type.name))
@@ -555,6 +573,13 @@ export default function HouseholdPage() {
     const kidGroup    = visibleMembers.filter(m => /kid|child|son|daughter/i.test(m.member_type.name))
     const otherGroup  = visibleMembers.filter(m => !/spouse|partner|husband|wife|kid|child|son|daughter/i.test(m.member_type.name))
     const memberOrder = [...spouseGroup, ...kidGroup, ...otherGroup]
+
+    const orderedMemberTypes: MemberType[] = localRoleOrder.length > 0
+        ? ([
+              ...localRoleOrder.map(id => household.member_types.find(t => t.id === id)).filter(Boolean),
+              ...household.member_types.filter(t => !localRoleOrder.includes(t.id)),
+          ] as MemberType[])
+        : household.member_types
 
     const memberCard = (member: (typeof members)[number], idx: number) => (
         <div key={member.id}
@@ -688,36 +713,92 @@ export default function HouseholdPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
                 {/* Member Roles */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Member Roles</h2>
-                            <p className="text-xs text-slate-400">Types in your household</p>
-                        </div>
-                        <button onClick={() => setMemberTypeDialog(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
-                            <Plus className="h-3.5 w-3.5" /> Add
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className={`flex items-center justify-between p-5${rolesOpen ? ' border-b border-slate-50 dark:border-slate-700' : ''}`}>
+                        <button className="flex-1 text-left min-w-0" onClick={() => setRolesOpen(o => !o)}>
+                            <div className="flex items-center gap-2 min-w-0">
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Member Roles</h2>
+                                    <p className="text-xs text-slate-400">Types in your household</p>
+                                </div>
+                                {!rolesOpen && household.member_types.length > 0 && (
+                                    <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">
+                                        {household.member_types.length}
+                                    </span>
+                                )}
+                            </div>
                         </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <button onClick={() => setMemberTypeDialog(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
+                                <Plus className="h-3.5 w-3.5" /> Add
+                            </button>
+                            <button onClick={() => setRolesOpen(o => !o)}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+                                {rolesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
+                        </div>
                     </div>
-                    {household.member_types.length === 0 ? (
-                        <p className="text-sm text-slate-400 py-1">No roles yet. Add one to get started.</p>
-                    ) : (
-                        <div className="flex flex-wrap gap-2">
-                            {household.member_types.map(type => {
-                                const bg = type.bg_color ?? '#f1f5f9'
-                                const col = type.text_color ?? '#334155'
-                                return (
-                                    <div key={type.id}
-                                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-2xl border border-slate-200 hover:border-slate-300 transition-all"
-                                        style={{ background: bg, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                                        <span className="text-sm font-semibold" style={{ color: col }}>{type.name}</span>
-                                        <button onClick={() => deleteMemberType(type.id)}
-                                            className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all">
-                                            <Trash2 className="h-3 w-3" />
-                                        </button>
+                    {rolesOpen && (
+                        <div className="p-5 pt-4">
+                            {household.member_types.length === 0 ? (
+                                <p className="text-sm text-slate-400 py-1">No roles yet. Add one to get started.</p>
+                            ) : (
+                                <>
+                                    <p className="text-xs text-slate-400 mb-3 flex items-center gap-1.5">
+                                        <GripVertical className="h-3 w-3" /> Drag to reorder
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {orderedMemberTypes.map((type, idx) => {
+                                            const bg = type.bg_color ?? '#f1f5f9'
+                                            const col = type.text_color ?? '#334155'
+                                            const isDragTarget = roleDragOver === idx
+                                            return (
+                                                <div key={type.id}
+                                                    draggable
+                                                    onDragStart={e => {
+                                                        e.dataTransfer.setData('text/plain', String(idx))
+                                                        e.dataTransfer.effectAllowed = 'move'
+                                                    }}
+                                                    onDragOver={e => {
+                                                        e.preventDefault()
+                                                        e.dataTransfer.dropEffect = 'move'
+                                                        if (roleDragOver !== idx) setRoleDragOver(idx)
+                                                    }}
+                                                    onDragEnd={() => setRoleDragOver(null)}
+                                                    onDrop={e => {
+                                                        e.preventDefault()
+                                                        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'))
+                                                        if (isNaN(fromIdx) || fromIdx === idx) { setRoleDragOver(null); return }
+                                                        const newOrder = [...orderedMemberTypes]
+                                                        const [moved] = newOrder.splice(fromIdx, 1)
+                                                        newOrder.splice(idx, 0, moved)
+                                                        const newIds = newOrder.map(t => t.id)
+                                                        setLocalRoleOrder(newIds)
+                                                        localStorage.setItem(`role-order-${household.id}`, JSON.stringify(newIds))
+                                                        setRoleDragOver(null)
+                                                    }}
+                                                    className={`flex items-center gap-1.5 pl-2 pr-2 py-1.5 rounded-2xl border transition-all cursor-grab active:cursor-grabbing select-none ${
+                                                        isDragTarget
+                                                            ? 'border-sky-400 scale-105 opacity-80'
+                                                            : 'border-slate-200 dark:border-slate-600 hover:border-slate-300'
+                                                    }`}
+                                                    style={{
+                                                        background: bg,
+                                                        boxShadow: isDragTarget ? '0 4px 12px rgba(14,165,233,0.25)' : '0 1px 4px rgba(0,0,0,0.04)',
+                                                    }}>
+                                                    <GripVertical className="h-3.5 w-3.5 text-slate-300 flex-shrink-0" />
+                                                    <span className="text-sm font-semibold" style={{ color: col }}>{type.name}</span>
+                                                    <button onClick={() => deleteMemberType(type.id)}
+                                                        className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all">
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            )
+                                        })}
                                     </div>
-                                )
-                            })}
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -725,7 +806,7 @@ export default function HouseholdPage() {
                 {/* Household Income */}
                 {(() => {
                     const incomeMembers = members.filter(m =>
-                        m.contributes_income && m.income_amount &&
+                        m.contributes_income && m.income_amount != null && Number(m.income_amount) > 0 &&
                         (!isMeMode || m.user_id === currentUserId)
                     )
                     const totals: Record<string, number> = {}
@@ -802,15 +883,14 @@ export default function HouseholdPage() {
                                             )
                                         })}
                                     </div>
-                                    <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700"
-                                        style={{ background: 'linear-gradient(135deg, #f0f9ff, #f5f3ff)' }}>
+                                    <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-gradient-to-r from-sky-50 to-violet-50 dark:from-sky-900/20 dark:to-violet-900/20">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-sm font-bold text-slate-500">Total Monthly Income</span>
+                                            <span className="text-sm font-bold text-slate-500 dark:text-slate-300">Total Monthly</span>
                                             <div className="text-right">
                                                 {Object.entries(totals).map(([currency, total]) => (
-                                                    <p key={currency} className="font-black text-slate-900 dark:text-white text-base">
+                                                    <p key={currency} className="font-black text-slate-900 dark:text-white text-lg leading-tight">
                                                         {fmtMoney(total, currency)}
-                                                        <span className="text-xs font-normal text-slate-500 ml-1">/ mo</span>
+                                                        <span className="text-xs font-normal text-slate-400 dark:text-slate-400 ml-1">/ mo</span>
                                                     </p>
                                                 ))}
                                             </div>
@@ -901,8 +981,15 @@ export default function HouseholdPage() {
                     </div>
                 </div>
 
-                {/* Account filters */}
+                {/* Account filters — multi-select: empty set = show all */}
                 {(() => {
+                    const toggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
+                        setter(prev => {
+                            const next = new Set(prev)
+                            if (next.has(value)) next.delete(value); else next.add(value)
+                            return next
+                        })
+                    }
                     const chip = (active: boolean, onClick: () => void, label: React.ReactNode, chipKey?: string) => (
                         <button key={chipKey ?? String(label)} onClick={onClick}
                             className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active ? 'bg-slate-800 dark:bg-slate-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
@@ -912,22 +999,22 @@ export default function HouseholdPage() {
                     return (
                         <div className="mb-4 space-y-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {chip(filterOwnership === 'all', () => setFilterOwnership('all'), 'All')}
-                                {chip(filterOwnership === 'joint', () => setFilterOwnership('joint'), 'Joint')}
-                                {chip(filterOwnership === 'individual', () => setFilterOwnership('individual'), 'Individual')}
+                                {chip(filterOwnership.size === 0, () => setFilterOwnership(new Set()), 'All')}
+                                {chip(filterOwnership.has('joint'), () => toggle(setFilterOwnership, 'joint'), 'Joint')}
+                                {chip(filterOwnership.has('individual'), () => toggle(setFilterOwnership, 'individual'), 'Individual')}
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {chip(filterAccType === 'all', () => setFilterAccType('all'), 'All types')}
-                                {ACCOUNT_TYPES.map(t => chip(filterAccType === t.value, () => setFilterAccType(t.value), <>{t.icon} {t.label}</>, t.value))}
+                                {chip(filterAccType.size === 0, () => setFilterAccType(new Set()), 'All types')}
+                                {ACCOUNT_TYPES.map(t => chip(filterAccType.has(t.value), () => toggle(setFilterAccType, t.value), <>{t.icon} {t.label}</>, t.value))}
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {chip(filterInstType === 'all', () => setFilterInstType('all'), 'All institutions')}
-                                {INSTITUTION_TYPES.map(t => chip(filterInstType === t.value, () => setFilterInstType(t.value), <>{t.icon} {t.label}</>, t.value))}
+                                {chip(filterInstType.size === 0, () => setFilterInstType(new Set()), 'All institutions')}
+                                {INSTITUTION_TYPES.map(t => chip(filterInstType.has(t.value), () => toggle(setFilterInstType, t.value), <>{t.icon} {t.label}</>, t.value))}
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                {chip(filterNetWorth === 'all', () => setFilterNetWorth('all'), 'All')}
-                                {chip(filterNetWorth === 'yes', () => setFilterNetWorth('yes'), '✓ Net Worth')}
-                                {chip(filterNetWorth === 'no', () => setFilterNetWorth('no'), '✗ Net Worth')}
+                                {chip(filterNetWorth.size === 0, () => setFilterNetWorth(new Set()), 'All')}
+                                {chip(filterNetWorth.has('yes'), () => toggle(setFilterNetWorth, 'yes'), '✓ Net Worth')}
+                                {chip(filterNetWorth.has('no'), () => toggle(setFilterNetWorth, 'no'), '✗ Net Worth')}
                             </div>
                         </div>
                     )
@@ -1006,7 +1093,7 @@ export default function HouseholdPage() {
                                 className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-sky-200 hover:shadow-md transition-all overflow-hidden group"
                                 style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                 <div className="h-1 rounded-t-3xl" style={{ background: GRADIENTS[(i + 2) % GRADIENTS.length] }} />
-                                <div className="p-4 flex flex-col items-center text-center">
+                                <div className="p-4 flex flex-col items-center text-center cursor-pointer" onClick={() => setViewAccount(account)}>
                                     <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-3 mt-1"
                                         style={{ background: `${GRADIENTS[(i + 2) % GRADIENTS.length].replace('linear-gradient(135deg, ', '').split(',')[0]}22` }}>
                                         {ACCOUNT_TYPE_MAP[account.account_type]?.icon ?? '🏧'}
@@ -1710,6 +1797,76 @@ export default function HouseholdPage() {
                         <Button variant="outline" className="rounded-2xl" onClick={() => setTxnDialogAccount(null)}>Cancel</Button>
                         <SaveButton onClick={addTransaction} loading={savingTxn} label="Add Entry" />
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Account Detail Dialog */}
+            <Dialog open={!!viewAccount} onOpenChange={open => { if (!open) setViewAccount(null) }}>
+                <DialogContent className="rounded-3xl border-0 p-0 overflow-hidden max-w-sm" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }}>
+                    {viewAccount && (() => {
+                        const accType = ACCOUNT_TYPE_MAP[viewAccount.account_type]
+                        const instType = viewAccount.institution_type ? INSTITUTION_TYPE_MAP[viewAccount.institution_type] : null
+                        const owner = members.find(m => m.id === viewAccount.household_member_id)
+                        const accIdx = accounts.findIndex(a => a.id === viewAccount.id)
+                        const kesBalance = viewAccount.currency !== 'KES'
+                            ? toKES(Number(viewAccount.current_balance), viewAccount.currency, fxRates)
+                            : null
+                        return (
+                            <>
+                                <div className="p-6 pb-8" style={{ background: GRADIENTS[(accIdx + 2) % GRADIENTS.length] }}>
+                                    <div className="text-5xl mb-3">{accType?.icon ?? '🏧'}</div>
+                                    <h2 className="text-xl font-black text-white leading-tight">{viewAccount.name}</h2>
+                                    {instType && (
+                                        <p className="text-white/70 text-sm mt-1">{instType.icon} {instType.label}</p>
+                                    )}
+                                </div>
+                                <div className="p-6 space-y-4 bg-white dark:bg-slate-800">
+                                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Current Balance</p>
+                                        <p className="text-2xl font-black text-slate-900 dark:text-white">
+                                            {fmtMoney(Number(viewAccount.current_balance), viewAccount.currency)}
+                                        </p>
+                                        {kesBalance != null && (
+                                            <p className="text-sm text-slate-400 mt-0.5">
+                                                ≈ KES {kesBalance.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Type</p>
+                                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                                                {accType ? `${accType.icon} ${accType.label}` : viewAccount.account_type}
+                                            </p>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Ownership</p>
+                                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm capitalize">{viewAccount.ownership}</p>
+                                            {owner && <p className="text-xs text-slate-400 font-normal mt-0.5">{owner.name}</p>}
+                                        </div>
+                                    </div>
+                                    {(viewAccount.contributes_to_net_worth || viewAccount.contributes_to_liquid_cash) && (
+                                        <div className="flex gap-2">
+                                            {viewAccount.contributes_to_net_worth && (
+                                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">✓ Net Worth</span>
+                                            )}
+                                            {viewAccount.contributes_to_liquid_cash && (
+                                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-100">💧 Liquid</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 pt-1">
+                                        <Button variant="outline" className="flex-1 rounded-2xl text-sm" onClick={() => { setViewAccount(null); openEditAccount(viewAccount) }}>
+                                            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                                        </Button>
+                                        <Button variant="outline" className="flex-1 rounded-2xl text-sm" onClick={() => { setViewAccount(null); openTxnDialog(viewAccount) }}>
+                                            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Entry
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        )
+                    })()}
                 </DialogContent>
             </Dialog>
 
