@@ -10,10 +10,10 @@ import BudgetReport from '@/components/budget/BudgetReport'
 import MonthlySession from '@/components/budget/MonthlySession'
 
 const TABS = [
-    { key: 'library', label: 'Expense Library', icon: BookOpen },
-    { key: 'reports', label: 'Reports', icon: BarChart2 },
-    { key: 'templates', label: 'Budget Templates', icon: LayoutTemplate },
-    { key: 'sessions', label: 'Monthly Sessions', icon: CalendarCheck },
+    { key: 'reports', label: 'Reports', shortLabel: 'Reports', icon: BarChart2 },
+    { key: 'library', label: 'Expense Library', shortLabel: 'Library', icon: BookOpen },
+    { key: 'sessions', label: 'Monthly Sessions', shortLabel: 'Sessions', icon: CalendarCheck },
+    { key: 'templates', label: 'Budget Templates', shortLabel: 'Templates', icon: LayoutTemplate },
 ] as const
 
 type Tab = typeof TABS[number]['key']
@@ -56,8 +56,8 @@ function BudgetPageInner() {
                 <p className="text-slate-400 mt-1">Every shilling has a purpose</p>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 border-b border-slate-100 dark:border-slate-700 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
+            {/* Tabs — mobile: equal-width icon grid; desktop: underline tabs */}
+            <div className="md:hidden grid grid-cols-4 -mx-4 border-b border-slate-100 dark:border-slate-700">
                 {TABS.map(tab => {
                     const Icon = tab.icon
                     const active = activeTab === tab.key
@@ -65,14 +65,32 @@ function BudgetPageInner() {
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`flex items-center gap-2 px-3 md:px-4 py-3 text-sm font-bold border-b-2 transition-all -mb-px whitespace-nowrap shrink-0 ${
+                            className={`flex flex-col items-center gap-1 py-2.5 text-xs font-bold transition-all ${
+                                active
+                                    ? 'text-sky-600 bg-sky-50 dark:bg-sky-500/10'
+                                    : 'text-slate-400'
+                            }`}>
+                            <Icon className="h-5 w-5" />
+                            <span>{tab.shortLabel}</span>
+                        </button>
+                    )
+                })}
+            </div>
+            <div className="hidden md:flex items-center gap-1 border-b border-slate-100 dark:border-slate-700">
+                {TABS.map(tab => {
+                    const Icon = tab.icon
+                    const active = activeTab === tab.key
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all -mb-px whitespace-nowrap shrink-0 ${
                                 active
                                     ? 'border-sky-500 text-sky-600'
                                     : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-200 dark:hover:border-slate-600'
                             }`}>
                             <Icon className="h-4 w-4" />
-                            <span className="hidden sm:inline">{tab.label}</span>
-                            <span className="sm:hidden">{tab.key === 'library' ? 'Library' : tab.key === 'reports' ? 'Reports' : tab.key === 'templates' ? 'Templates' : 'Sessions'}</span>
+                            <span>{tab.label}</span>
                         </button>
                     )
                 })}
