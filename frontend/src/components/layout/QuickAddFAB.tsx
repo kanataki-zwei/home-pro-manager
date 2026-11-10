@@ -1,10 +1,16 @@
 'use client'
 
 import { Plus } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { useQuickAdd } from '@/context/QuickAddContext'
 
 export default function QuickAddFAB() {
     const { trigger } = useQuickAdd()
+    const pathname    = usePathname()
+
+    // All pages stay mounted in TabCarousel — only show the FAB when the
+    // current tab has a registered quick-add action (budget tab only for now).
+    if (!pathname.startsWith('/budget')) return null
 
     return (
         <button
