@@ -284,6 +284,12 @@ export default function BudgetReport() {
     const [savingsTrend, setSavingsTrend] = useState<SavingsTrendApiData | null>(null)
     const [savingsTrendLoading, setSavingsTrendLoading] = useState(true)
 
+    // Member portraits carousel
+    const membersSwipeRef = useRef<HTMLDivElement>(null)
+    const [membersPage, setMembersPage] = useState(0)
+    const membersTouchStartX = useRef(0)
+    const membersTouchStartY = useRef(0)
+
     function openModal(chart: 'byGroup' | 'trend') {
         setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
         setModalChart(chart)
@@ -492,6 +498,31 @@ export default function BudgetReport() {
         }
     }, [loading])
 
+    // Native touch listeners for member portraits carousel
+    useEffect(() => {
+        if (loading) return
+        const el = membersSwipeRef.current
+        if (!el) return
+        const count = memberRows.length
+        const onStart = (e: TouchEvent) => {
+            membersTouchStartX.current = e.touches[0].clientX
+            membersTouchStartY.current = e.touches[0].clientY
+        }
+        const onEnd = (e: TouchEvent) => {
+            const dx = e.changedTouches[0].clientX - membersTouchStartX.current
+            const dy = e.changedTouches[0].clientY - membersTouchStartY.current
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+                setMembersPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
+            }
+        }
+        el.addEventListener('touchstart', onStart, { passive: true })
+        el.addEventListener('touchend', onEnd, { passive: true })
+        return () => {
+            el.removeEventListener('touchstart', onStart)
+            el.removeEventListener('touchend', onEnd)
+        }
+    }, [loading])
+
     const savingsTrendChart = useMemo(() => {
         if (!savingsTrend || savingsTrend.months.length === 0) return { data: [], memberNames: [] as string[] }
         const memberNames = savingsTrend.months[0].members.map(m => m.name)
@@ -643,6 +674,157 @@ export default function BudgetReport() {
                     </div>
                 )
             })()}
+
+            {/* ── Member Financial Portraits carousel ── */}
+            {scope === 'all' && memberRows.length > 0 && (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
+                        {memberRows.length > 1 && (
+                            <span className="text-xs text-slate-400">{membersPage + 1} / {memberRows.length}</span>
+                        )}
+                    </div>
+
+                    <div ref={membersSwipeRef} className="overflow-hidden">
+                        <div className="flex transition-transform duration-300 ease-out"
+                             style={{ transform: `translateX(${membersPage * -100}%)` }}>
+                            {memberRows.map(row => {
+                                const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
+                                const isMe = member.user_id === currentUserId
+                                const overspent = remaining < 0
+                                const memberRole = member.member_type.name
+                                const hhOwnedPct = income > 0 ? Math.min((hhOwned / income) * 100, 100) : 0
+                                const hhJointPct = income > 0 ? Math.min((hhJoint / income) * 100, 100 - hhOwnedPct) : 0
+                                const personalPct = income > 0 ? Math.min((personal / income) * 100, 100 - hhOwnedPct - hhJointPct) : 0
+                                const remainingPct = Math.max(0, 100 - hhOwnedPct - hhJointPct - personalPct)
+                                const assignedPct = income > 0 ? Math.min((allocated / income) * 100, 100) : 0
+
+                                return (
+                                    <div key={member.id} className="w-full flex-shrink-0">
+                                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
+                                            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                                            <div className="h-1 w-full" style={{ background: gradient }} />
+                                            <div className="flex items-center gap-3 px-5 pt-4 pb-3">
+                                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-base flex-shrink-0"
+                                                    style={{ background: gradient }}>
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className="font-black text-slate-900 dark:text-white text-sm">{member.name}</p>
+                                                        <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">{memberRole}</span>
+                                                        {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600">You</span>}
+                                                    </div>
+                                                    <p className="text-xs text-slate-400 mt-0.5">{fmt(income)}<span className="text-slate-300"> / mo income</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="px-5 pb-3">
+                                                <div className="flex h-3 rounded-full overflow-hidden gap-px bg-slate-100 dark:bg-slate-700">
+                                                    {hhOwnedPct > 0 && <div style={{ width: `${hhOwnedPct}%`, background: '#0ea5e9' }} />}
+                                                    {hhJointPct > 0 && <div style={{ width: `${hhJointPct}%`, background: '#8b5cf6' }} />}
+                                                    {personalPct > 0 && <div style={{ width: `${personalPct}%`, background: '#f59e0b' }} />}
+                                                    {remainingPct > 0 && <div style={{ width: `${remainingPct}%`, background: '#10b981', opacity: 0.3 }} />}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                                    {hhOwned > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#0ea5e9' }} />
+                                                            <span className="text-xs text-slate-400">HH Role</span>
+                                                        </div>
+                                                    )}
+                                                    {hhJoint > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#8b5cf6' }} />
+                                                            <span className="text-xs text-slate-400">HH Joint</span>
+                                                        </div>
+                                                    )}
+                                                    {personal > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
+                                                            <span className="text-xs text-slate-400">Personal</span>
+                                                        </div>
+                                                    )}
+                                                    <p className="text-xs font-bold text-slate-500 ml-auto">{assignedPct.toFixed(0)}% assigned</p>
+                                                </div>
+                                            </div>
+                                            <div className="mx-5 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50 overflow-hidden divide-y divide-white dark:divide-slate-700">
+                                                {hhOwned > 0 && (
+                                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#0ea5e9' }} />
+                                                            <p className="text-xs text-slate-500">HH · {memberRole}</p>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(hhOwned)}<span className="text-slate-400 font-normal">/mo</span></p>
+                                                    </div>
+                                                )}
+                                                {hhJoint > 0 && (
+                                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#8b5cf6' }} />
+                                                            <p className="text-xs text-slate-500">HH · Joint share</p>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(hhJoint)}<span className="text-slate-400 font-normal">/mo</span></p>
+                                                    </div>
+                                                )}
+                                                {personal > 0 && (
+                                                    <div className="flex items-center justify-between px-4 py-2.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
+                                                            <p className="text-xs text-slate-500">Personal</p>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(personal)}<span className="text-slate-400 font-normal">/mo</span></p>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between px-4 py-2.5 bg-white/60 dark:bg-slate-800/60">
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Total Assigned</p>
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{fmt(allocated)}<span className="text-slate-400 font-normal">/mo</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="mx-5 mb-4 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
+                                                <div className={`flex items-center justify-between px-4 py-3 ${overspent ? 'bg-rose-50 dark:bg-rose-950/40' : 'bg-slate-50 dark:bg-slate-700/50'}`}>
+                                                    <div>
+                                                        <p className={`text-xs font-bold ${overspent ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                            {overspent ? '⚠ Overspent' : 'Remaining'}
+                                                        </p>
+                                                        <p className={`text-sm font-black mt-0.5 ${overspent ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                            {overspent ? '−' : ''}{fmt(Math.abs(remaining))}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className={`flex items-center justify-between px-4 py-3 ${
+                                                    savingsRate >= 20 ? 'bg-emerald-50 dark:bg-emerald-950/40' : savingsRate >= 10 ? 'bg-amber-50 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-800'
+                                                }`}>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-400">Savings Rate</p>
+                                                        <p className="text-xs text-slate-400 mt-0.5">{fmt(memberSavings)} tagged savings</p>
+                                                    </div>
+                                                    <p className={`text-xl font-black ${savingsRate >= 20 ? 'text-emerald-600' : savingsRate >= 10 ? 'text-amber-500' : 'text-slate-400'}`}>
+                                                        {savingsRate.toFixed(1)}%
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {memberRows.length > 1 && (
+                        <div className="flex justify-center gap-1.5 pt-1">
+                            {memberRows.map((_, i) => (
+                                <button key={i} onClick={() => setMembersPage(i)}
+                                    className={`rounded-full transition-all duration-200 ${
+                                        membersPage === i
+                                            ? 'w-4 h-1.5 bg-sky-500'
+                                            : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                    }`}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── Savings Breakdown ── */}
             {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
@@ -899,157 +1081,6 @@ export default function BudgetReport() {
                     )
                 })()}
             </div>
-
-            {/* ── Member Financial Portraits ── */}
-            {scope === 'all' && memberRows.length > 0 && (
-                <div className="space-y-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
-                    <div className={`grid gap-4 grid-cols-1 ${memberRows.length === 1 ? '' : 'md:grid-cols-2'}`}>
-                        {memberRows.map(row => {
-                            const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
-                            const isMe = member.user_id === currentUserId
-                            const overspent = remaining < 0
-                            const memberRole = member.member_type.name
-
-                            const hhOwnedPct = income > 0 ? Math.min((hhOwned / income) * 100, 100) : 0
-                            const hhJointPct = income > 0 ? Math.min((hhJoint / income) * 100, 100 - hhOwnedPct) : 0
-                            const personalPct = income > 0 ? Math.min((personal / income) * 100, 100 - hhOwnedPct - hhJointPct) : 0
-                            const remainingPct = Math.max(0, 100 - hhOwnedPct - hhJointPct - personalPct)
-                            const assignedPct = income > 0 ? Math.min((allocated / income) * 100, 100) : 0
-
-                            return (
-                                <div key={member.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                                    style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-
-                                    {/* Gradient accent band */}
-                                    <div className="h-1 w-full" style={{ background: gradient }} />
-
-                                    {/* Header */}
-                                    <div className="flex items-center gap-3 px-5 pt-4 pb-3">
-                                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-base flex-shrink-0"
-                                            style={{ background: gradient }}>
-                                            {member.name.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="font-black text-slate-900 dark:text-white text-sm">{member.name}</p>
-                                                <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">{memberRole}</span>
-                                                {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600">You</span>}
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-0.5">{fmt(income)}<span className="text-slate-300"> / mo income</span></p>
-                                        </div>
-                                    </div>
-
-                                    {/* Stacked income allocation bar */}
-                                    <div className="px-5 pb-3">
-                                        <div className="flex h-3 rounded-full overflow-hidden gap-px bg-slate-100 dark:bg-slate-700">
-                                            {hhOwnedPct > 0 && (
-                                                <div style={{ width: `${hhOwnedPct}%`, background: '#0ea5e9' }} />
-                                            )}
-                                            {hhJointPct > 0 && (
-                                                <div style={{ width: `${hhJointPct}%`, background: '#8b5cf6' }} />
-                                            )}
-                                            {personalPct > 0 && (
-                                                <div style={{ width: `${personalPct}%`, background: '#f59e0b' }} />
-                                            )}
-                                            {remainingPct > 0 && (
-                                                <div style={{ width: `${remainingPct}%`, background: '#10b981', opacity: 0.3 }} />
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3 mt-2 flex-wrap">
-                                            {hhOwned > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#0ea5e9' }} />
-                                                    <span className="text-xs text-slate-400">HH Role</span>
-                                                </div>
-                                            )}
-                                            {hhJoint > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#8b5cf6' }} />
-                                                    <span className="text-xs text-slate-400">HH Joint</span>
-                                                </div>
-                                            )}
-                                            {personal > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
-                                                    <span className="text-xs text-slate-400">Personal</span>
-                                                </div>
-                                            )}
-                                            <p className="text-xs font-bold text-slate-500 ml-auto">{assignedPct.toFixed(0)}% assigned</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Breakdown rows */}
-                                    <div className="mx-5 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-700/50 overflow-hidden divide-y divide-white dark:divide-slate-700">
-                                        {hhOwned > 0 && (
-                                            <div className="flex items-center justify-between px-4 py-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#0ea5e9' }} />
-                                                    <p className="text-xs text-slate-500">HH · {memberRole}</p>
-                                                </div>
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(hhOwned)}<span className="text-slate-400 font-normal">/mo</span></p>
-                                            </div>
-                                        )}
-                                        {hhJoint > 0 && (
-                                            <div className="flex items-center justify-between px-4 py-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#8b5cf6' }} />
-                                                    <p className="text-xs text-slate-500">HH · Joint share</p>
-                                                </div>
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(hhJoint)}<span className="text-slate-400 font-normal">/mo</span></p>
-                                            </div>
-                                        )}
-                                        {personal > 0 && (
-                                            <div className="flex items-center justify-between px-4 py-2.5">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#f59e0b' }} />
-                                                    <p className="text-xs text-slate-500">Personal</p>
-                                                </div>
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{fmt(personal)}<span className="text-slate-400 font-normal">/mo</span></p>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-between px-4 py-2.5 bg-white/60 dark:bg-slate-800/60">
-                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Total Assigned</p>
-                                            <p className="text-xs font-black text-slate-900 dark:text-white">{fmt(allocated)}<span className="text-slate-400 font-normal">/mo</span></p>
-                                        </div>
-                                    </div>
-
-                                    {/* Remaining + savings rate */}
-                                    <div className="mx-5 mb-4 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
-                                        <div className={`flex items-center justify-between px-4 py-3 ${
-                                            overspent ? 'bg-rose-50 dark:bg-rose-950/40' : 'bg-slate-50 dark:bg-slate-700/50'
-                                        }`}>
-                                            <div>
-                                                <p className={`text-xs font-bold ${overspent ? 'text-rose-500' : 'text-slate-400'}`}>
-                                                    {overspent ? '⚠ Overspent' : 'Remaining'}
-                                                </p>
-                                                <p className={`text-sm font-black mt-0.5 ${overspent ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                    {overspent ? '−' : ''}{fmt(Math.abs(remaining))}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className={`flex items-center justify-between px-4 py-3 ${
-                                            savingsRate >= 20 ? 'bg-emerald-50 dark:bg-emerald-950/40' : savingsRate >= 10 ? 'bg-amber-50 dark:bg-amber-950/40' : 'bg-white dark:bg-slate-800'
-                                        }`}>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-400">Savings Rate</p>
-                                                <p className="text-xs text-slate-400 mt-0.5">{fmt(memberSavings)} tagged savings</p>
-                                            </div>
-                                            <p className={`text-xl font-black ${
-                                                savingsRate >= 20 ? 'text-emerald-600'
-                                                : savingsRate >= 10 ? 'text-amber-500'
-                                                : 'text-slate-400'
-                                            }`}>
-                                                {savingsRate.toFixed(1)}%
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* ── Month-over-month trend ── */}
             {scope === 'all' && trendChartData.length >= 2 && (
