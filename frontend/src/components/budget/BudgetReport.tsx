@@ -290,6 +290,12 @@ export default function BudgetReport() {
     const membersTouchStartX = useRef(0)
     const membersTouchStartY = useRef(0)
 
+    // Expense groups carousel
+    const expGroupsSwipeRef = useRef<HTMLDivElement>(null)
+    const [expGroupsPage, setExpGroupsPage] = useState(0)
+    const expGroupsTouchStartX = useRef(0)
+    const expGroupsTouchStartY = useRef(0)
+
     function openModal(chart: 'byGroup' | 'trend') {
         setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
         setModalChart(chart)
@@ -443,6 +449,18 @@ export default function BudgetReport() {
         donutData.map(d => ({ ...d, pct: totalMonthly > 0 ? (d.value / totalMonthly) * 100 : 0 })),
     [donutData, totalMonthly])
 
+    const expGroupPanels = useMemo(() => {
+        const panels: { id: string; name: string; rows: { expense: Expense; amount: number }[]; isUngrouped: boolean; gradientIndex: number }[] = []
+        for (let gi = 0; gi < groups.length; gi++) {
+            const group = groups[gi]
+            const rows = byGroup.get(group.id) ?? []
+            if (rows.length > 0) panels.push({ id: group.id, name: group.name, rows, isUngrouped: false, gradientIndex: gi })
+        }
+        const ungrouped = byGroup.get(null) ?? []
+        if (ungrouped.length > 0) panels.push({ id: 'ungrouped', name: 'Ungrouped', rows: ungrouped, isUngrouped: true, gradientIndex: groups.length })
+        return panels
+    }, [groups, byGroup])
+
     // Month-over-month trend chart data
     const { trendChartData, trendGroupNames } = useMemo(() => {
         if (trendSessions.length < 2) return { trendChartData: [], trendGroupNames: [] }
@@ -513,6 +531,31 @@ export default function BudgetReport() {
             const dy = e.changedTouches[0].clientY - membersTouchStartY.current
             if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
                 setMembersPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
+            }
+        }
+        el.addEventListener('touchstart', onStart, { passive: true })
+        el.addEventListener('touchend', onEnd, { passive: true })
+        return () => {
+            el.removeEventListener('touchstart', onStart)
+            el.removeEventListener('touchend', onEnd)
+        }
+    }, [loading])
+
+    // Native touch listeners for expense groups carousel
+    useEffect(() => {
+        if (loading) return
+        const el = expGroupsSwipeRef.current
+        if (!el) return
+        const count = expGroupPanels.length
+        const onStart = (e: TouchEvent) => {
+            expGroupsTouchStartX.current = e.touches[0].clientX
+            expGroupsTouchStartY.current = e.touches[0].clientY
+        }
+        const onEnd = (e: TouchEvent) => {
+            const dx = e.changedTouches[0].clientX - expGroupsTouchStartX.current
+            const dy = e.changedTouches[0].clientY - expGroupsTouchStartY.current
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+                setExpGroupsPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
             }
         }
         el.addEventListener('touchstart', onStart, { passive: true })
@@ -625,49 +668,28 @@ export default function BudgetReport() {
                         </div>
 
                         {/* Budget split card — 20% */}
-                        <div className="flex-[1] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Budget Split</p>
+                        <div className="flex-[1] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Split</p>
 
-                            {/* Ratio display */}
-                            <div className="flex items-end gap-1 mb-1">
-                                <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">{Math.round(expPct)}</span>
-                                <span className="text-sm font-bold text-slate-300 dark:text-slate-600 mb-0.5">:</span>
-                                <span className="text-2xl font-black text-emerald-500 leading-none">{Math.round(savPct)}</span>
-                                <span className="text-sm font-bold text-slate-300 dark:text-slate-600 mb-0.5">:</span>
-                                <span className="text-2xl font-black text-violet-500 leading-none">{Math.round(invPct)}</span>
-                            </div>
-                            <p className="text-xs text-slate-400 mb-4">Exp · Sav · Inv</p>
-
-                            {/* Stacked bar */}
-                            <div className="flex h-2 rounded-full overflow-hidden gap-px mb-5">
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px">
                                 {expPct > 0 && <div style={{ width: `${splitTotal > 0 ? (expPct / splitTotal) * 100 : 0}%`, background: '#0ea5e9' }} />}
                                 {savPct > 0 && <div style={{ width: `${splitTotal > 0 ? (savPct / splitTotal) * 100 : 0}%`, background: '#10b981' }} />}
                                 {invPct > 0 && <div style={{ width: `${splitTotal > 0 ? (invPct / splitTotal) * 100 : 0}%`, background: '#8b5cf6' }} />}
                                 {splitTotal === 0 && <div className="w-full bg-slate-100 dark:bg-slate-700" />}
                             </div>
 
-                            {/* Rows */}
-                            <div className="space-y-3 mt-auto">
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Expenses</p>
-                                    </div>
-                                    <p className="text-xs font-black text-slate-900 dark:text-white">{expPct.toFixed(1)}%</p>
+                            <div className="flex flex-col gap-3 mt-auto">
+                                <div>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{expPct.toFixed(1)}%</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">Expenses</p>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" />
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Savings</p>
-                                    </div>
-                                    <p className="text-xs font-black text-emerald-500">{savPct.toFixed(1)}%</p>
+                                <div>
+                                    <p className="text-2xl font-black text-emerald-500 leading-none">{savPct.toFixed(1)}%</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">Savings</p>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Investments</p>
-                                    </div>
-                                    <p className="text-xs font-black text-violet-500">{invPct > 0 ? invPct.toFixed(1) + '%' : '—'}</p>
+                                <div>
+                                    <p className="text-2xl font-black text-violet-500 leading-none">{invPct > 0 ? invPct.toFixed(1) + '%' : '—'}</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">Investments</p>
                                 </div>
                             </div>
                         </div>
@@ -973,113 +995,132 @@ export default function BudgetReport() {
 
             {/* ── Group breakdown list ── */}
             <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
+                <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
+                    {expGroupPanels.length > 1 && (
+                        <span className="text-xs text-slate-400">{expGroupsPage + 1} / {expGroupPanels.length}</span>
+                    )}
+                </div>
 
-                {scopedRows.length === 0 && (
+                {scopedRows.length === 0 ? (
                     <div className="flex items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200">
                         <p className="text-sm text-slate-400">No expenses in this view</p>
                     </div>
+                ) : (
+                    <>
+                        <div ref={expGroupsSwipeRef} className="overflow-hidden">
+                            <div className="flex transition-transform duration-300 ease-out"
+                                 style={{ transform: `translateX(${expGroupsPage * -100}%)` }}>
+                                {expGroupPanels.map(panel => {
+                                    const groupTotal = panel.rows.reduce((s, r) => s + r.amount, 0)
+                                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
+                                    return (
+                                        <div key={panel.id} className="w-full flex-shrink-0">
+                                            {panel.isUngrouped ? (
+                                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
+                                                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                                    <div className="flex items-center gap-3 px-5 py-4">
+                                                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
+                                                                <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
+                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
+                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
+                                                                </div>
+                                                                <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
+                                                        {panel.rows.map(({ expense, amount }) => (
+                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                                                    <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                                        {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
+                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
+                                                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                                    <div className="flex items-center gap-3 px-5 py-4">
+                                                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                            style={{ background: GRADIENTS[panel.gradientIndex % GRADIENTS.length] }}>
+                                                            {panel.name.charAt(0)}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
+                                                                <p className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</p>
+                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
+                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className="h-full rounded-full transition-all"
+                                                                        style={{ width: `${pct}%`, background: GRADIENTS[panel.gradientIndex % GRADIENTS.length] }} />
+                                                                </div>
+                                                                <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
+                                                        {panel.rows.map(({ expense, amount }) => (
+                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                                                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                                        <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                                            {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                                        </span>
+                                                                        {expense.ownership_type === 'joint' && scope === 'me' && (
+                                                                            <span className="text-xs text-slate-400">
+                                                                                {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
+                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {expGroupPanels.length > 1 && (
+                            <div className="flex justify-center gap-1.5 pt-1">
+                                {expGroupPanels.map((_, i) => (
+                                    <button key={i} onClick={() => setExpGroupsPage(i)}
+                                        className={`rounded-full transition-all duration-200 ${
+                                            expGroupsPage === i
+                                                ? 'w-4 h-1.5 bg-sky-500'
+                                                : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
-
-                {groups.map((group, gi) => {
-                    const rows = byGroup.get(group.id) ?? []
-                    if (rows.length === 0) return null
-                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
-                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
-                    return (
-                        <div key={group.id} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="flex items-center gap-3 px-5 py-4">
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                    style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
-                                    {group.name.charAt(0)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                                        <p className="font-bold text-slate-900 dark:text-white text-sm">{group.name}</p>
-                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full transition-all"
-                                                style={{ width: `${pct}%`, background: GRADIENTS[gi % GRADIENTS.length] }} />
-                                        </div>
-                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
-                                {rows.map(({ expense, amount }) => (
-                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                    {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
-                                                </span>
-                                                {expense.ownership_type === 'joint' && scope === 'me' && (
-                                                    <span className="text-xs text-slate-400">
-                                                        {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })}
-
-                {/* Ungrouped */}
-                {(() => {
-                    const rows = byGroup.get(null) ?? []
-                    if (rows.length === 0) return null
-                    const groupTotal = rows.reduce((s, r) => s + r.amount, 0)
-                    const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
-                    return (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="flex items-center gap-3 px-5 py-4">
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-3 mb-1.5">
-                                        <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
-                                        <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                            {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
-                                        </div>
-                                        <span className="text-xs text-slate-400 flex-shrink-0">{pct.toFixed(0)}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
-                                {rows.map(({ expense, amount }) => (
-                                    <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                            {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )
-                })()}
             </div>
 
             {/* ── Month-over-month trend ── */}
