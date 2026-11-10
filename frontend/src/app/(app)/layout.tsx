@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <SidebarProvider>
                     <TourProvider>
                         <QuickAddProvider>
-                            <div className="flex h-[100dvh] bg-slate-50 dark:bg-slate-900">
+                            <div className="flex h-[100dvh] overflow-hidden bg-slate-50 dark:bg-slate-900">
                                 <Sidebar />
                                 <SwipeNavContainer>
                                     <MobileHeader />
