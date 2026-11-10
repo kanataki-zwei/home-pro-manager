@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
 import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp } from 'lucide-react'
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
-    PieChart, Pie, Legend, LineChart, Line,
+    PieChart, Pie, Legend, LineChart, Line, ReferenceLine,
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -254,6 +254,14 @@ function TrendChartView({ data, groupNames, type, height = 220 }: {
     )
 }
 
+interface SavingsTrendApiData {
+    months: {
+        month: string
+        household_savings_rate: number
+        members: { member_id: string; name: string; savings_rate: number }[]
+    }[]
+}
+
 export default function BudgetReport() {
     const { household, members, currentUserId, viewMode } = useHousehold()
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
@@ -267,6 +275,14 @@ export default function BudgetReport() {
     const [trendChartType, setTrendChartType]     = useState<TrendChartType>(() => getChartPrefs().trend)
     const [modalChart, setModalChart] = useState<'byGroup' | 'trend' | null>(null)
     const [pendingType, setPendingType] = useState<string>('bar-h')
+
+    // Savings carousel
+    const savingsSwipeRef = useRef<HTMLDivElement>(null)
+    const [savingsPage, setSavingsPage] = useState(0)
+    const touchStartX = useRef(0)
+    const touchStartY = useRef(0)
+    const [savingsTrend, setSavingsTrend] = useState<SavingsTrendApiData | null>(null)
+    const [savingsTrendLoading, setSavingsTrendLoading] = useState(true)
 
     function openModal(chart: 'byGroup' | 'trend') {
         setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
@@ -442,6 +458,72 @@ export default function BudgetReport() {
         return { trendChartData: chartData, trendGroupNames: groupNames }
     }, [trendSessions])
 
+    // Savings trend fetch
+    useEffect(() => {
+        if (!household) return
+        setSavingsTrendLoading(true)
+        apiGet<SavingsTrendApiData>(`/api/households/${household.id}/budget/savings-trend`)
+            .then(setSavingsTrend)
+            .catch(() => {})
+            .finally(() => setSavingsTrendLoading(false))
+    }, [household?.id])
+
+    // Native touch listeners for savings swipe (passive, avoids blocking WebKit scroll)
+    useEffect(() => {
+        if (loading) return
+        const el = savingsSwipeRef.current
+        if (!el) return
+        const onStart = (e: TouchEvent) => {
+            touchStartX.current = e.touches[0].clientX
+            touchStartY.current = e.touches[0].clientY
+        }
+        const onEnd = (e: TouchEvent) => {
+            const dx = e.changedTouches[0].clientX - touchStartX.current
+            const dy = e.changedTouches[0].clientY - touchStartY.current
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+                setSavingsPage(dx < 0 ? 1 : 0)
+            }
+        }
+        el.addEventListener('touchstart', onStart, { passive: true })
+        el.addEventListener('touchend', onEnd, { passive: true })
+        return () => {
+            el.removeEventListener('touchstart', onStart)
+            el.removeEventListener('touchend', onEnd)
+        }
+    }, [loading])
+
+    const savingsTrendChart = useMemo(() => {
+        if (!savingsTrend || savingsTrend.months.length === 0) return { data: [], memberNames: [] as string[] }
+        const memberNames = savingsTrend.months[0].members.map(m => m.name)
+        const data = savingsTrend.months.map(m => {
+            const point: Record<string, string | number> = {
+                month: new Date(m.month + 'T00:00:00').toLocaleDateString('en-KE', { month: 'short', year: '2-digit' }),
+                Household: Number(m.household_savings_rate),
+            }
+            for (const mem of m.members) { point[mem.name] = Number(mem.savings_rate) }
+            return point
+        })
+        return { data, memberNames }
+    }, [savingsTrend])
+
+    const savingsTrendTooltip = ({ active, payload, label }: any) => {
+        if (!active || !payload?.length) return null
+        return (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 px-3 py-2.5 shadow-lg text-xs min-w-[140px]">
+                <p className="font-black text-slate-700 dark:text-slate-200 mb-2">{label}</p>
+                {(payload as any[]).map((p: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-3 mb-1">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.stroke }} />
+                            <span className="text-slate-500">{p.name}</span>
+                        </div>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{Number(p.value).toFixed(1)}%</span>
+                    </div>
+                ))}
+            </div>
+        )
+    }
+
     if (loading) return (
         <div className="flex items-center justify-center h-48">
             <div className="w-6 h-6 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -566,63 +648,143 @@ export default function BudgetReport() {
             {(scope === 'all' ? memberRows.length > 0 : scopedIncome > 0) && (
                 <div className="space-y-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        {/* Household / scope total */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-                            <div>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                    {scope === 'all' ? 'Household Total' : 'Your Savings'}
-                                </p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
-                                    {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                </p>
-                                <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
-                            </div>
-                            <div className={`text-3xl font-black ${
-                                librarySavingsRate >= 20 ? 'text-emerald-600'
-                                : librarySavingsRate >= 10 ? 'text-amber-500'
-                                : 'text-slate-400'
-                            }`}>
-                                {librarySavingsRate.toFixed(1)}%
-                            </div>
-                        </div>
 
-                        {/* Per-member rows (all scope only) */}
-                        {scope === 'all' && (
-                            <div className="divide-y divide-slate-50">
-                                {memberRows.map(row => {
-                                    const isMe = row.member.user_id === currentUserId
-                                    return (
-                                        <div key={row.member.id} className="flex items-center gap-3 px-5 py-3.5">
-                                            <div className="w-8 h-8 rounded-2xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                                style={{ background: row.gradient }}>
-                                                {row.member.name.charAt(0)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <p className="text-sm font-bold text-slate-700 truncate">{row.member.name}</p>
-                                                    {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600 flex-shrink-0">You</span>}
-                                                </div>
-                                                {row.memberSavings > 0
-                                                    ? <p className="text-xs text-slate-400 mt-0.5">{fmt(row.memberSavings)}<span className="text-slate-300">/mo tagged</span></p>
-                                                    : <p className="text-xs text-slate-300 mt-0.5">No savings tagged</p>
-                                                }
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <p className={`text-xl font-black ${
-                                                    row.savingsRate >= 20 ? 'text-emerald-600'
-                                                    : row.savingsRate >= 10 ? 'text-amber-500'
-                                                    : 'text-slate-300'
-                                                }`}>
-                                                    {row.savingsRate.toFixed(1)}%
-                                                </p>
-                                                <p className="text-xs text-slate-400">of income</p>
-                                            </div>
+                    {/* Swipeable panels */}
+                    <div ref={savingsSwipeRef} className="overflow-hidden">
+                        <div className="flex transition-transform duration-300 ease-out"
+                             style={{ transform: `translateX(${savingsPage * -100}%)` }}>
+
+                            {/* Panel 1 — savings rate card */}
+                            <div className="w-full flex-shrink-0">
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 dark:border-slate-700">
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                                {scope === 'all' ? 'Household Total' : 'Your Savings'}
+                                            </p>
+                                            <p className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                                                {fmt(totalSavingsMonthly)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                            </p>
+                                            <p className="text-xs text-slate-400 mt-0.5">tagged as savings</p>
                                         </div>
-                                    )
-                                })}
+                                        <div className={`text-3xl font-black ${
+                                            librarySavingsRate >= 20 ? 'text-emerald-600'
+                                            : librarySavingsRate >= 10 ? 'text-amber-500'
+                                            : 'text-slate-400'
+                                        }`}>
+                                            {librarySavingsRate.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                    {scope === 'all' && (
+                                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                            {memberRows.map(row => {
+                                                const isMe = row.member.user_id === currentUserId
+                                                return (
+                                                    <div key={row.member.id} className="flex items-center gap-3 px-5 py-3.5">
+                                                        <div className="w-8 h-8 rounded-2xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                            style={{ background: row.gradient }}>
+                                                            {row.member.name.charAt(0)}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{row.member.name}</p>
+                                                                {isMe && <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-600 flex-shrink-0">You</span>}
+                                                            </div>
+                                                            {row.memberSavings > 0
+                                                                ? <p className="text-xs text-slate-400 mt-0.5">{fmt(row.memberSavings)}<span className="text-slate-300">/mo tagged</span></p>
+                                                                : <p className="text-xs text-slate-300 mt-0.5">No savings tagged</p>
+                                                            }
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0">
+                                                            <p className={`text-xl font-black ${
+                                                                row.savingsRate >= 20 ? 'text-emerald-600'
+                                                                : row.savingsRate >= 10 ? 'text-amber-500'
+                                                                : 'text-slate-300'
+                                                            }`}>
+                                                                {row.savingsRate.toFixed(1)}%
+                                                            </p>
+                                                            <p className="text-xs text-slate-400">of income</p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        )}
+
+                            {/* Panel 2 — savings rate trend (last 6 months) */}
+                            <div className="w-full flex-shrink-0">
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                    {savingsTrendLoading ? (
+                                        <div className="flex items-center justify-center h-48">
+                                            <div className="w-5 h-5 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
+                                        </div>
+                                    ) : savingsTrendChart.data.length === 0 ? (
+                                        <div className="flex items-center justify-center h-48">
+                                            <p className="text-sm text-slate-400">No session data yet</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings Rate Trend</p>
+                                                <span className="text-xs text-slate-400">{savingsTrendChart.data.length} months</span>
+                                            </div>
+                                            <ResponsiveContainer width="100%" height={200}>
+                                                <LineChart data={savingsTrendChart.data} margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                                    <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={36} domain={[0, 'auto']} />
+                                                    <ReTooltip content={savingsTrendTooltip} />
+                                                    <ReferenceLine y={50} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 4"
+                                                        label={{ value: '50%', position: 'insideTopRight', fontSize: 9, fill: '#f59e0b', fontWeight: 700 }} />
+                                                    <Line dataKey="Household" stroke="#0ea5e9" strokeWidth={2.5}
+                                                        dot={{ r: 3, fill: '#0ea5e9' }} activeDot={{ r: 5 }} />
+                                                    {savingsTrendChart.memberNames.map((name, i) => (
+                                                        <Line key={name} type="monotone" dataKey={name}
+                                                            stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                                                            strokeWidth={1.5} strokeDasharray="3 2"
+                                                            dot={{ r: 2, fill: CHART_COLORS[i % CHART_COLORS.length] }} activeDot={{ r: 4 }} />
+                                                    ))}
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                            <div className="flex flex-wrap gap-3 mt-3">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-4 h-0.5 bg-sky-500 rounded-full flex-shrink-0" />
+                                                    <span className="text-xs text-slate-500 font-semibold">Household</span>
+                                                </div>
+                                                {savingsTrendChart.memberNames.map((name, i) => (
+                                                    <div key={name} className="flex items-center gap-1.5">
+                                                        <div className="w-4 h-0.5 rounded-full flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                        <span className="text-xs text-slate-500">{name}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex items-center gap-1.5">
+                                                    <svg width="16" height="4" className="flex-shrink-0">
+                                                        <line x1="0" y1="2" x2="16" y2="2" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 2" />
+                                                    </svg>
+                                                    <span className="text-xs text-slate-500">50% target</span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* Pagination dots */}
+                    <div className="flex justify-center gap-1.5 pt-1">
+                        {[0, 1].map(i => (
+                            <button key={i} onClick={() => setSavingsPage(i)}
+                                className={`rounded-full transition-all duration-200 ${
+                                    savingsPage === i
+                                        ? 'w-4 h-1.5 bg-sky-500'
+                                        : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                }`}
+                            />
+                        ))}
                     </div>
                 </div>
             )}

@@ -320,6 +320,22 @@ class BudgetTrendResponse(BaseModel):
     sessions: List[SessionTrend]   # chronological, up to 6
 
 
+# ─── Savings Trend ────────────────────────────────────────────────
+
+class MemberSavingsTrend(BaseModel):
+    member_id: str
+    name: str
+    savings_rate: Decimal
+
+class SavingsTrendMonth(BaseModel):
+    month: str                       # ISO "2026-10-01"
+    household_savings_rate: Decimal  # total savings / household income × 100
+    members: List[MemberSavingsTrend]
+
+class SavingsTrendResponse(BaseModel):
+    months: List[SavingsTrendMonth]  # chronological, up to 6
+
+
 # ─── Budget Variance ──────────────────────────────────────────────
 
 class VarianceItem(BaseModel):

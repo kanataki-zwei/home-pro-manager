@@ -27,6 +27,7 @@ from app.schemas.budget import (
     SessionItemTagAssignmentResponse,
     SessionMonthStats, BudgetStatsResponse,
     GroupTrend, SessionTrend, BudgetTrendResponse,
+    MemberSavingsTrend, SavingsTrendMonth, SavingsTrendResponse,
     VarianceItem, VarianceGroup, VarianceResponse,
 )
 
@@ -838,6 +839,130 @@ async def get_budget_trend(
         ))
 
     return BudgetTrendResponse(sessions=result)
+
+
+# ─── Savings Trend ────────────────────────────────────────────────
+
+@router.get("/savings-trend", response_model=SavingsTrendResponse)
+async def get_savings_trend(
+    household_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from datetime import date as date_type
+
+    # Active earning members with their role names
+    members_q = await db.execute(
+        select(HouseholdMember)
+        .options(selectinload(HouseholdMember.member_type))
+        .where(
+            HouseholdMember.household_id == household_id,
+            HouseholdMember.contributes_income == True,
+            HouseholdMember.is_active == True,
+            HouseholdMember.income_amount.isnot(None),
+        )
+    )
+    earners = members_q.scalars().all()
+
+    # Last 6 sessions ascending (oldest → newest) for the chart
+    sessions_q = await db.execute(
+        select(BudgetSession)
+        .options(
+            selectinload(BudgetSession.items).options(
+                selectinload(BudgetSessionItem.expense).options(
+                    selectinload(Expense.tag_assignments).selectinload(ExpenseTagAssignment.tag),
+                ),
+                selectinload(BudgetSessionItem.tag_assignments)
+                    .selectinload(BudgetSessionItemTagAssignment.tag),
+            ),
+        )
+        .where(
+            BudgetSession.household_id == household_id,
+            BudgetSession.user_id == current_user.id,
+            BudgetSession.is_deleted == False,
+        )
+        .order_by(BudgetSession.month.desc())
+        .limit(6)
+    )
+    sessions = list(reversed(sessions_q.scalars().all()))
+
+    def is_savings_tagged(item: BudgetSessionItem) -> bool:
+        if item.expense_id is not None:
+            return any(ta.tag.name.lower() == "savings"
+                       for ta in (item.expense.tag_assignments if item.expense else []))
+        return any(ta.tag.name.lower() == "savings" for ta in item.tag_assignments)
+
+    result: list[SavingsTrendMonth] = []
+    for s in sessions:
+        household_income = await get_household_income_as_of(db, household_id, s.month)
+        savings_items = [
+            item for item in s.items
+            if item.status != "na" and is_savings_tagged(item)
+        ]
+        total_savings = sum(Decimal(str(item.allocated_amount)) for item in savings_items)
+        hh_rate = (
+            (total_savings / household_income * 100).quantize(Decimal("0.1"))
+            if household_income > 0 else Decimal("0")
+        )
+
+        member_data: list[MemberSavingsTrend] = []
+        for m in earners:
+            role = m.member_type.name.lower()
+            member_savings = Decimal("0")
+            for item in savings_items:
+                exp = item.expense
+                if exp is None:
+                    continue
+                amount = Decimal(str(item.allocated_amount))
+                if exp.owner_id is not None:
+                    if m.user_id is not None and exp.owner_id == m.user_id:
+                        member_savings += amount
+                elif exp.ownership_type == role:
+                    member_savings += amount
+                elif exp.ownership_type == "joint":
+                    pct = (
+                        exp.joint_split_husband if role == "husband"
+                        else exp.joint_split_wife if role == "wife"
+                        else None
+                    ) or Decimal("50")
+                    member_savings += amount * Decimal(str(pct)) / Decimal("100")
+
+            # Historical income for this member at this session month
+            income_row = (await db.execute(
+                select(MemberIncomeHistory.income_amount, MemberIncomeHistory.income_cadence)
+                .where(
+                    MemberIncomeHistory.household_member_id == m.id,
+                    MemberIncomeHistory.effective_from <= s.month,
+                )
+                .order_by(MemberIncomeHistory.effective_from.desc())
+                .limit(1)
+            )).first()
+            if income_row:
+                member_income = compute_monthly_amount(
+                    Decimal(str(income_row.income_amount)), income_row.income_cadence
+                )
+            else:
+                member_income = compute_monthly_amount(
+                    Decimal(str(m.income_amount or "0")), m.income_cadence or "monthly"
+                )
+
+            member_rate = (
+                (member_savings / member_income * 100).quantize(Decimal("0.1"))
+                if member_income > 0 else Decimal("0")
+            )
+            member_data.append(MemberSavingsTrend(
+                member_id=str(m.id),
+                name=m.name,
+                savings_rate=member_rate,
+            ))
+
+        result.append(SavingsTrendMonth(
+            month=s.month.isoformat(),
+            household_savings_rate=hh_rate,
+            members=member_data,
+        ))
+
+    return SavingsTrendResponse(months=result)
 
 
 # ─── Budget Variance ──────────────────────────────────────────────
