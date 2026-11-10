@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
-import { Layers, Receipt } from 'lucide-react'
+import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp } from 'lucide-react'
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
+    PieChart, Pie, Legend, LineChart, Line,
 } from 'recharts'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface ExpenseTag { id: string; name: string; color: string | null }
 interface ExpenseGroup { id: string; name: string; owner_id: string | null; is_deleted: boolean }
@@ -77,6 +79,181 @@ function ChartTooltip({ active, payload }: any) {
     )
 }
 
+// ── Chart type system ───────────────────────────────────────────────────────
+
+type ByGroupChartType = 'bar-h' | 'bar-v' | 'donut'
+type TrendChartType   = 'bar' | 'line'
+
+const CHART_PREFS_KEY = 'hpm_report_chart_prefs'
+
+function getChartPrefs(): { byGroup: ByGroupChartType; trend: TrendChartType } {
+    if (typeof window === 'undefined') return { byGroup: 'bar-h', trend: 'bar' }
+    try {
+        const p = JSON.parse(localStorage.getItem(CHART_PREFS_KEY) ?? '{}')
+        return { byGroup: p.byGroup ?? 'bar-h', trend: p.trend ?? 'bar' }
+    } catch { return { byGroup: 'bar-h', trend: 'bar' } }
+}
+
+function saveChartPref(key: 'byGroup' | 'trend', value: string) {
+    try {
+        const p = JSON.parse(localStorage.getItem(CHART_PREFS_KEY) ?? '{}')
+        localStorage.setItem(CHART_PREFS_KEY, JSON.stringify({ ...p, [key]: value }))
+    } catch {}
+}
+
+const BY_GROUP_TYPES = [
+    { key: 'bar-h' as ByGroupChartType, label: 'Horizontal', Icon: AlignLeft },
+    { key: 'bar-v' as ByGroupChartType, label: 'Vertical',   Icon: BarChartIcon },
+    { key: 'donut' as ByGroupChartType, label: 'Donut',      Icon: Disc },
+]
+const TREND_TYPES = [
+    { key: 'bar'  as TrendChartType, label: 'Stacked Bar', Icon: BarChartIcon },
+    { key: 'line' as TrendChartType, label: 'Line',        Icon: TrendingUp },
+]
+
+// Truncated tick for horizontal-bar Y axis (long group names)
+function TruncatedYTick({ x, y, payload }: any) {
+    const max = 13
+    const text = payload.value.length > max ? `${payload.value.slice(0, max)}…` : payload.value
+    return <text x={x} y={y} dy={4} textAnchor="end" fontSize={11} fontWeight={700} fill="#64748b">{text}</text>
+}
+
+// Angled tick for vertical-bar X axis
+function AngledXTick({ x, y, payload }: any) {
+    const max = 9
+    const text = payload.value.length > max ? `${payload.value.slice(0, max)}…` : payload.value
+    return (
+        <g transform={`translate(${x},${y})`}>
+            <text x={0} y={0} dy={10} textAnchor="end" fontSize={10} fontWeight={700} fill="#64748b" transform="rotate(-40)">
+                {text}
+            </text>
+        </g>
+    )
+}
+
+function ByGroupChartView({ data, type, height = 220 }: {
+    data: { name: string; value: number; color: string; pct: number }[]
+    type: ByGroupChartType
+    height?: number
+}) {
+    const yAxisWidth = Math.min(90, Math.max(55, Math.max(...data.map(d => d.name.length)) * 6.5))
+
+    if (type === 'bar-h') {
+        return (
+            <ResponsiveContainer width="100%" height={height}>
+                <BarChart layout="vertical" data={data} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid horizontal={false} stroke="#f1f5f9" strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={fmtK}
+                        tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={yAxisWidth}
+                        tick={<TruncatedYTick />} axisLine={false} tickLine={false} />
+                    <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                    <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={30}>
+                        {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        )
+    }
+
+    if (type === 'bar-v') {
+        return (
+            <ResponsiveContainer width="100%" height={height}>
+                <BarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 48 }}>
+                    <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={<AngledXTick />} axisLine={false} tickLine={false} interval={0} />
+                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={55} />
+                    <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                        {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height={height}>
+            <PieChart>
+                <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    innerRadius="35%" outerRadius="62%" paddingAngle={2}>
+                    {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <ReTooltip content={<ChartTooltip />} />
+                <Legend iconType="circle" iconSize={8}
+                    formatter={(value: string) => (
+                        <span style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>{value}</span>
+                    )} />
+            </PieChart>
+        </ResponsiveContainer>
+    )
+}
+
+function TrendChartView({ data, groupNames, type, height = 220 }: {
+    data: Record<string, number | string>[]
+    groupNames: string[]
+    type: TrendChartType
+    height?: number
+}) {
+    const sharedTooltip = ({ active, payload, label }: any) => {
+        if (!active || !payload?.length) return null
+        const total = (payload as any[]).reduce((s: number, p: any) => s + (p.value || 0), 0)
+        return (
+            <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2.5 shadow-lg text-xs min-w-[160px]">
+                <p className="font-black text-slate-700 mb-2">{label}</p>
+                {(payload as any[]).filter(p => p.value > 0).map((p: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-4 mb-1">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill ?? p.stroke }} />
+                            <span className="text-slate-500 truncate max-w-[90px]">{p.name}</span>
+                        </div>
+                        <span className="font-bold text-slate-700 flex-shrink-0">{fmtK(p.value)}</span>
+                    </div>
+                ))}
+                <div className="border-t border-slate-100 pt-1 mt-1 flex items-center justify-between">
+                    <span className="text-slate-400">Total</span>
+                    <span className="font-black text-slate-900">{fmtK(total)}</span>
+                </div>
+            </div>
+        )
+    }
+
+    if (type === 'line') {
+        return (
+            <ResponsiveContainer width="100%" height={height}>
+                <LineChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} />
+                    <ReTooltip content={sharedTooltip} />
+                    {groupNames.map((name, i) => (
+                        <Line key={name} type="monotone" dataKey={name}
+                            stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                            strokeWidth={2} dot={{ r: 3, fill: CHART_COLORS[i % CHART_COLORS.length] }} activeDot={{ r: 5 }} />
+                    ))}
+                </LineChart>
+            </ResponsiveContainer>
+        )
+    }
+
+    return (
+        <ResponsiveContainer width="100%" height={height}>
+            <BarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barSize={28}>
+                <CartesianGrid vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} />
+                <ReTooltip content={sharedTooltip} cursor={{ fill: '#f8fafc' }} />
+                {groupNames.map((name, i) => (
+                    <Bar key={name} dataKey={name} stackId="a"
+                        fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        radius={i === groupNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    />
+                ))}
+            </BarChart>
+        </ResponsiveContainer>
+    )
+}
+
 export default function BudgetReport() {
     const { household, members, currentUserId, viewMode } = useHousehold()
     const [groups, setGroups] = useState<ExpenseGroup[]>([])
@@ -86,6 +263,23 @@ export default function BudgetReport() {
     const [loading, setLoading] = useState(true)
     const scope = viewMode === 'me' ? 'me' : 'all'
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+    const [byGroupChartType, setByGroupChartType] = useState<ByGroupChartType>(() => getChartPrefs().byGroup)
+    const [trendChartType, setTrendChartType]     = useState<TrendChartType>(() => getChartPrefs().trend)
+    const [modalChart, setModalChart] = useState<'byGroup' | 'trend' | null>(null)
+    const [pendingType, setPendingType] = useState<string>('bar-h')
+
+    function openModal(chart: 'byGroup' | 'trend') {
+        setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
+        setModalChart(chart)
+    }
+
+    function applyChartType() {
+        if (!modalChart) return
+        if (modalChart === 'byGroup') setByGroupChartType(pendingType as ByGroupChartType)
+        else setTrendChartType(pendingType as TrendChartType)
+        saveChartPref(modalChart, pendingType)
+        setModalChart(null)
+    }
 
     useEffect(() => {
         if (!household) return
@@ -299,23 +493,22 @@ export default function BudgetReport() {
                     <div className="flex gap-4 items-stretch">
                         {/* Bar chart — 80% */}
                         <div className="flex-[4] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">By Group</p>
-                            <ResponsiveContainer width="100%" height={Math.max(200, barGroupData.length * 42)}>
-                                <BarChart layout="vertical" data={barGroupData}
-                                    margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                                    <CartesianGrid horizontal={false} stroke="#f1f5f9" strokeDasharray="3 3" />
-                                    <XAxis type="number" tickFormatter={fmtK}
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                    <YAxis type="category" dataKey="name" width={110}
-                                        tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                    <ReTooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={30}>
-                                        {barGroupData.map((entry, i) => (
-                                            <Cell key={i} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">By Group</p>
+                                <button onClick={() => openModal('byGroup')}
+                                    className="p-1 rounded-lg text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 transition-colors">
+                                    <Maximize2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                            <ByGroupChartView
+                                data={barGroupData}
+                                type={byGroupChartType}
+                                height={
+                                    byGroupChartType === 'donut' ? 260
+                                    : byGroupChartType === 'bar-v' ? 220
+                                    : Math.max(180, barGroupData.length * 38)
+                                }
+                            />
                         </div>
 
                         {/* Budget split card — 20% */}
@@ -701,46 +894,15 @@ export default function BudgetReport() {
                 <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Monthly Budget Trend</p>
-                        <p className="text-xs text-slate-400">{trendSessions.length} months</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-xs text-slate-400">{trendSessions.length} months</p>
+                            <button onClick={() => openModal('trend')}
+                                className="p-1 rounded-lg text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 transition-colors">
+                                <Maximize2 className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={trendChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barSize={28}>
-                            <CartesianGrid vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                            <YAxis tickFormatter={fmtK} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={60} />
-                            <ReTooltip
-                                content={({ active, payload, label }) => {
-                                    if (!active || !payload?.length) return null
-                                    const total = (payload as any[]).reduce((s: number, p: any) => s + (p.value || 0), 0)
-                                    return (
-                                        <div className="bg-white rounded-2xl border border-slate-100 px-3 py-2.5 shadow-lg text-xs min-w-[160px]">
-                                            <p className="font-black text-slate-700 mb-2">{label}</p>
-                                            {(payload as any[]).filter(p => p.value > 0).map((p: any, i: number) => (
-                                                <div key={i} className="flex items-center justify-between gap-4 mb-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.fill }} />
-                                                        <span className="text-slate-500 truncate max-w-[90px]">{p.name}</span>
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 flex-shrink-0">{fmtK(p.value)}</span>
-                                                </div>
-                                            ))}
-                                            <div className="border-t border-slate-100 pt-1 mt-1 flex items-center justify-between">
-                                                <span className="text-slate-400">Total</span>
-                                                <span className="font-black text-slate-900 dark:text-white">{fmtK(total)}</span>
-                                            </div>
-                                        </div>
-                                    )
-                                }}
-                                cursor={{ fill: '#f8fafc' }}
-                            />
-                            {trendGroupNames.map((name, i) => (
-                                <Bar key={name} dataKey={name} stackId="a"
-                                    fill={CHART_COLORS[i % CHART_COLORS.length]}
-                                    radius={i === trendGroupNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                                />
-                            ))}
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <TrendChartView data={trendChartData} groupNames={trendGroupNames} type={trendChartType} height={220} />
                     {/* Group legend */}
                     <div className="flex flex-wrap gap-3 mt-3">
                         {trendGroupNames.map((name, i) => (
@@ -871,6 +1033,62 @@ export default function BudgetReport() {
                     </div>
                 )
             })()}
+
+            {/* ── Chart type modal ── */}
+            <Dialog open={!!modalChart} onOpenChange={() => setModalChart(null)}>
+                <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-2xl p-0 overflow-hidden gap-0">
+                    <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <DialogTitle className="text-sm font-black text-slate-900 dark:text-white">
+                            {modalChart === 'byGroup' ? 'By Group' : 'Monthly Budget Trend'}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="p-5 space-y-5">
+                        {/* Live preview */}
+                        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
+                            {modalChart === 'byGroup' && (
+                                <ByGroupChartView
+                                    data={barGroupData}
+                                    type={pendingType as ByGroupChartType}
+                                    height={pendingType === 'donut' ? 280 : pendingType === 'bar-v' ? 260 : Math.max(200, barGroupData.length * 42)}
+                                />
+                            )}
+                            {modalChart === 'trend' && (
+                                <TrendChartView data={trendChartData} groupNames={trendGroupNames} type={pendingType as TrendChartType} height={260} />
+                            )}
+                        </div>
+
+                        {/* Type selector */}
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Chart Type</p>
+                            <div className="flex flex-wrap gap-2">
+                                {(modalChart === 'byGroup' ? BY_GROUP_TYPES : TREND_TYPES).map(({ key, label, Icon }) => (
+                                    <button key={key} onClick={() => setPendingType(key)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                                            pendingType === key
+                                                ? 'bg-sky-50 dark:bg-sky-500/10 border-sky-200 dark:border-sky-500/30 text-sky-600 dark:text-sky-400'
+                                                : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-500'
+                                        }`}>
+                                        <Icon className="h-4 w-4" />
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-4">
+                        <button onClick={() => setModalChart(null)}
+                            className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={applyChartType}
+                            className="px-4 py-2 rounded-xl text-sm font-bold bg-sky-500 hover:bg-sky-600 text-white transition-colors">
+                            Apply
+                        </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
         </div>
     )
