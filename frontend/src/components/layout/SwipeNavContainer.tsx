@@ -46,6 +46,7 @@ export default function SwipeNavContainer({ children }: { children: React.ReactN
                         ? 'transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
                         : 'none',
                     willChange: offset !== 0 ? 'transform' : 'auto',
+                    touchAction: 'pan-y',
                 }}
                 onTouchStart={e => {
                     if (snapping) return
