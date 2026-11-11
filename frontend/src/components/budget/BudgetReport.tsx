@@ -498,10 +498,12 @@ export default function BudgetReport() {
         const el = savingsSwipeRef.current
         if (!el) return
         const onStart = (e: TouchEvent) => {
+            e.stopPropagation()
             touchStartX.current = e.touches[0].clientX
             touchStartY.current = e.touches[0].clientY
         }
         const onEnd = (e: TouchEvent) => {
+            e.stopPropagation()
             const dx = e.changedTouches[0].clientX - touchStartX.current
             const dy = e.changedTouches[0].clientY - touchStartY.current
             if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
@@ -523,10 +525,12 @@ export default function BudgetReport() {
         if (!el) return
         const count = memberRows.length
         const onStart = (e: TouchEvent) => {
+            e.stopPropagation()
             membersTouchStartX.current = e.touches[0].clientX
             membersTouchStartY.current = e.touches[0].clientY
         }
         const onEnd = (e: TouchEvent) => {
+            e.stopPropagation()
             const dx = e.changedTouches[0].clientX - membersTouchStartX.current
             const dy = e.changedTouches[0].clientY - membersTouchStartY.current
             if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
@@ -548,10 +552,12 @@ export default function BudgetReport() {
         if (!el) return
         const count = expGroupPanels.length
         const onStart = (e: TouchEvent) => {
+            e.stopPropagation()
             expGroupsTouchStartX.current = e.touches[0].clientX
             expGroupsTouchStartY.current = e.touches[0].clientY
         }
         const onEnd = (e: TouchEvent) => {
+            e.stopPropagation()
             const dx = e.changedTouches[0].clientX - expGroupsTouchStartX.current
             const dy = e.changedTouches[0].clientY - expGroupsTouchStartY.current
             if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
