@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
-import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import {
     ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
@@ -100,6 +100,13 @@ export default function NetWorthPage() {
     const [txnFilter, setTxnFilter] = useState<'all' | 'credit' | 'debit'>('all')
     const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'session'>('all')
     const [accountSort, setAccountSort] = useState<'name-asc' | 'name-desc' | 'amount-desc' | 'amount-asc'>('amount-desc')
+    const [spreadSlide, setSpreadSlide] = useState(0)
+    const [nwAccountPage, setNwAccountPage] = useState(0)
+    const [exAccountPage, setExAccountPage] = useState(0)
+    const [accountsPerPage, setAccountsPerPage] = useState(5)
+    const [txnPage, setTxnPage] = useState(0)
+    const [txnsPerPage, setTxnsPerPage] = useState(5)
+    const spreadTouchStart = useRef<number>(0)
     const isMeMode = viewMode === 'me'
 
     useEffect(() => {
@@ -243,6 +250,56 @@ export default function NetWorthPage() {
         : 0
     const trajectoryColor = trajectoryDelta >= 0 ? '#10b981' : '#f43f5e'
 
+    // ── Spread carousel data ──────────────────────────────────────
+
+    // Slide 0: by institution type
+    const spreadGroups = new Map<string, { kes: number; count: number }>()
+    for (const a of netWorthAccounts) {
+        const key = a.institution_type ?? a.account_type
+        const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+        const ex = spreadGroups.get(key) ?? { kes: 0, count: 0 }
+        spreadGroups.set(key, { kes: ex.kes + kes, count: ex.count + 1 })
+    }
+    const sortedSpread = [...spreadGroups.entries()].sort((a, b) => b[1].kes - a[1].kes)
+    const spreadTotal = sortedSpread.reduce((s, [, v]) => s + v.kes, 0)
+
+    // Slide 1: by currency
+    const currencyGroups = new Map<string, { native: number; kes: number; count: number }>()
+    for (const a of netWorthAccounts) {
+        const ex = currencyGroups.get(a.currency) ?? { native: 0, kes: 0, count: 0 }
+        const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+        currencyGroups.set(a.currency, { native: ex.native + Number(a.current_balance), kes: ex.kes + kes, count: ex.count + 1 })
+    }
+    const sortedCurrencies = [...currencyGroups.entries()].sort((a, b) => b[1].kes - a[1].kes)
+
+    // Slide 2: monthly growth by institution type (last 30 days net flow)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const monthlyGrowth = new Map<string, number>()
+    for (const t of scopedTransactions) {
+        if (new Date(t.created_at) < thirtyDaysAgo) continue
+        const account = accountMap[t.account_id]
+        if (!account?.contributes_to_net_worth) continue
+        const key = account.institution_type ?? account.account_type
+        const kes = toKES(Number(t.amount), account.currency, fxRates) ?? Number(t.amount)
+        const isLiability = account.account_type === 'credit'
+        const impact = isLiability
+            ? (t.transaction_type === 'debit' ? kes : -kes)
+            : (t.transaction_type === 'credit' ? kes : -kes)
+        monthlyGrowth.set(key, (monthlyGrowth.get(key) ?? 0) + impact)
+    }
+    const maxGrowthAbs = Math.max(...sortedSpread.map(([k]) => Math.abs(monthlyGrowth.get(k) ?? 0)), 1)
+
+    // ── Paginated accounts & transactions ────────────────────────
+
+    const sortedNwAccounts = sortAccounts(netWorthAccounts)
+    const sortedExAccounts = sortAccounts(excludedAccounts)
+    const nwTotalPages = accountsPerPage === 0 ? 1 : Math.ceil(sortedNwAccounts.length / accountsPerPage)
+    const nwPageItems = accountsPerPage === 0 ? sortedNwAccounts : sortedNwAccounts.slice(nwAccountPage * accountsPerPage, (nwAccountPage + 1) * accountsPerPage)
+    const exTotalPages = accountsPerPage === 0 ? 1 : Math.ceil(sortedExAccounts.length / accountsPerPage)
+    const exPageItems = accountsPerPage === 0 ? sortedExAccounts : sortedExAccounts.slice(exAccountPage * accountsPerPage, (exAccountPage + 1) * accountsPerPage)
+    const txnTotalPages = txnsPerPage === 0 ? 1 : Math.ceil(filteredTxns.length / txnsPerPage)
+    const txnPageItems = txnsPerPage === 0 ? filteredTxns : filteredTxns.slice(txnPage * txnsPerPage, (txnPage + 1) * txnsPerPage)
+
     return (
         <div className="space-y-6">
 
@@ -375,87 +432,201 @@ export default function NetWorthPage() {
                 </div>
             )}
 
-            {/* Net Worth Spread */}
-            {netWorthAccounts.length > 0 && (() => {
-                // Group by institution_type, fall back to account_type
-                const groups = new Map<string, { kes: number; count: number }>()
-                for (const a of netWorthAccounts) {
-                    const key = a.institution_type ?? a.account_type
-                    const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
-                    const existing = groups.get(key) ?? { kes: 0, count: 0 }
-                    groups.set(key, { kes: existing.kes + kes, count: existing.count + 1 })
-                }
-                const sorted = [...groups.entries()].sort((a, b) => b[1].kes - a[1].kes)
-                const total = sorted.reduce((s, [, v]) => s + v.kes, 0)
-                if (sorted.length < 2) return null // only show when there's more than 1 type
+            {/* Net Worth Spread — 3-slide carousel */}
+            {netWorthAccounts.length > 0 && sortedSpread.length > 0 && (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
+                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
 
-                return (
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5"
-                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Net Worth Spread</p>
-                                <p className="text-sm font-black text-slate-800 dark:text-slate-200 mt-0.5">{fmtCompact(total)} across {sorted.length} account types</p>
+                    {/* Card header */}
+                    <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-slate-50 dark:border-slate-700">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Net Worth Spread</p>
+                            <p className="text-sm font-black text-slate-800 dark:text-slate-200 mt-0.5">{fmtCompact(spreadTotal)}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                            <div className="flex items-center gap-1">
+                                {[0, 1, 2].map(i => (
+                                    <button key={i} onClick={() => setSpreadSlide(i)}
+                                        className={`rounded-full transition-all ${i === spreadSlide ? 'w-4 h-2 bg-sky-500' : 'w-2 h-2 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300'}`} />
+                                ))}
                             </div>
-                        </div>
-
-                        {/* Stacked bar */}
-                        <div className="flex h-3 rounded-full overflow-hidden gap-px mb-5">
-                            {sorted.map(([key, { kes }]) => {
-                                const pct = total > 0 ? (kes / total) * 100 : 0
-                                const color = TYPE_COLORS[key] ?? '#94a3b8'
-                                return (
-                                    <div key={key} style={{ width: `${pct}%`, background: color }} />
-                                )
-                            })}
-                        </div>
-
-                        {/* Type rows */}
-                        <div className="space-y-3">
-                            {sorted.map(([key, { kes, count }]) => {
-                                const pct = total > 0 ? (kes / total) * 100 : 0
-                                const color = TYPE_COLORS[key] ?? '#94a3b8'
-                                const label = TYPE_LABELS[key] ?? key
-                                return (
-                                    <div key={key}>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
-                                                <span className="text-xs text-slate-400">{count} account{count !== 1 ? 's' : ''}</span>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmtCompact(kes)}</span>
-                                                <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
-                                            </div>
-                                        </div>
-                                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full transition-all"
-                                                style={{ width: `${pct}%`, background: color }} />
-                                        </div>
-                                    </div>
-                                )
-                            })}
+                            <p className="text-xs text-slate-400">
+                                {spreadSlide === 0 ? 'By Institution' : spreadSlide === 1 ? 'By Currency' : 'Monthly Growth'}
+                            </p>
                         </div>
                     </div>
-                )
-            })()}
+
+                    {/* Swipeable slide area */}
+                    <div
+                        onTouchStart={e => { spreadTouchStart.current = e.touches[0].clientX }}
+                        onTouchEnd={e => {
+                            const delta = e.changedTouches[0].clientX - spreadTouchStart.current
+                            if (Math.abs(delta) > 40) setSpreadSlide(s => Math.max(0, Math.min(2, s + (delta < 0 ? 1 : -1))))
+                        }}>
+
+                        {/* Slide 0: By Institution Type */}
+                        {spreadSlide === 0 && (
+                            <div className="p-5">
+                                <div className="flex h-3 rounded-full overflow-hidden gap-px mb-5">
+                                    {sortedSpread.map(([key, { kes }]) => (
+                                        <div key={key} style={{ width: `${spreadTotal > 0 ? (kes / spreadTotal) * 100 : 0}%`, background: TYPE_COLORS[key] ?? '#94a3b8' }} />
+                                    ))}
+                                </div>
+                                <div className="space-y-3">
+                                    {sortedSpread.map(([key, { kes, count }]) => {
+                                        const pct = spreadTotal > 0 ? (kes / spreadTotal) * 100 : 0
+                                        const color = TYPE_COLORS[key] ?? '#94a3b8'
+                                        return (
+                                            <div key={key}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{TYPE_LABELS[key] ?? key}</span>
+                                                        <span className="text-xs text-slate-400">{count} acct{count !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmtCompact(kes)}</span>
+                                                        <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Slide 1: By Currency */}
+                        {spreadSlide === 1 && (
+                            <div className="p-5">
+                                <div className="flex h-3 rounded-full overflow-hidden gap-px mb-5">
+                                    {sortedCurrencies.map(([currency, { kes }], i) => (
+                                        <div key={currency} style={{ width: `${spreadTotal > 0 ? (kes / spreadTotal) * 100 : 0}%`, background: SEGMENT_COLORS[i % SEGMENT_COLORS.length] }} />
+                                    ))}
+                                </div>
+                                <div className="space-y-3">
+                                    {sortedCurrencies.map(([currency, { native, kes, count }], i) => {
+                                        const pct = spreadTotal > 0 ? (kes / spreadTotal) * 100 : 0
+                                        const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length]
+                                        return (
+                                            <div key={currency}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{currency}</span>
+                                                        <span className="text-xs text-slate-400">{count} acct{count !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                            {currency === 'KES'
+                                                                ? fmtCompact(native)
+                                                                : `${currency} ${native.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`}
+                                                        </span>
+                                                        {currency !== 'KES' && kes > 0 && (
+                                                            <span className="text-xs text-slate-400 ml-1">≈ {fmtCompact(kes)}</span>
+                                                        )}
+                                                        <span className="text-xs text-slate-400 ml-2">{pct.toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Slide 2: Monthly Growth Rate */}
+                        {spreadSlide === 2 && (
+                            <div className="p-5">
+                                <p className="text-xs text-slate-400 mb-4">Net account growth · last 30 days</p>
+                                <div className="space-y-3">
+                                    {sortedSpread.map(([key, { kes: currentKes, count }]) => {
+                                        const growth = monthlyGrowth.get(key) ?? 0
+                                        const pctChange = currentKes > 0 ? (growth / currentKes) * 100 : 0
+                                        const color = TYPE_COLORS[key] ?? '#94a3b8'
+                                        const isPos = growth > 0
+                                        const barPct = (Math.abs(growth) / maxGrowthAbs) * 100
+                                        return (
+                                            <div key={key}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{TYPE_LABELS[key] ?? key}</span>
+                                                        <span className="text-xs text-slate-400">{count} acct{count !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className={`text-sm font-bold ${growth === 0 ? 'text-slate-400' : isPos ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                            {growth === 0 ? '—' : `${isPos ? '+' : '−'}${fmtCompact(Math.abs(growth))}`}
+                                                        </span>
+                                                        {growth !== 0 && (
+                                                            <span className={`text-xs ml-1.5 ${isPos ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                                                {isPos ? '▲' : '▼'}{Math.abs(pctChange).toFixed(1)}%
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full transition-all"
+                                                        style={{ width: `${growth === 0 ? 0 : barPct}%`, background: isPos ? '#10b981' : '#f43f5e' }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Prev / Next nav */}
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-50 dark:border-slate-700">
+                        <button onClick={() => setSpreadSlide(s => Math.max(0, s - 1))} disabled={spreadSlide === 0}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-500 disabled:opacity-30 hover:text-sky-500 disabled:hover:text-slate-500 transition-colors">
+                            <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                        </button>
+                        <span className="text-xs text-slate-400">
+                            {spreadSlide === 0 ? 'By Institution' : spreadSlide === 1 ? 'By Currency' : 'Monthly Growth'}
+                        </span>
+                        <button onClick={() => setSpreadSlide(s => Math.min(2, s + 1))} disabled={spreadSlide === 2}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-500 disabled:opacity-30 hover:text-sky-500 disabled:hover:text-slate-500 transition-colors">
+                            Next <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Account breakdown */}
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Accounts</p>
-                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold w-fit">
-                    {([
-                        { key: 'name-asc',    label: 'A → Z' },
-                        { key: 'name-desc',   label: 'Z → A' },
-                        { key: 'amount-desc', label: 'Amount ↓' },
-                        { key: 'amount-asc',  label: 'Amount ↑' },
-                    ] as const).map(({ key, label }) => (
-                        <button key={key} onClick={() => setAccountSort(key)}
-                            className={`px-3 py-1.5 rounded-lg transition-all ${accountSort === key ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                            {label}
-                        </button>
-                    ))}
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* Sort */}
+                    <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold">
+                        {([
+                            { key: 'name-asc',    label: 'A → Z' },
+                            { key: 'name-desc',   label: 'Z → A' },
+                            { key: 'amount-desc', label: 'Amount ↓' },
+                            { key: 'amount-asc',  label: 'Amount ↑' },
+                        ] as const).map(({ key, label }) => (
+                            <button key={key} onClick={() => { setAccountSort(key); setNwAccountPage(0); setExAccountPage(0) }}
+                                className={`px-3 py-1.5 rounded-lg transition-all ${accountSort === key ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Per-page */}
+                    <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold">
+                        {[3, 5, 10, 0].map(n => (
+                            <button key={n} onClick={() => { setAccountsPerPage(n); setNwAccountPage(0); setExAccountPage(0) }}
+                                className={`px-2.5 py-1.5 rounded-lg transition-all ${accountsPerPage === n ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                                {n === 0 ? 'All' : n}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -479,36 +650,53 @@ export default function NetWorthPage() {
                             <Link href="/household" className="text-xs text-sky-500 font-semibold mt-1 inline-block">Configure accounts →</Link>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                            {sortAccounts(netWorthAccounts).map((a, i) => {
-                                const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
-                                const pct = totalNetWorth > 0 ? ((kes / totalNetWorth) * 100).toFixed(1) : '0.0'
-                                return (
-                                    <div key={a.id} className="flex items-center gap-3 px-5 py-3">
-                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                            style={{ background: SEGMENT_COLORS[i % SEGMENT_COLORS.length] }} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
-                                            <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
+                        <>
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                {nwPageItems.map((a, i) => {
+                                    const globalIdx = sortedNwAccounts.indexOf(a)
+                                    const kes = toKES(Number(a.current_balance), a.currency, fxRates) ?? 0
+                                    const pct = totalNetWorth > 0 ? ((kes / totalNetWorth) * 100).toFixed(1) : '0.0'
+                                    return (
+                                        <div key={a.id} className="flex items-center gap-3 px-5 py-3">
+                                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                style={{ background: SEGMENT_COLORS[globalIdx % SEGMENT_COLORS.length] }} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
+                                                <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{fmt(Number(a.current_balance), a.currency)}</p>
+                                                {a.currency !== 'KES' && (() => {
+                                                    const k = toKES(Number(a.current_balance), a.currency, fxRates)
+                                                    return k != null
+                                                        ? <p className="text-xs text-slate-400">≈ {fmt(k)}</p>
+                                                        : <p className="text-xs text-amber-500">No FX rate</p>
+                                                })()}
+                                                <p className="text-xs text-slate-400">{pct}% of total</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right flex-shrink-0">
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{fmt(Number(a.current_balance), a.currency)}</p>
-                                            {a.currency !== 'KES' && (() => {
-                                                const kes = toKES(Number(a.current_balance), a.currency, fxRates)
-                                                return kes != null
-                                                    ? <p className="text-xs text-slate-400">≈ {fmt(kes)}</p>
-                                                    : <p className="text-xs text-amber-500">No FX rate</p>
-                                            })()}
-                                            <p className="text-xs text-slate-400">{pct}% of total</p>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
+                                    )
+                                })}
+                            </div>
+                            {/* Pagination */}
+                            {nwTotalPages > 1 && (
+                                <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-50 dark:border-slate-700">
+                                    <button onClick={() => setNwAccountPage(p => Math.max(0, p - 1))} disabled={nwAccountPage === 0}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 transition-colors">
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <span className="text-xs text-slate-400">{nwAccountPage + 1} / {nwTotalPages}</span>
+                                    <button onClick={() => setNwAccountPage(p => Math.min(nwTotalPages - 1, p + 1))} disabled={nwAccountPage === nwTotalPages - 1}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 transition-colors">
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-100 dark:border-slate-600">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Net Worth</p>
                                 <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalNetWorth)}</p>
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
 
@@ -525,27 +713,46 @@ export default function NetWorthPage() {
                             <p className="text-sm text-slate-400">All accounts are counted in your net worth.</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                            {sortAccounts(excludedAccounts).map((a, i) => (
-                                <div key={a.id} className="flex items-center gap-3 px-5 py-3">
-                                    <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                        {a.name.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
-                                        <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
-                                    </div>
-                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-300 flex-shrink-0">{fmt(Number(a.current_balance), a.currency)}</p>
+                        <>
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                {exPageItems.map((a, i) => {
+                                    const globalIdx = sortedExAccounts.indexOf(a)
+                                    return (
+                                        <div key={a.id} className="flex items-center gap-3 px-5 py-3">
+                                            <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                                                style={{ background: GRADIENTS[globalIdx % GRADIENTS.length] }}>
+                                                {a.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.name}</p>
+                                                <p className="text-xs text-slate-400 capitalize">{a.account_type} · {a.ownership}</p>
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-500 dark:text-slate-300 flex-shrink-0">{fmt(Number(a.current_balance), a.currency)}</p>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            {/* Pagination */}
+                            {exTotalPages > 1 && (
+                                <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-50 dark:border-slate-700">
+                                    <button onClick={() => setExAccountPage(p => Math.max(0, p - 1))} disabled={exAccountPage === 0}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 transition-colors">
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <span className="text-xs text-slate-400">{exAccountPage + 1} / {exTotalPages}</span>
+                                    <button onClick={() => setExAccountPage(p => Math.min(exTotalPages - 1, p + 1))} disabled={exAccountPage === exTotalPages - 1}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 transition-colors">
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
                                 </div>
-                            ))}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700">
+                            )}
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-100 dark:border-slate-600">
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total (excluded)</p>
                                 <p className="text-sm font-black text-slate-500">
                                     {fmt(excludedAccounts.reduce((s, a) => s + Number(a.current_balance), 0))}
                                 </p>
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
             </div>
@@ -561,7 +768,7 @@ export default function NetWorthPage() {
                         {/* Source filter */}
                         <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'manual', 'session'] as const).map(s => (
-                                <button key={s} onClick={() => setSourceFilter(s)}
+                                <button key={s} onClick={() => { setSourceFilter(s); setTxnPage(0) }}
                                     className={`px-2.5 py-1.5 rounded-lg capitalize transition-all ${sourceFilter === s ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                                     {s === 'all' ? 'All' : s === 'manual' ? 'Manual' : 'Session'}
                                 </button>
@@ -570,9 +777,18 @@ export default function NetWorthPage() {
                         {/* Type filter */}
                         <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
                             {(['all', 'credit', 'debit'] as const).map(f => (
-                                <button key={f} onClick={() => setTxnFilter(f)}
+                                <button key={f} onClick={() => { setTxnFilter(f); setTxnPage(0) }}
                                     className={`px-2.5 py-1.5 rounded-lg transition-all ${txnFilter === f ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                                     {f === 'all' ? 'All' : f === 'credit' ? 'Deposits' : 'Withdrawals'}
+                                </button>
+                            ))}
+                        </div>
+                        {/* Per-page */}
+                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5 text-xs font-semibold">
+                            {[5, 10, 25, 0].map(n => (
+                                <button key={n} onClick={() => { setTxnsPerPage(n); setTxnPage(0) }}
+                                    className={`px-2.5 py-1.5 rounded-lg transition-all ${txnsPerPage === n ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                                    {n === 0 ? 'All' : n}
                                 </button>
                             ))}
                         </div>
@@ -602,7 +818,7 @@ export default function NetWorthPage() {
                             <span className="text-right">Amount</span>
                         </div>
                         <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                            {filteredTxns.map(t => {
+                            {txnPageItems.map(t => {
                                 const account = accountMap[t.account_id]
                                 const isCredit = t.transaction_type === 'credit'
                                 const badge = (
@@ -665,6 +881,23 @@ export default function NetWorthPage() {
                                 )
                             })}
                         </div>
+
+                        {/* Pagination */}
+                        {txnTotalPages > 1 && (
+                            <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-50 dark:border-slate-700">
+                                <button onClick={() => setTxnPage(p => Math.max(0, p - 1))} disabled={txnPage === 0}
+                                    className="flex items-center gap-1 text-xs font-semibold text-slate-500 disabled:opacity-30 hover:text-sky-500 disabled:hover:text-slate-500 transition-colors">
+                                    <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                                </button>
+                                <span className="text-xs text-slate-400">
+                                    {txnPage * (txnsPerPage || filteredTxns.length) + 1}–{Math.min((txnPage + 1) * (txnsPerPage || filteredTxns.length), filteredTxns.length)} of {filteredTxns.length}
+                                </span>
+                                <button onClick={() => setTxnPage(p => Math.min(txnTotalPages - 1, p + 1))} disabled={txnPage === txnTotalPages - 1}
+                                    className="flex items-center gap-1 text-xs font-semibold text-slate-500 disabled:opacity-30 hover:text-sky-500 disabled:hover:text-slate-500 transition-colors">
+                                    Next <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        )}
 
                         {/* Footer summary */}
                         <div className="px-5 py-3 bg-slate-50 dark:bg-slate-700 border-t border-slate-100 dark:border-slate-600 flex items-center justify-between">

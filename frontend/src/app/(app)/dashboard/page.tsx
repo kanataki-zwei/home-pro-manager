@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
-import { Wallet, Users, TrendingUp, ArrowUpRight, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react'
+import { Wallet, Users, TrendingUp, ArrowUpRight, CalendarDays, ChevronDown, ChevronUp, Heart, ChevronRight, X } from 'lucide-react'
 import Link from 'next/link'
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -81,10 +81,9 @@ export default function DashboardPage() {
     const [tags, setTags] = useState<ExpenseTag[]>([])
     const [budgetStats, setBudgetStats] = useState<BudgetStats | null>(null)
     const [budgetLoading, setBudgetLoading] = useState(true)
-    const [membersExpanded, setMembersExpanded] = useState(false)
-    const [incomeExpanded, setIncomeExpanded] = useState(false)
     const [pendingExpanded, setPendingExpanded] = useState(false)
     const [myAccountsOnly, setMyAccountsOnly] = useState(false)
+    const [householdModalOpen, setHouseholdModalOpen] = useState(false)
     const isMeMode = viewMode === 'me'
 
     useEffect(() => {
@@ -167,6 +166,10 @@ export default function DashboardPage() {
 
     const visibleMembers = isMeMode ? members.filter(m => m.user_id === currentUserId) : members
 
+    const husband = visibleMembers.find(m => m.member_type.name.toLowerCase() === 'husband')
+    const wife = visibleMembers.find(m => m.member_type.name.toLowerCase() === 'wife')
+    const familyChildren = visibleMembers.filter(m => m.member_type.name.toLowerCase() === 'child')
+
     // ── Tag breakdown ─────────────────────────────────────────────
     const tagRows = tags.map(tag => ({
         ...tag,
@@ -218,52 +221,91 @@ export default function DashboardPage() {
                 <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-5"
                     style={{ background: 'radial-gradient(circle, #0ea5e9, transparent)', transform: 'translate(-30%, 30%)' }} />
                 <div className="relative">
-                    <div className="grid grid-cols-2 gap-8">
-                        <div>
-                            <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Balance</p>
-                            <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
-                                KES {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                            <p className="text-slate-400 text-xs mt-2">
-                            {visibleAccounts.filter(a => a.contributes_to_net_worth).length} net worth account{visibleAccounts.filter(a => a.contributes_to_net_worth).length !== 1 ? 's' : ''} · {myAccountsOnly ? 'your accounts' : 'household'}
-                        </p>
+                    <p className="text-sky-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Balance</p>
+                    <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
+                        KES {totalBalance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-slate-400 text-xs mt-2">
+                        {visibleAccounts.filter(a => a.contributes_to_net_worth).length} net worth account{visibleAccounts.filter(a => a.contributes_to_net_worth).length !== 1 ? 's' : ''} · {myAccountsOnly ? 'your accounts' : 'household'}
+                    </p>
+                </div>
+            </div>
+
+            {/* Household Summary Card */}
+            <div
+                className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden cursor-pointer hover:border-sky-200 dark:hover:border-sky-700 active:scale-[0.99] transition-all"
+                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}
+                onClick={() => setHouseholdModalOpen(true)}
+            >
+                {/* Row 1: Monthly Income */}
+                <div className="px-5 pt-5 pb-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Monthly Income</p>
+                    {totalIncome > 0 ? (
+                        <p className="text-2xl font-black text-slate-900 dark:text-white">{fmtCompact(totalIncome)}</p>
+                    ) : (
+                        <p className="text-2xl font-black text-slate-300 dark:text-slate-600">—</p>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">
+                        {incomeMembers.length > 0
+                            ? `${incomeMembers.length} earner${incomeMembers.length !== 1 ? 's' : ''} contributing`
+                            : 'No income set up'}
+                    </p>
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-700" />
+
+                {/* Row 2: Household Members */}
+                <div className="px-5 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Household</p>
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex -space-x-2">
+                            {visibleMembers.slice(0, 5).map((m, i) => (
+                                <div key={m.id}
+                                    className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 flex items-center justify-center text-white text-xs font-black"
+                                    style={{ background: GRADIENTS[i % GRADIENTS.length].match(/#[0-9a-f]{6}/gi)?.[0] ?? '#0ea5e9', zIndex: 5 - i }}>
+                                    {m.name.charAt(0)}
+                                </div>
+                            ))}
                         </div>
-                        {totalIncome > 0 && (
-                            <div>
-                                <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">Monthly Income</p>
-                                <p className="text-white font-bold mb-1" style={{ fontSize: '2.5rem', lineHeight: 1 }}>
-                                    {fmtCompact(totalIncome)}
-                                </p>
-                                <button
-                                    onClick={() => setIncomeExpanded(v => !v)}
-                                    className="flex items-center gap-1 text-slate-400 text-xs mt-2 hover:text-slate-200 transition-colors"
-                                >
-                                    {incomeMembers.length} contributor{incomeMembers.length !== 1 ? 's' : ''}
-                                    {incomeExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                </button>
-                            </div>
-                        )}
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {visibleMembers.length} member{visibleMembers.length !== 1 ? 's' : ''}
+                        </p>
                     </div>
-                    {incomeExpanded && incomeMembers.length > 0 && (
-                        <div className="mt-5 pt-5 border-t border-slate-700 grid grid-cols-1 gap-2">
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-700" />
+
+                {/* Row 3: Earners */}
+                <div className="px-5 py-4 pb-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">Earners</p>
+                    {incomeMembers.length === 0 ? (
+                        <p className="text-sm text-slate-400">No earners set up</p>
+                    ) : (
+                        <div className="space-y-2.5">
                             {incomeMembers.map((m, i) => {
                                 const income = toMonthly(m.income_amount, m.income_cadence)
+                                const pct = totalIncome > 0 ? ((income / totalIncome) * 100).toFixed(0) : '—'
+                                const color = GRADIENTS[i % GRADIENTS.length].match(/#[0-9a-f]{6}/gi)?.[0] ?? '#0ea5e9'
                                 return (
-                                    <div key={m.id} className="flex items-center gap-3">
-                                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                                            style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                    <div key={m.id} className="flex items-center gap-2.5">
+                                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[11px] font-black flex-shrink-0"
+                                            style={{ background: color }}>
                                             {m.name.charAt(0)}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm font-semibold text-white">{m.name}</span>
-                                            <span className="text-xs text-slate-400 ml-2">{m.member_type.name}</span>
+                                        <p className="flex-1 text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{m.name}</p>
+                                        <div className="text-right flex-shrink-0">
+                                            <p className="text-xs font-bold text-slate-500">{pct}%</p>
+                                            <p className="text-[11px] text-slate-400">{fmtCompact(income)}/mo</p>
                                         </div>
-                                        <span className="text-sm font-bold text-emerald-400">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></span>
                                     </div>
                                 )
                             })}
                         </div>
                     )}
+                    <div className="mt-3 flex items-center justify-end gap-1 text-sky-500">
+                        <span className="text-xs font-semibold">View family</span>
+                        <ChevronRight className="h-3 w-3" />
+                    </div>
                 </div>
             </div>
 
@@ -545,51 +587,7 @@ export default function DashboardPage() {
             )}
 
             {/* Key stats row */}
-            <div className="grid grid-cols-4 gap-4 items-start">
-
-                {/* Members — expandable */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
-                    <button
-                        className="w-full p-5 text-left"
-                        onClick={() => setMembersExpanded(v => !v)}
-                    >
-                        <div className="flex items-center justify-between mb-3">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Members</p>
-                            <div className="flex items-center gap-1">
-                                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-sky-50">
-                                    <Users className="h-4 w-4 text-sky-500" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-end justify-between">
-                            <div>
-                                <p className="text-xl font-black text-slate-900 dark:text-white">{visibleMembers.length}</p>
-                                <p className="text-xs text-slate-400 mt-1">{membersExpanded ? 'Hide members' : 'Show members'}</p>
-                            </div>
-                            {membersExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 mb-0.5" /> : <ChevronDown className="h-4 w-4 text-slate-400 mb-0.5" />}
-                        </div>
-                    </button>
-                    {membersExpanded && visibleMembers.length > 0 && (
-                        <div className="border-t border-slate-100 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
-                            {visibleMembers.map((m, i) => (
-                                <div key={m.id} className="flex items-center gap-2 px-5 py-2.5">
-                                    <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                        {m.name.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-800 truncate">{m.name}</p>
-                                        <p className="text-xs text-slate-400">{m.member_type.name}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    {membersExpanded && visibleMembers.length === 0 && (
-                        <p className="px-5 pb-4 text-xs text-slate-400">No members yet.</p>
-                    )}
-                </div>
+            <div className="grid grid-cols-3 gap-4 items-start">
 
                 {/* Months Tracked */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700"
@@ -632,113 +630,55 @@ export default function DashboardPage() {
 
             </div>
 
-            {/* Income + Tag breakdown — side by side */}
-            <div className="grid grid-cols-2 gap-4">
-
-                {/* Income contributors */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
-                    <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Income Breakdown</p>
-                        <Link href="/household" className="text-xs text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
-                            Manage <ArrowUpRight className="h-3 w-3" />
-                        </Link>
-                    </div>
-                    {incomeMembers.length === 0 ? (
-                        <div className="px-5 pb-5">
-                            <p className="text-sm text-slate-400">No income set up yet.</p>
-                            <Link href="/household" className="text-xs text-sky-500 font-semibold mt-1 inline-block">Add income →</Link>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Stacked bar */}
-                            <div className="px-5 mb-3">
-                                <div className="flex h-2 rounded-full overflow-hidden gap-px">
-                                    {incomeMembers.map((m, i) => {
-                                        const income = toMonthly(m.income_amount, m.income_cadence)
-                                        const pct = totalIncome > 0 ? (income / totalIncome) * 100 : 100 / incomeMembers.length
-                                        const color = GRADIENTS[i % GRADIENTS.length].match(/#[0-9a-f]{6}/gi)?.[0] ?? '#0ea5e9'
-                                        return <div key={m.id} style={{ width: `${pct}%`, background: color }} />
-                                    })}
-                                </div>
-                            </div>
-                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                                {incomeMembers.map((m, i) => {
-                                    const income = toMonthly(m.income_amount, m.income_cadence)
-                                    const pct = totalIncome > 0 ? ((income / totalIncome) * 100).toFixed(0) : '—'
-                                    return (
-                                        <div key={m.id} className="flex items-center gap-3 px-5 py-3">
-                                            <div className="w-7 h-7 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                                                style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                                {m.name.charAt(0)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-slate-800 truncate">{m.name}</p>
-                                                <p className="text-xs text-slate-400">{m.member_type.name} · {pct}% of household</p>
-                                            </div>
-                                            <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
-                                        </div>
-                                    )
-                                })}
-                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800/50">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalIncome)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
-                                </div>
-                            </div>
-                        </>
-                    )}
+            {/* Expenses by Tag */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
+                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses by Tag</p>
+                    <Link href="/budget" className="text-xs text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
+                        View all <ArrowUpRight className="h-3 w-3" />
+                    </Link>
                 </div>
-
-                {/* Tag breakdown */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden"
-                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04)' }}>
-                    <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses by Tag</p>
-                        <Link href="/budget" className="text-xs text-sky-500 font-semibold hover:text-sky-600 flex items-center gap-1">
-                            View all <ArrowUpRight className="h-3 w-3" />
-                        </Link>
+                {budgetLoading ? (
+                    <div className="px-5 pb-5 flex items-center gap-2 text-sm text-slate-400">
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-300 border-t-transparent animate-spin" />
+                        Loading…
                     </div>
-                    {budgetLoading ? (
-                        <div className="px-5 pb-5 flex items-center gap-2 text-sm text-slate-400">
-                            <div className="w-4 h-4 rounded-full border-2 border-slate-300 border-t-transparent animate-spin" />
-                            Loading…
-                        </div>
-                    ) : allTagRows.length === 0 ? (
-                        <div className="px-5 pb-5">
-                            <p className="text-sm text-slate-400">No tagged expenses yet.</p>
-                            <Link href="/budget" className="text-xs text-sky-500 font-semibold mt-1 inline-block">Set up budget →</Link>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="px-5 mb-3">
-                                <div className="flex h-2 rounded-full overflow-hidden gap-px">
-                                    {allTagRows.map(row => (
-                                        <div key={row.id}
-                                            style={{ width: `${(row.total / totalBudgeted) * 100}%`, background: row.color || '#6366f1' }} />
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                ) : allTagRows.length === 0 ? (
+                    <div className="px-5 pb-5">
+                        <p className="text-sm text-slate-400">No tagged expenses yet.</p>
+                        <Link href="/budget" className="text-xs text-sky-500 font-semibold mt-1 inline-block">Set up budget →</Link>
+                    </div>
+                ) : (
+                    <>
+                        <div className="px-5 mb-3">
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px">
                                 {allTagRows.map(row => (
-                                    <div key={row.id} className="flex items-center gap-3 px-5 py-3">
-                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color || '#6366f1' }} />
-                                        <p className="text-sm text-slate-700 flex-1">{row.name}</p>
-                                        <p className="text-xs text-slate-400 w-10 text-right">
-                                            {((row.total / totalBudgeted) * 100).toFixed(1)}%
-                                        </p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white w-28 text-right">
-                                            {fmtCompact(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                        </p>
-                                    </div>
+                                    <div key={row.id}
+                                        style={{ width: `${(row.total / totalBudgeted) * 100}%`, background: row.color || '#6366f1' }} />
                                 ))}
-                                <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800/50">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total budgeted</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalBudgeted)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
-                                </div>
                             </div>
-                        </>
-                    )}
-                </div>
+                        </div>
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                            {allTagRows.map(row => (
+                                <div key={row.id} className="flex items-center gap-3 px-5 py-3">
+                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: row.color || '#6366f1' }} />
+                                    <p className="text-sm text-slate-700 flex-1">{row.name}</p>
+                                    <p className="text-xs text-slate-400 w-10 text-right">
+                                        {((row.total / totalBudgeted) * 100).toFixed(1)}%
+                                    </p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white w-28 text-right">
+                                        {fmtCompact(row.total)}<span className="text-xs font-normal text-slate-400">/mo</span>
+                                    </p>
+                                </div>
+                            ))}
+                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800/50">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total budgeted</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white">{fmt(totalBudgeted)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Budget allocation bar */}
@@ -862,6 +802,135 @@ export default function DashboardPage() {
                                 </div>
                             )
                         })}
+                    </div>
+                </div>
+            )}
+
+            {/* Household Modal */}
+            {householdModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+                    onClick={() => setHouseholdModalOpen(false)}>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div
+                        className="relative bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm shadow-2xl overflow-y-auto"
+                        style={{ maxHeight: '90vh' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Pull indicator */}
+                        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                            <div className="w-10 h-1 rounded-full bg-slate-200 dark:bg-slate-700" />
+                        </div>
+
+                        {/* Header */}
+                        <div className="px-6 pt-4 pb-2 flex items-center justify-between">
+                            <h2 className="text-lg font-black text-slate-900 dark:text-white">{household.name}</h2>
+                            <button
+                                onClick={() => setHouseholdModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Family tree */}
+                        <div className="px-6 py-6">
+                            <div className="flex flex-col items-center">
+                                {/* Couple row */}
+                                <div className="flex items-start justify-center gap-10">
+                                    {husband && (
+                                        <div className="flex flex-col items-center gap-1.5 w-20">
+                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg"
+                                                style={{ background: GRADIENTS[0] }}>
+                                                {husband.name.charAt(0)}
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 text-center">{husband.name}</p>
+                                            <p className="text-xs text-slate-400">{husband.member_type.name}</p>
+                                        </div>
+                                    )}
+                                    <div className="pt-5 flex-shrink-0">
+                                        <Heart className="w-5 h-5 text-rose-400" fill="currentColor" />
+                                    </div>
+                                    {wife && (
+                                        <div className="flex flex-col items-center gap-1.5 w-20">
+                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-black shadow-lg"
+                                                style={{ background: GRADIENTS[3] }}>
+                                                {wife.name.charAt(0)}
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 text-center">{wife.name}</p>
+                                            <p className="text-xs text-slate-400">{wife.member_type.name}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Connector + children */}
+                                {familyChildren.length > 0 && (
+                                    <>
+                                        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mt-2" />
+                                        {familyChildren.length > 1 && (
+                                            <div className="relative flex justify-center"
+                                                style={{ width: `${(familyChildren.length - 1) * 80 + 56}px` }}>
+                                                <div className="absolute top-0 inset-x-0 h-px bg-slate-200 dark:bg-slate-700" />
+                                            </div>
+                                        )}
+                                        <div className="flex gap-10 mt-0">
+                                            {familyChildren.map((child, ci) => (
+                                                <div key={child.id} className="flex flex-col items-center gap-1.5">
+                                                    {familyChildren.length > 1 && (
+                                                        <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+                                                    )}
+                                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-black shadow-md"
+                                                        style={{ background: GRADIENTS[(ci + 2) % GRADIENTS.length] }}>
+                                                        {child.name.charAt(0)}
+                                                    </div>
+                                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 text-center">{child.name}</p>
+                                                    <p className="text-xs text-slate-400">{child.member_type.name}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Income breakdown */}
+                        {incomeMembers.length > 0 && (
+                            <div className="px-6 pb-8">
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-5">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Income</p>
+                                    {incomeMembers.map((m, i) => {
+                                        const income = toMonthly(m.income_amount, m.income_cadence)
+                                        const pct = totalIncome > 0 ? (income / totalIncome) * 100 : 0
+                                        const color = GRADIENTS[i % GRADIENTS.length].match(/#[0-9a-f]{6}/gi)?.[0] ?? '#0ea5e9'
+                                        return (
+                                            <div key={m.id}>
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
+                                                        style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                        {m.name.charAt(0)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{m.name}</p>
+                                                        <p className="text-xs text-slate-400">{m.member_type.name}</p>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">{fmtCompact(income)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                                                        <p className="text-xs font-bold" style={{ color }}>{pct.toFixed(0)}% of total</p>
+                                                    </div>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full transition-all"
+                                                        style={{ width: `${pct.toFixed(1)}%`, background: GRADIENTS[i % GRADIENTS.length] }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total</p>
+                                        <p className="text-base font-black text-slate-900 dark:text-white">{fmt(totalIncome)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

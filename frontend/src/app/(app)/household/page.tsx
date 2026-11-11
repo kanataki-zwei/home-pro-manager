@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { useTheme } from '@/context/ThemeContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
 import { toast } from 'sonner'
-import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List, GripVertical } from 'lucide-react'
+import { Users, Plus, Trash2, Pencil, Link, Wallet, ChevronRight, TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Shield, Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw, DollarSign, LayoutGrid, List, GripVertical, ChevronLeft, X, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -176,9 +176,16 @@ export default function HouseholdPage() {
     const [filterInstType, setFilterInstType] = useState<Set<string>>(new Set())
     const [filterNetWorth, setFilterNetWorth] = useState<Set<string>>(new Set())
     const [rolesOpen, setRolesOpen] = useState(false)
+    const [isDragMode, setIsDragMode] = useState(false)
     const [localRoleOrder, setLocalRoleOrder] = useState<string[]>([])
     const [roleDragOver, setRoleDragOver] = useState<number | null>(null)
     const [viewAccount, setViewAccount] = useState<Account | null>(null)
+    const [incomeModalOpen, setIncomeModalOpen] = useState(false)
+    const [incomeChartMode, setIncomeChartMode] = useState<'chart' | 'labels'>('chart')
+    const [memberCarouselIdx, setMemberCarouselIdx] = useState(0)
+    const [filtersOpen, setFiltersOpen] = useState(false)
+    const roleTapTimerRef = useRef<number>(0)
+    const carouselTouchStartX = useRef<number>(0)
 
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
@@ -574,6 +581,19 @@ export default function HouseholdPage() {
     const otherGroup  = visibleMembers.filter(m => !/spouse|partner|husband|wife|kid|child|son|daughter/i.test(m.member_type.name))
     const memberOrder = [...spouseGroup, ...kidGroup, ...otherGroup]
 
+    // Lift income computations so they're accessible in both the card and modal
+    const incomeMembers = members.filter(m =>
+        m.contributes_income && m.income_amount != null && Number(m.income_amount) > 0 &&
+        (!isMeMode || m.user_id === currentUserId)
+    )
+    const incomeTotals: Record<string, number> = {}
+    for (const m of incomeMembers) {
+        const currency = m.income_currency ?? 'KES'
+        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+        incomeTotals[currency] = (incomeTotals[currency] ?? 0) + monthly
+    }
+    const rawIncomeTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
+
     const orderedMemberTypes: MemberType[] = localRoleOrder.length > 0
         ? ([
               ...localRoleOrder.map(id => household.member_types.find(t => t.id === id)).filter(Boolean),
@@ -745,28 +765,46 @@ export default function HouseholdPage() {
                                 <p className="text-sm text-slate-400 py-1">No roles yet. Add one to get started.</p>
                             ) : (
                                 <>
-                                    <p className="text-xs text-slate-400 mb-3 flex items-center gap-1.5">
-                                        <GripVertical className="h-3 w-3" /> Drag to reorder
-                                    </p>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                                            {isDragMode
+                                                ? <><GripVertical className="h-3 w-3" /> Drag to reorder</>
+                                                : 'Double-tap a role to reorder'}
+                                        </p>
+                                        {isDragMode && (
+                                            <button onClick={() => setIsDragMode(false)}
+                                                className="px-3 py-1 rounded-xl text-xs font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 transition-colors">
+                                                Done
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="flex flex-wrap gap-2">
                                         {orderedMemberTypes.map((type, idx) => {
                                             const bg = type.bg_color ?? '#f1f5f9'
                                             const col = type.text_color ?? '#334155'
                                             const isDragTarget = roleDragOver === idx
+                                            const handleTap = () => {
+                                                const now = Date.now()
+                                                if (now - roleTapTimerRef.current < 400) {
+                                                    setIsDragMode(true)
+                                                }
+                                                roleTapTimerRef.current = now
+                                            }
                                             return (
                                                 <div key={type.id}
-                                                    draggable
-                                                    onDragStart={e => {
+                                                    draggable={isDragMode}
+                                                    onClick={handleTap}
+                                                    onDragStart={isDragMode ? e => {
                                                         e.dataTransfer.setData('text/plain', String(idx))
                                                         e.dataTransfer.effectAllowed = 'move'
-                                                    }}
-                                                    onDragOver={e => {
+                                                    } : undefined}
+                                                    onDragOver={isDragMode ? e => {
                                                         e.preventDefault()
                                                         e.dataTransfer.dropEffect = 'move'
                                                         if (roleDragOver !== idx) setRoleDragOver(idx)
-                                                    }}
-                                                    onDragEnd={() => setRoleDragOver(null)}
-                                                    onDrop={e => {
+                                                    } : undefined}
+                                                    onDragEnd={isDragMode ? () => setRoleDragOver(null) : undefined}
+                                                    onDrop={isDragMode ? e => {
                                                         e.preventDefault()
                                                         const fromIdx = parseInt(e.dataTransfer.getData('text/plain'))
                                                         if (isNaN(fromIdx) || fromIdx === idx) { setRoleDragOver(null); return }
@@ -777,19 +815,21 @@ export default function HouseholdPage() {
                                                         setLocalRoleOrder(newIds)
                                                         localStorage.setItem(`role-order-${household.id}`, JSON.stringify(newIds))
                                                         setRoleDragOver(null)
-                                                    }}
-                                                    className={`flex items-center gap-1.5 pl-2 pr-2 py-1.5 rounded-2xl border transition-all cursor-grab active:cursor-grabbing select-none ${
-                                                        isDragTarget
-                                                            ? 'border-sky-400 scale-105 opacity-80'
-                                                            : 'border-slate-200 dark:border-slate-600 hover:border-slate-300'
+                                                    } : undefined}
+                                                    className={`flex items-center gap-1.5 pl-2 pr-2 py-1.5 rounded-2xl border transition-all select-none ${
+                                                        isDragMode
+                                                            ? isDragTarget
+                                                                ? 'border-sky-400 scale-105 opacity-80 cursor-grab active:cursor-grabbing'
+                                                                : 'border-sky-200 cursor-grab active:cursor-grabbing'
+                                                            : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 cursor-pointer'
                                                     }`}
                                                     style={{
                                                         background: bg,
                                                         boxShadow: isDragTarget ? '0 4px 12px rgba(14,165,233,0.25)' : '0 1px 4px rgba(0,0,0,0.04)',
                                                     }}>
-                                                    <GripVertical className="h-3.5 w-3.5 text-slate-300 flex-shrink-0" />
+                                                    {isDragMode && <GripVertical className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />}
                                                     <span className="text-sm font-semibold" style={{ color: col }}>{type.name}</span>
-                                                    <button onClick={() => deleteMemberType(type.id)}
+                                                    <button onClick={e => { e.stopPropagation(); deleteMemberType(type.id) }}
                                                         className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all">
                                                         <Trash2 className="h-3 w-3" />
                                                     </button>
@@ -803,108 +843,70 @@ export default function HouseholdPage() {
                     )}
                 </div>
 
-                {/* Household Income */}
-                {(() => {
-                    const incomeMembers = members.filter(m =>
-                        m.contributes_income && m.income_amount != null && Number(m.income_amount) > 0 &&
-                        (!isMeMode || m.user_id === currentUserId)
-                    )
-                    const totals: Record<string, number> = {}
-                    for (const m of incomeMembers) {
-                        const currency = m.income_currency ?? 'KES'
-                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                        totals[currency] = (totals[currency] ?? 0) + monthly
-                    }
-                    const rawTotal = incomeMembers.reduce((s, m) => s + toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly'), 0)
-                    return (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <div className="p-5 border-b border-slate-50 dark:border-slate-700">
-                                <h2 className="text-base font-bold text-slate-900 dark:text-white">Household Income</h2>
-                                <p className="text-xs text-slate-400">Monthly income across all members</p>
-                            </div>
-                            {incomeMembers.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center p-10 text-center">
-                                    <TrendingUp className="h-8 w-8 text-slate-200 mb-3" />
-                                    <p className="text-sm text-slate-400 font-medium">No earners yet</p>
-                                    <p className="text-xs text-slate-300 mt-1">Enable income on a member below</p>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="p-5 flex items-center gap-5 border-b border-slate-50 dark:border-slate-700">
-                                        <DonutChart
-                                            slices={incomeMembers.map((m, i) => ({
-                                                color: CHART_COLORS[i % CHART_COLORS.length],
-                                                pct: rawTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawTotal : 1 / incomeMembers.length,
-                                            }))}
-                                            centerLabel={String(incomeMembers.length)}
-                                            centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
-                                        />
-                                        <div className="flex-1 space-y-2.5 min-w-0">
-                                            {incomeMembers.map((m, i) => {
-                                                const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
-                                                const pct = rawTotal > 0 ? (monthly / rawTotal) * 100 : 100 / incomeMembers.length
-                                                return (
-                                                    <div key={m.id} className="flex items-center gap-2 min-w-0">
-                                                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                            style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{m.name}</p>
-                                                        <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                                        {incomeMembers.map((member, i) => {
-                                            const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
-                                            const currency = member.income_currency ?? 'KES'
-                                            return (
-                                                <div key={member.id} className="flex items-center justify-between px-5 py-3.5">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-                                                            style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
-                                                            {member.name.charAt(0)}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{member.name}</p>
-                                                            <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold text-slate-900 dark:text-white text-sm">
-                                                            {fmtMoney(Number(member.income_amount), currency)}
-                                                            <span className="text-xs font-normal text-slate-400"> / {member.income_cadence}</span>
-                                                        </p>
-                                                        {member.income_cadence !== 'monthly' && (
-                                                            <p className="text-xs text-slate-400">{fmtMoney(monthly, currency)} / mo</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                    <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-gradient-to-r from-sky-50 to-violet-50 dark:from-sky-900/20 dark:to-violet-900/20">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-bold text-slate-500 dark:text-slate-300">Total Monthly</span>
-                                            <div className="text-right">
-                                                {Object.entries(totals).map(([currency, total]) => (
-                                                    <p key={currency} className="font-black text-slate-900 dark:text-white text-lg leading-tight">
-                                                        {fmtMoney(total, currency)}
-                                                        <span className="text-xs font-normal text-slate-400 dark:text-slate-400 ml-1">/ mo</span>
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+                {/* Household Income — tappable card opens full modal */}
+                <div
+                    className={`bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden transition-all ${incomeMembers.length > 0 ? 'cursor-pointer hover:border-sky-200 dark:hover:border-sky-700 active:scale-[0.99]' : ''}`}
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+                    onClick={() => incomeMembers.length > 0 && setIncomeModalOpen(true)}>
+                    <div className="p-5 border-b border-slate-50 dark:border-slate-700 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900 dark:text-white">Household Income</h2>
+                            <p className="text-xs text-slate-400">Monthly income across all members</p>
                         </div>
-                    )
-                })()}
+                        {incomeMembers.length > 0 && <ChevronRight className="h-4 w-4 text-slate-300" />}
+                    </div>
+                    {incomeMembers.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-10 text-center">
+                            <TrendingUp className="h-8 w-8 text-slate-200 mb-3" />
+                            <p className="text-sm text-slate-400 font-medium">No earners yet</p>
+                            <p className="text-xs text-slate-300 mt-1">Enable income on a member below</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="p-5 flex items-center gap-5">
+                                <DonutChart
+                                    slices={incomeMembers.map((m, i) => ({
+                                        color: CHART_COLORS[i % CHART_COLORS.length],
+                                        pct: rawIncomeTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawIncomeTotal : 1 / incomeMembers.length,
+                                    }))}
+                                    centerLabel={String(incomeMembers.length)}
+                                    centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
+                                />
+                                <div className="flex-1 space-y-2.5 min-w-0">
+                                    {incomeMembers.map((m, i) => {
+                                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                                        const pct = rawIncomeTotal > 0 ? (monthly / rawIncomeTotal) * 100 : 100 / incomeMembers.length
+                                        return (
+                                            <div key={m.id} className="flex items-center gap-2 min-w-0">
+                                                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                    style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{m.name}</p>
+                                                <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-gradient-to-r from-sky-50 to-violet-50 dark:from-sky-900/20 dark:to-violet-900/20">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-bold text-slate-500 dark:text-slate-300">Total Monthly</span>
+                                    <div className="text-right">
+                                        {Object.entries(incomeTotals).map(([currency, total]) => (
+                                            <p key={currency} className="font-black text-slate-900 dark:text-white text-lg leading-tight">
+                                                {fmtMoney(total, currency)}
+                                                <span className="text-xs font-normal text-slate-400 dark:text-slate-400 ml-1">/ mo</span>
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
 
             </div>{/* end Row 1 */}
 
-            {/* Row 2: Members */}
+            {/* Row 2: Members — swipeable carousel */}
             <div>
                 <div className="flex items-center justify-between mb-3">
                     <div>
@@ -923,25 +925,47 @@ export default function HouseholdPage() {
                         <Users className="h-6 w-6 text-slate-300 mb-2" />
                         <p className="text-sm text-slate-400 font-medium">Add your first member</p>
                     </div>
-                ) : (
-                    <div className="space-y-4">
-                        {spouseGroup.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {spouseGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
+                ) : (() => {
+                    const clampedIdx = Math.min(memberCarouselIdx, memberOrder.length - 1)
+                    const currentMember = memberOrder[clampedIdx]
+                    const currentMemberIdx = memberOrder.indexOf(currentMember)
+                    const goTo = (idx: number) => setMemberCarouselIdx(Math.max(0, Math.min(idx, memberOrder.length - 1)))
+                    return (
+                        <div>
+                            <div
+                                className="relative"
+                                onTouchStart={e => { carouselTouchStartX.current = e.touches[0].clientX }}
+                                onTouchEnd={e => {
+                                    const delta = e.changedTouches[0].clientX - carouselTouchStartX.current
+                                    if (Math.abs(delta) > 40) goTo(clampedIdx + (delta < 0 ? 1 : -1))
+                                }}>
+                                {memberCard(currentMember, currentMemberIdx)}
+                                {/* prev / next overlay buttons */}
+                                {clampedIdx > 0 && (
+                                    <button onClick={() => goTo(clampedIdx - 1)}
+                                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-700/90 border border-slate-200 dark:border-slate-600 shadow flex items-center justify-center text-slate-500 hover:text-sky-500 transition-all">
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                )}
+                                {clampedIdx < memberOrder.length - 1 && (
+                                    <button onClick={() => goTo(clampedIdx + 1)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-700/90 border border-slate-200 dark:border-slate-600 shadow flex items-center justify-center text-slate-500 hover:text-sky-500 transition-all">
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
-                        )}
-                        {kidGroup.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {kidGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
-                            </div>
-                        )}
-                        {otherGroup.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                {otherGroup.map(m => memberCard(m, memberOrder.indexOf(m)))}
-                            </div>
-                        )}
-                    </div>
-                )}
+                            {/* dot indicators */}
+                            {memberOrder.length > 1 && (
+                                <div className="flex items-center justify-center gap-1.5 mt-3">
+                                    {memberOrder.map((_, i) => (
+                                        <button key={i} onClick={() => goTo(i)}
+                                            className={`rounded-full transition-all ${i === clampedIdx ? 'w-4 h-2 bg-sky-500' : 'w-2 h-2 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300'}`} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })()}
             </div>{/* end Members */}
 
             {/* Row 3: Accounts */}
@@ -952,6 +976,11 @@ export default function HouseholdPage() {
                             <p className="text-xs text-slate-400">Bank and cash accounts</p>
                         </div>
                     <div className="flex items-center gap-2">
+                        <button onClick={() => setFiltersOpen(o => !o)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${filtersOpen ? 'bg-slate-800 dark:bg-slate-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200'}`}>
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Filters</span>
+                        </button>
                         {!isMeMode && (
                             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
                                 <button onClick={() => setMyAccountsOnly(false)}
@@ -981,8 +1010,8 @@ export default function HouseholdPage() {
                     </div>
                 </div>
 
-                {/* Account filters — multi-select: empty set = show all */}
-                {(() => {
+                {/* Account filters — collapsed by default, toggle with Filters button */}
+                {filtersOpen && (() => {
                     const toggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
                         setter(prev => {
                             const next = new Set(prev)
@@ -1983,6 +2012,124 @@ export default function HouseholdPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Income Modal — donut chart vs labels toggle */}
+            {incomeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+                    onClick={() => setIncomeModalOpen(false)}>
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                    <div className="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-t-3xl sm:rounded-3xl overflow-hidden"
+                        style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}
+                        onClick={e => e.stopPropagation()}>
+                        {/* Pull indicator */}
+                        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                            <div className="w-10 h-1 rounded-full bg-slate-200 dark:bg-slate-600" />
+                        </div>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 pt-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-900 dark:text-white">Income Breakdown</h2>
+                                <p className="text-xs text-slate-400">{incomeMembers.length} earner{incomeMembers.length !== 1 ? 's' : ''}</p>
+                            </div>
+                            <button onClick={() => setIncomeModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {/* Toggle */}
+                        <div className="flex items-center gap-1 p-4 pb-0">
+                            <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-xl p-1">
+                                <button onClick={() => setIncomeChartMode('chart')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${incomeChartMode === 'chart' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>
+                                    Donut Chart
+                                </button>
+                                <button onClick={() => setIncomeChartMode('labels')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${incomeChartMode === 'labels' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}>
+                                    Labels
+                                </button>
+                            </div>
+                        </div>
+                        {/* Chart mode */}
+                        {incomeChartMode === 'chart' && (
+                            <div className="p-6 flex items-center gap-6">
+                                <DonutChart
+                                    slices={incomeMembers.map((m, i) => ({
+                                        color: CHART_COLORS[i % CHART_COLORS.length],
+                                        pct: rawIncomeTotal > 0 ? toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly') / rawIncomeTotal : 1 / incomeMembers.length,
+                                    }))}
+                                    centerLabel={String(incomeMembers.length)}
+                                    centerSub={incomeMembers.length === 1 ? 'earner' : 'earners'}
+                                />
+                                <div className="flex-1 space-y-3 min-w-0">
+                                    {incomeMembers.map((m, i) => {
+                                        const monthly = toMonthly(Number(m.income_amount), m.income_cadence ?? 'monthly')
+                                        const pct = rawIncomeTotal > 0 ? (monthly / rawIncomeTotal) * 100 : 100 / incomeMembers.length
+                                        return (
+                                            <div key={m.id} className="min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{m.name}</p>
+                                                    <p className="text-xs font-bold text-slate-500 flex-shrink-0">{pct.toFixed(0)}%</p>
+                                                </div>
+                                                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                                    <div className="h-full rounded-full transition-all"
+                                                        style={{ width: `${pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        {/* Labels mode */}
+                        {incomeChartMode === 'labels' && (
+                            <div className="divide-y divide-slate-50 dark:divide-slate-700 mt-4">
+                                {incomeMembers.map((member, i) => {
+                                    const monthly = toMonthly(Number(member.income_amount), member.income_cadence ?? 'monthly')
+                                    const currency = member.income_currency ?? 'KES'
+                                    const pct = rawIncomeTotal > 0 ? (monthly / rawIncomeTotal) * 100 : 100 / incomeMembers.length
+                                    return (
+                                        <div key={member.id} className="flex items-center justify-between px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black flex-shrink-0"
+                                                    style={{ background: GRADIENTS[i % GRADIENTS.length] }}>
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{member.name}</p>
+                                                    <p className="text-xs text-slate-400">{member.member_type.name} · <span className="capitalize">{member.income_cadence}</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-slate-900 dark:text-white text-sm">
+                                                    {fmtMoney(monthly, currency)}
+                                                    <span className="text-xs font-normal text-slate-400 ml-1">/ mo</span>
+                                                </p>
+                                                <p className="text-xs text-slate-400">{pct.toFixed(0)}% of total</p>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                        {/* Total */}
+                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-gradient-to-r from-sky-50 to-violet-50 dark:from-sky-900/20 dark:to-violet-900/20">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-bold text-slate-500 dark:text-slate-300">Total Monthly</span>
+                                <div className="text-right">
+                                    {Object.entries(incomeTotals).map(([currency, total]) => (
+                                        <p key={currency} className="font-black text-slate-900 dark:text-white text-lg leading-tight">
+                                            {fmtMoney(total, currency)}
+                                            <span className="text-xs font-normal text-slate-400 ml-1">/ mo</span>
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
