@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
-import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp } from 'lucide-react'
+import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp, List } from 'lucide-react'
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
     PieChart, Pie, Legend, LineChart, Line, ReferenceLine,
@@ -81,17 +81,17 @@ function ChartTooltip({ active, payload }: any) {
 
 // ── Chart type system ───────────────────────────────────────────────────────
 
-type ByGroupChartType = 'bar-h' | 'bar-v' | 'donut'
+type ByGroupChartType = 'labels' | 'bar-h' | 'bar-v' | 'donut'
 type TrendChartType   = 'bar' | 'line'
 
 const CHART_PREFS_KEY = 'hpm_report_chart_prefs'
 
 function getChartPrefs(): { byGroup: ByGroupChartType; trend: TrendChartType } {
-    if (typeof window === 'undefined') return { byGroup: 'bar-h', trend: 'bar' }
+    if (typeof window === 'undefined') return { byGroup: 'labels', trend: 'bar' }
     try {
         const p = JSON.parse(localStorage.getItem(CHART_PREFS_KEY) ?? '{}')
-        return { byGroup: p.byGroup ?? 'bar-h', trend: p.trend ?? 'bar' }
-    } catch { return { byGroup: 'bar-h', trend: 'bar' } }
+        return { byGroup: p.byGroup ?? 'labels', trend: p.trend ?? 'bar' }
+    } catch { return { byGroup: 'labels', trend: 'bar' } }
 }
 
 function saveChartPref(key: 'byGroup' | 'trend', value: string) {
@@ -102,9 +102,10 @@ function saveChartPref(key: 'byGroup' | 'trend', value: string) {
 }
 
 const BY_GROUP_TYPES = [
-    { key: 'bar-h' as ByGroupChartType, label: 'Horizontal', Icon: AlignLeft },
-    { key: 'bar-v' as ByGroupChartType, label: 'Vertical',   Icon: BarChartIcon },
-    { key: 'donut' as ByGroupChartType, label: 'Donut',      Icon: Disc },
+    { key: 'labels' as ByGroupChartType, label: 'Labels',     Icon: List },
+    { key: 'bar-h'  as ByGroupChartType, label: 'Horizontal', Icon: AlignLeft },
+    { key: 'bar-v'  as ByGroupChartType, label: 'Vertical',   Icon: BarChartIcon },
+    { key: 'donut'  as ByGroupChartType, label: 'Donut',      Icon: Disc },
 ]
 const TREND_TYPES = [
     { key: 'bar'  as TrendChartType, label: 'Stacked Bar', Icon: BarChartIcon },
@@ -137,6 +138,31 @@ function ByGroupChartView({ data, type, height = 220 }: {
     height?: number
 }) {
     const yAxisWidth = Math.min(90, Math.max(55, Math.max(...data.map(d => d.name.length)) * 6.5))
+
+    if (type === 'labels') {
+        return (
+            <div className="space-y-2.5">
+                {data.map(item => (
+                    <div key={item.name}>
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
+                            </div>
+                            <div className="text-right flex-shrink-0 ml-2">
+                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmt(item.value)}</span>
+                                <span className="text-xs text-slate-400 ml-1.5">{item.pct.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all"
+                                style={{ width: `${item.pct}%`, background: item.color }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )
+    }
 
     if (type === 'bar-h') {
         return (
@@ -653,8 +679,8 @@ export default function BudgetReport() {
                 const splitTotal = expPct + savPct + invPct
                 return (
                     <div className="flex gap-4 items-stretch">
-                        {/* Bar chart — 80% */}
-                        <div className="flex-[4] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        {/* By Group card — equal width */}
+                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">By Group</p>
                                 <button onClick={() => openModal('byGroup')}
@@ -673,8 +699,8 @@ export default function BudgetReport() {
                             />
                         </div>
 
-                        {/* Budget split card — 20% */}
-                        <div className="flex-[1] bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        {/* Budget split card — equal width */}
+                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Split</p>
 
                             <div className="flex h-2 rounded-full overflow-hidden gap-px">
