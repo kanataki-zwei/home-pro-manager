@@ -23,7 +23,7 @@ function BudgetPageInner() {
     const searchParams = useSearchParams()
     const { household, members, loading } = useHousehold()
     const [activeTab, setActiveTab] = useState<Tab>(
-        (searchParams.get('tab') as Tab | null) ?? 'library'
+        (searchParams.get('tab') as Tab | null) ?? 'reports'
     )
     const autoFilter = searchParams.get('filter') === 'todo' && searchParams.get('tab') === 'sessions'
 

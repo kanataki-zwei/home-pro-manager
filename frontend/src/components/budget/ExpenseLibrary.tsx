@@ -514,19 +514,14 @@ export default function ExpenseLibrary() {
     // ─── Derived data ─────────────────────────────────────────────
 
     const myMember = members.find(m => m.user_id === currentUserId)
+    const myRole = myMember?.member_type?.name?.toLowerCase()
     const formAccounts = isMeMode
         ? (accounts as Account[]).filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
         : accounts as Account[]
 
-    const myAccountIds = new Set(
-        (accounts as Account[])
-            .filter(a => a.ownership === 'joint' || a.household_member_id === myMember?.id)
-            .map(a => a.id)
-    )
-
     const isMyExpense = (e: Expense) =>
         e.owner_id === currentUserId ||
-        (e.owner_id === null && e.account_id !== null && myAccountIds.has(e.account_id))
+        (e.owner_id === null && (e.ownership_type === myRole || e.ownership_type === 'joint'))
 
     const visibleGroups = groups.filter(g =>
         (showDeleted || !g.is_deleted) &&
