@@ -92,7 +92,6 @@ export default function ExpenseLibrary() {
     const [accountDistExpanded, setAccountDistExpanded] = useState(false)
     const [loading, setLoading] = useState(true)
     const [showDeleted, setShowDeleted] = useState(false)
-    const [activeTab, setActiveTab] = useState<'household' | 'personal'>(isMeMode ? 'personal' : 'household')
     const [searchQuery, setSearchQuery] = useState('')
 
     // Group dialog
@@ -167,8 +166,6 @@ export default function ExpenseLibrary() {
         document.addEventListener('mouseup', onUp)
     }
 
-    useEffect(() => { if (isMeMode) setActiveTab('personal') }, [isMeMode])
-
     useEffect(() => {
         register(() => { resetExpenseForm(); setExpenseDialog(true) })
         return () => register(null)
@@ -208,7 +205,7 @@ export default function ExpenseLibrary() {
         try {
             const data = await apiPost<ExpenseGroup>(`/api/households/${household.id}/budget/groups`, {
                 name: groupName,
-                personal: activeTab === 'personal'
+                personal: false
             })
             setGroups(prev => [...prev, data])
             setExpandedGroups(prev => new Set([...prev, data.id]))
@@ -416,7 +413,7 @@ export default function ExpenseLibrary() {
         joint_split_wife: expenseForm.ownership_type === 'joint' ? parseFloat(expenseForm.joint_split_wife) : null,
         group_id: expenseForm.group_id || null,
         account_id: expenseForm.account_id || null,
-        personal: activeTab === 'personal',
+        personal: false,
         tag_ids: expenseForm.tag_ids
     })
 
@@ -440,7 +437,7 @@ export default function ExpenseLibrary() {
             joint_split_wife: expenseForm.ownership_type === 'joint' ? parseFloat(expenseForm.joint_split_wife) : null,
             group_id: expenseForm.group_id || null,
             account_id: expenseForm.account_id || null,
-            owner_id: activeTab === 'personal' ? (currentUserId ?? null) : null,
+            owner_id: null,
             is_deleted: false,
             tag_assignments: expenseForm.tag_ids
                 .map(id => { const tag = tags.find(t => t.id === id); return tag ? { id: `ta-${id}`, tag } : null })
@@ -525,15 +522,13 @@ export default function ExpenseLibrary() {
 
     const visibleGroups = groups.filter(g =>
         (showDeleted || !g.is_deleted) &&
-        (isMeMode
-            ? expenses.some(e => e.group_id === g.id && (showDeleted || !e.is_deleted) && isMyExpense(e))
-            : activeTab === 'household' ? g.owner_id === null : g.owner_id !== null)
+        (!isMeMode || expenses.some(e => e.group_id === g.id && (showDeleted || !e.is_deleted) && isMyExpense(e)))
     )
 
     const ungroupedExpenses = expenses.filter(e =>
         (showDeleted || !e.is_deleted) &&
         e.group_id === null &&
-        (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+        (!isMeMode || isMyExpense(e))
     )
 
     const expensesForGroup = (groupId: string) => expenses.filter(e =>
@@ -717,7 +712,7 @@ export default function ExpenseLibrary() {
             {(() => {
                 const visibleExpenses = expenses.filter(e =>
                     !e.is_deleted &&
-                    (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                    (!isMeMode || isMyExpense(e))
                 )
                 if (visibleExpenses.length === 0 || tags.length === 0) return null
 
@@ -776,7 +771,7 @@ export default function ExpenseLibrary() {
             {(() => {
                 const visibleExpenses = expenses.filter(e =>
                     !e.is_deleted &&
-                    (isMeMode ? isMyExpense(e) : activeTab === 'household' ? e.owner_id === null : e.owner_id !== null)
+                    (!isMeMode || isMyExpense(e))
                 )
                 if (visibleExpenses.length === 0) return null
 
@@ -878,20 +873,7 @@ export default function ExpenseLibrary() {
             })()}
 
             {/* ── Toolbar ── */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                {!isMeMode && (
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-2xl p-1">
-                        {(['household', 'personal'] as const).map(tab => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-4 py-1.5 rounded-xl text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-                                {tab === 'household' ? '🏠 Household' : '👤 Personal'}
-                            </button>
-                        ))}
-                    </div>
-                )}
-                {isMeMode && <div />}
+            <div className="flex items-center justify-end flex-wrap gap-3">
 
                 <div className="flex items-center gap-2">
                     <button
