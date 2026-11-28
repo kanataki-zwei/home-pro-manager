@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
-import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp, List } from 'lucide-react'
+import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp, List, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
     PieChart, Pie, Legend, LineChart, Line, ReferenceLine,
@@ -303,24 +303,15 @@ export default function BudgetReport() {
     const [pendingType, setPendingType] = useState<string>('bar-h')
 
     // Savings carousel
-    const savingsSwipeRef = useRef<HTMLDivElement>(null)
     const [savingsPage, setSavingsPage] = useState(0)
-    const touchStartX = useRef(0)
-    const touchStartY = useRef(0)
     const [savingsTrend, setSavingsTrend] = useState<SavingsTrendApiData | null>(null)
     const [savingsTrendLoading, setSavingsTrendLoading] = useState(true)
 
     // Member portraits carousel
-    const membersSwipeRef = useRef<HTMLDivElement>(null)
     const [membersPage, setMembersPage] = useState(0)
-    const membersTouchStartX = useRef(0)
-    const membersTouchStartY = useRef(0)
 
     // Expense groups carousel
-    const expGroupsSwipeRef = useRef<HTMLDivElement>(null)
     const [expGroupsPage, setExpGroupsPage] = useState(0)
-    const expGroupsTouchStartX = useRef(0)
-    const expGroupsTouchStartY = useRef(0)
 
     function openModal(chart: 'byGroup' | 'trend') {
         setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
@@ -518,86 +509,6 @@ export default function BudgetReport() {
             .finally(() => setSavingsTrendLoading(false))
     }, [household?.id])
 
-    // Native touch listeners for savings swipe (passive, avoids blocking WebKit scroll)
-    useEffect(() => {
-        if (loading) return
-        const el = savingsSwipeRef.current
-        if (!el) return
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            touchStartX.current = e.touches[0].clientX
-            touchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - touchStartX.current
-            const dy = e.changedTouches[0].clientY - touchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setSavingsPage(dx < 0 ? 1 : 0)
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
-    // Native touch listeners for member portraits carousel
-    useEffect(() => {
-        if (loading) return
-        const el = membersSwipeRef.current
-        if (!el) return
-        const count = memberRows.length
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            membersTouchStartX.current = e.touches[0].clientX
-            membersTouchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - membersTouchStartX.current
-            const dy = e.changedTouches[0].clientY - membersTouchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setMembersPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
-    // Native touch listeners for expense groups carousel
-    useEffect(() => {
-        if (loading) return
-        const el = expGroupsSwipeRef.current
-        if (!el) return
-        const count = expGroupPanels.length
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            expGroupsTouchStartX.current = e.touches[0].clientX
-            expGroupsTouchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - expGroupsTouchStartX.current
-            const dy = e.changedTouches[0].clientY - expGroupsTouchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setExpGroupsPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
     const savingsTrendChart = useMemo(() => {
         if (!savingsTrend || savingsTrend.months.length === 0) return { data: [], memberNames: [] as string[] }
         const memberNames = savingsTrend.months[0].members.map(m => m.name)
@@ -732,17 +643,11 @@ export default function BudgetReport() {
             {/* ── Member Financial Portraits carousel ── */}
             {scope === 'all' && memberRows.length > 0 && (
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
-                        {memberRows.length > 1 && (
-                            <span className="text-xs text-slate-400">{membersPage + 1} / {memberRows.length}</span>
-                        )}
-                    </div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
 
-                    <div ref={membersSwipeRef} className="overflow-hidden">
-                        <div className="flex transition-transform duration-300 ease-out"
-                             style={{ transform: `translateX(${membersPage * -100}%)` }}>
-                            {memberRows.map(row => {
+                    <div>
+                        {memberRows.map((row, i) => {
+                            if (i !== membersPage) return null
                                 const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
                                 const isMe = member.user_id === currentUserId
                                 const overspent = remaining < 0
@@ -754,7 +659,7 @@ export default function BudgetReport() {
                                 const assignedPct = income > 0 ? Math.min((allocated / income) * 100, 100) : 0
 
                                 return (
-                                    <div key={member.id} className="w-full flex-shrink-0">
+                                    <div key={member.id}>
                                         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                                             style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                                             <div className="h-1 w-full" style={{ background: gradient }} />
@@ -860,21 +765,30 @@ export default function BudgetReport() {
                                         </div>
                                     </div>
                                 )
-                            })}
-                        </div>
+                        })}
                     </div>
 
                     {memberRows.length > 1 && (
-                        <div className="flex justify-center gap-1.5 pt-1">
-                            {memberRows.map((_, i) => (
-                                <button key={i} onClick={() => setMembersPage(i)}
-                                    className={`rounded-full transition-all duration-200 ${
-                                        membersPage === i
-                                            ? 'w-4 h-1.5 bg-sky-500'
-                                            : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                    }`}
-                                />
-                            ))}
+                        <div className="flex items-center justify-center gap-3 pt-1">
+                            <button onClick={() => setMembersPage(p => Math.max(0, p - 1))} disabled={membersPage === 0}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <div className="flex items-center gap-1.5">
+                                {memberRows.map((_, i) => (
+                                    <button key={i} onClick={() => setMembersPage(i)}
+                                        className={`rounded-full transition-all duration-200 ${
+                                            membersPage === i
+                                                ? 'w-4 h-1.5 bg-sky-500'
+                                                : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+                            <button onClick={() => setMembersPage(p => Math.min(memberRows.length - 1, p + 1))} disabled={membersPage === memberRows.length - 1}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
                         </div>
                     )}
                 </div>
@@ -885,14 +799,9 @@ export default function BudgetReport() {
                 <div className="space-y-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
 
-                    {/* Swipeable panels */}
-                    <div ref={savingsSwipeRef} className="overflow-hidden">
-                        <div className="flex transition-transform duration-300 ease-out"
-                             style={{ transform: `translateX(${savingsPage * -100}%)` }}>
-
-                            {/* Panel 1 — savings rate card */}
-                            <div className="w-full flex-shrink-0">
-                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div>
+                        {savingsPage === 0 && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 dark:border-slate-700">
                                         <div>
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -946,12 +855,10 @@ export default function BudgetReport() {
                                             })}
                                         </div>
                                     )}
-                                </div>
                             </div>
-
-                            {/* Panel 2 — savings rate trend (last 6 months) */}
-                            <div className="w-full flex-shrink-0">
-                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        )}
+                        {savingsPage === 1 && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     {savingsTrendLoading ? (
                                         <div className="flex items-center justify-center h-48">
                                             <div className="w-5 h-5 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -1004,35 +911,37 @@ export default function BudgetReport() {
                                             </div>
                                         </>
                                     )}
-                                </div>
                             </div>
-
-                        </div>
+                        )}
                     </div>
 
-                    {/* Pagination dots */}
-                    <div className="flex justify-center gap-1.5 pt-1">
-                        {[0, 1].map(i => (
-                            <button key={i} onClick={() => setSavingsPage(i)}
-                                className={`rounded-full transition-all duration-200 ${
-                                    savingsPage === i
-                                        ? 'w-4 h-1.5 bg-sky-500'
-                                        : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                }`}
-                            />
-                        ))}
+                    <div className="flex items-center justify-center gap-3 pt-1">
+                        <button onClick={() => setSavingsPage(0)} disabled={savingsPage === 0}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                            {[0, 1].map(i => (
+                                <button key={i} onClick={() => setSavingsPage(i)}
+                                    className={`rounded-full transition-all duration-200 ${
+                                        savingsPage === i
+                                            ? 'w-4 h-1.5 bg-sky-500'
+                                            : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                    }`}
+                                />
+                            ))}
+                        </div>
+                        <button onClick={() => setSavingsPage(1)} disabled={savingsPage === 1}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     </div>
                 </div>
             )}
 
             {/* ── Group breakdown list ── */}
             <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
-                    {expGroupPanels.length > 1 && (
-                        <span className="text-xs text-slate-400">{expGroupsPage + 1} / {expGroupPanels.length}</span>
-                    )}
-                </div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
 
                 {scopedRows.length === 0 ? (
                     <div className="flex items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200">
@@ -1040,14 +949,13 @@ export default function BudgetReport() {
                     </div>
                 ) : (
                     <>
-                        <div ref={expGroupsSwipeRef} className="overflow-hidden">
-                            <div className="flex transition-transform duration-300 ease-out"
-                                 style={{ transform: `translateX(${expGroupsPage * -100}%)` }}>
-                                {expGroupPanels.map(panel => {
+                        <div>
+                            {expGroupPanels.map((panel, i) => {
+                                if (i !== expGroupsPage) return null
                                     const groupTotal = panel.rows.reduce((s, r) => s + r.amount, 0)
                                     const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
                                     return (
-                                        <div key={panel.id} className="w-full flex-shrink-0">
+                                        <div key={panel.id}>
                                             {panel.isUngrouped ? (
                                                 <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
                                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -1134,21 +1042,30 @@ export default function BudgetReport() {
                                             )}
                                         </div>
                                     )
-                                })}
-                            </div>
+                            })}
                         </div>
 
                         {expGroupPanels.length > 1 && (
-                            <div className="flex justify-center gap-1.5 pt-1">
-                                {expGroupPanels.map((_, i) => (
-                                    <button key={i} onClick={() => setExpGroupsPage(i)}
-                                        className={`rounded-full transition-all duration-200 ${
-                                            expGroupsPage === i
-                                                ? 'w-4 h-1.5 bg-sky-500'
-                                                : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                        }`}
-                                    />
-                                ))}
+                            <div className="flex items-center justify-center gap-3 pt-1">
+                                <button onClick={() => setExpGroupsPage(p => Math.max(0, p - 1))} disabled={expGroupsPage === 0}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    {expGroupPanels.map((_, i) => (
+                                        <button key={i} onClick={() => setExpGroupsPage(i)}
+                                            className={`rounded-full transition-all duration-200 ${
+                                                expGroupsPage === i
+                                                    ? 'w-4 h-1.5 bg-sky-500'
+                                                    : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                                <button onClick={() => setExpGroupsPage(p => Math.min(expGroupPanels.length - 1, p + 1))} disabled={expGroupsPage === expGroupPanels.length - 1}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
                             </div>
                         )}
                     </>
