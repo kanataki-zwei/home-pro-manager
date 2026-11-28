@@ -1006,76 +1006,78 @@ export default function ExpenseLibrary() {
                                         {group.name.charAt(0)}
                                     </div>
                                     <p className="font-bold text-slate-900 dark:text-white text-base flex-1 min-w-0">{group.name}</p>
-                                    {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
-                                </div>
-                                {/* Actions row */}
-                                <div className="flex items-center gap-1.5 mt-2 ml-12" onClick={e => e.stopPropagation()}>
-                                    {group.is_deleted ? (
-                                        <button onClick={() => restoreGroup(group.id)}
-                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
-                                            <RotateCcw className="h-3.5 w-3.5" />
-                                        </button>
-                                    ) : (
-                                        <>
-                                            {tags.length > 0 && (
-                                                <div className="relative" onMouseDown={e => e.stopPropagation()}>
-                                                    <button
-                                                        onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
-                                                        disabled={applyingTagToGroup === group.id}
-                                                        title="Add or remove a tag across all expenses in this group"
-                                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
-                                                        {applyingTagToGroup === group.id
-                                                            ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
-                                                            : <Tag className="h-3.5 w-3.5" />}
-                                                    </button>
-                                                    {groupTagPickerOpen === group.id && (
-                                                        <div className="absolute left-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl p-2 min-w-max">
-                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
-                                                            <div className="space-y-0.5">
-                                                                {tags.map(tag => {
-                                                                    const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
-                                                                    const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
-                                                                    return (
-                                                                        <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                                                style={{ background: tag.color || '#6366f1' }} />
-                                                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 mr-3">{tag.name}</span>
-                                                                            <button
-                                                                                onClick={() => applyTagToGroup(group.id, tag.id)}
-                                                                                title="Add to all expenses in group"
-                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
-                                                                                <Plus className="h-3.5 w-3.5" />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => removeTagFromGroup(group.id, tag.id)}
-                                                                                title="Remove from all expenses in group"
-                                                                                disabled={!hasTag}
-                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
-                                                                                <X className="h-3.5 w-3.5" />
-                                                                            </button>
-                                                                        </div>
-                                                                    )
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                            <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                                                <Pencil className="h-3.5 w-3.5" />
+                                    <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                                        {group.is_deleted ? (
+                                            <button onClick={() => restoreGroup(group.id)}
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                                <RotateCcw className="h-3.5 w-3.5" />
                                             </button>
-                                            <button onClick={() => deleteGroup(group.id)}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
+                                        ) : (
                                             <button onClick={() => toggleGroupEdit(group.id)}
                                                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${editModeGroups.has(group.id) ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
                                                 {editModeGroups.has(group.id) ? 'Done' : 'Edit'}
                                             </button>
-                                        </>
-                                    )}
+                                        )}
+                                    </div>
+                                    {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
                                 </div>
+                                {/* Actions row — visible only in edit mode */}
+                                {editModeGroups.has(group.id) && !group.is_deleted && (
+                                    <div className="flex items-center gap-1.5 mt-2 ml-12" onClick={e => e.stopPropagation()}>
+                                        {tags.length > 0 && (
+                                            <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
+                                                    disabled={applyingTagToGroup === group.id}
+                                                    title="Add or remove a tag across all expenses in this group"
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
+                                                    {applyingTagToGroup === group.id
+                                                        ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                                                        : <Tag className="h-3.5 w-3.5" />}
+                                                </button>
+                                                {groupTagPickerOpen === group.id && (
+                                                    <div className="absolute left-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl p-2 min-w-max">
+                                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
+                                                        <div className="space-y-0.5">
+                                                            {tags.map(tag => {
+                                                                const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
+                                                                const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
+                                                                return (
+                                                                    <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                                            style={{ background: tag.color || '#6366f1' }} />
+                                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 mr-3">{tag.name}</span>
+                                                                        <button
+                                                                            onClick={() => applyTagToGroup(group.id, tag.id)}
+                                                                            title="Add to all expenses in group"
+                                                                            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                                                                            <Plus className="h-3.5 w-3.5" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => removeTagFromGroup(group.id, tag.id)}
+                                                                            title="Remove from all expenses in group"
+                                                                            disabled={!hasTag}
+                                                                            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                                                                            <X className="h-3.5 w-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                            <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button onClick={() => deleteGroup(group.id)}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                )}
                                 {/* Stats callouts */}
                                 <div className="flex items-center gap-2 mt-3 ml-12 flex-wrap">
                                     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
@@ -1120,46 +1122,29 @@ export default function ExpenseLibrary() {
 
                             {/* Expenses in group */}
                             {isExpanded && (
-                                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40 overflow-x-auto">
-                                    <table className="w-full min-w-[600px] border-collapse table-fixed">
-                                        <thead>
-                                            <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
-                                                <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
-                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Owner</th>
-                                                <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Account</th>
-                                                <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-44 border-r border-slate-200 dark:border-slate-600">Amount</th>
-                                                <th className="w-14" />
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displayExpenses.map(expense => (
-                                                <ExpenseTableRow
-                                                    key={expense.id}
-                                                    expense={expense}
-                                                    accounts={accounts as Account[]}
-                                                    tags={tags}
-                                                    editMode={editModeGroups.has(group.id)}
-                                                    onInlineUpdate={inlineUpdateExpense}
-                                                    onDelete={() => deleteExpense(expense.id)}
-                                                    onRestore={() => restoreExpense(expense.id)}
-                                                    onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
-                                                    showDeleted={showDeleted}
-                                                />
-                                            ))}
-                                            {editModeGroups.has(group.id) && !group.is_deleted && (
-                                                <tr>
-                                                    <td colSpan={5}>
-                                                        <button
-                                                            onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
-                                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-t border-slate-200 dark:border-slate-700">
-                                                            <Plus className="h-3.5 w-3.5" />
-                                                            Add expense to {group.name}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-800/40 divide-y divide-slate-100 dark:divide-slate-700/50">
+                                    {displayExpenses.map(expense => (
+                                        <ExpenseCard
+                                            key={expense.id}
+                                            expense={expense}
+                                            accounts={accounts as Account[]}
+                                            tags={tags}
+                                            editMode={editModeGroups.has(group.id)}
+                                            onInlineUpdate={inlineUpdateExpense}
+                                            onDelete={() => deleteExpense(expense.id)}
+                                            onRestore={() => restoreExpense(expense.id)}
+                                            onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
+                                            showDeleted={showDeleted}
+                                        />
+                                    ))}
+                                    {editModeGroups.has(group.id) && !group.is_deleted && (
+                                        <button
+                                            onClick={() => { resetExpenseForm(); setExpenseForm(p => ({ ...p, group_id: group.id })); setExpenseDialog(true) }}
+                                            className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Add expense to {group.name}
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1177,45 +1162,28 @@ export default function ExpenseLibrary() {
                                 {ungroupedEditMode ? 'Done' : 'Edit'}
                             </button>
                         </div>
-                        <div className="overflow-x-auto">
-                        <table className="w-full min-w-[600px] border-collapse table-fixed">
-                            <thead>
-                                <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
-                                    <th className="px-5 py-2.5 text-left text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600">Name</th>
-                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Owner</th>
-                                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-36 border-r border-slate-200 dark:border-slate-600">Account</th>
-                                    <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 w-44 border-r border-slate-200 dark:border-slate-600">Amount</th>
-                                    <th className="w-14" />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {ungroupedFiltered.map(expense => (
-                                    <ExpenseTableRow
-                                        key={expense.id}
-                                        expense={expense}
-                                        accounts={formAccounts}
-                                        tags={tags}
-                                        editMode={ungroupedEditMode}
-                                        onInlineUpdate={inlineUpdateExpense}
-                                        onDelete={() => deleteExpense(expense.id)}
-                                        onRestore={() => restoreExpense(expense.id)}
-                                        onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
-                                        showDeleted={showDeleted}
-                                    />
-                                ))}
-                                {ungroupedEditMode && (
-                                    <tr>
-                                        <td colSpan={5}>
-                                            <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
-                                                className="flex items-center gap-2 w-full px-4 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors border-t border-slate-200 dark:border-slate-700">
-                                                <Plus className="h-3.5 w-3.5" />
-                                                Add ungrouped expense
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                            {ungroupedFiltered.map(expense => (
+                                <ExpenseCard
+                                    key={expense.id}
+                                    expense={expense}
+                                    accounts={formAccounts}
+                                    tags={tags}
+                                    editMode={ungroupedEditMode}
+                                    onInlineUpdate={inlineUpdateExpense}
+                                    onDelete={() => deleteExpense(expense.id)}
+                                    onRestore={() => restoreExpense(expense.id)}
+                                    onTagToggle={(tagId) => toggleExpenseTag(expense.id, tagId)}
+                                    showDeleted={showDeleted}
+                                />
+                            ))}
+                            {ungroupedEditMode && (
+                                <button onClick={() => { resetExpenseForm(); setExpenseDialog(true) }}
+                                    className="flex items-center gap-2 w-full px-5 py-3 text-xs font-semibold text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add ungrouped expense
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -1461,7 +1429,7 @@ export default function ExpenseLibrary() {
 
 // ─── Expense Table Row ────────────────────────────────────────────
 
-function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, onDelete, onRestore, onTagToggle, showDeleted }: {
+function ExpenseCard({ expense, accounts, tags, editMode, onInlineUpdate, onDelete, onRestore, onTagToggle, showDeleted }: {
     expense: Expense
     accounts: Account[]
     tags: ExpenseTag[]
@@ -1542,154 +1510,40 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
     const startEdit = (field: typeof editing) => { if (editMode && !expense.is_deleted) setEditing(field) }
     const sourceAccount = expense.account_id ? accounts.find(a => a.id === expense.account_id) : null
 
-    const nameCls = 'px-4 py-2 align-top bg-slate-50 dark:bg-slate-800/60 border-r border-slate-200 dark:border-slate-700'
-    const cellCls = 'px-3 py-2 align-top border-r border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800'
     const inputCls = 'w-full text-sm bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400 dark:text-slate-200'
     const selectCls = 'text-sm bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 rounded-xl px-2.5 py-1.5 outline-none focus:border-sky-400 dark:text-slate-200'
     const saveBtn = 'text-xs font-bold text-sky-600 hover:text-sky-700'
     const cancelBtn = 'text-xs text-slate-400 hover:text-slate-600'
+    const ownerLabel = expense.ownership_type === 'joint' ? '🤝 Joint' : expense.ownership_type === 'husband' ? '👨 Husband' : '👩 Wife'
 
     return (
-        <tr className={`border-b border-slate-200 dark:border-slate-700 transition-colors ${expense.is_deleted ? 'opacity-40' : editMode ? 'hover:bg-sky-50/30 dark:hover:bg-sky-900/20' : ''}`}>
+        <div className={`px-5 py-3.5 transition-colors ${expense.is_deleted ? 'opacity-40' : editMode ? 'hover:bg-sky-50/20 dark:hover:bg-sky-900/10' : ''}`}>
 
-            {/* Name */}
-            <td className={nameCls} onClick={editMode ? () => editing === null && startEdit('name') : undefined}
-                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'text' } : undefined}>
-                {editing === 'name' ? (
-                    <div className="flex flex-col gap-1.5">
-                        <input autoFocus className={inputCls} value={draft.name}
-                            onChange={e => setDraft(p => ({ ...p, name: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') save('name'); if (e.key === 'Escape') cancel() }} />
-                        <div className="flex gap-2">
-                            <button onClick={() => save('name')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
-                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">{expense.name}</span>
-                        {expense.tag_assignments.map(ta => (
-                            <span key={ta.id}
-                                className="inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-0.5 rounded-full text-[10px] font-bold text-white"
-                                style={{ background: ta.tag.color || '#6366f1' }}>
-                                {ta.tag.name}
-                                {editMode && (
-                                    <button
-                                        onClick={e => { e.stopPropagation(); onTagToggle(ta.tag.id) }}
-                                        className="hover:bg-white/30 rounded-full p-0.5 transition-all">
-                                        <X className="h-2.5 w-2.5" />
-                                    </button>
-                                )}
-                            </span>
-                        ))}
-                    </div>
-                )}
-            </td>
-
-            {/* Owner */}
-            <td className={cellCls} onClick={editMode ? () => editing === null && startEdit('owner') : undefined}
-                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
-                {editing === 'owner' ? (
-                    <div className="flex flex-col gap-1.5">
-                        <select className={selectCls} value={draft.ownership_type}
-                            onChange={e => setDraft(p => ({ ...p, ownership_type: e.target.value }))}
-                            onKeyDown={e => e.key === 'Escape' && cancel()}>
-                            <option value="joint">🤝 Joint</option>
-                            <option value="husband">👨 Husband</option>
-                            <option value="wife">👩 Wife</option>
-                        </select>
-                        {draft.ownership_type === 'joint' && (
-                            <div className="flex items-center gap-1.5">
-                                <input type="number" min="0" max="100"
-                                    className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
-                                    value={draft.joint_split_husband}
-                                    onChange={e => { const h = e.target.value; setDraft(p => ({ ...p, joint_split_husband: h, joint_split_wife: String(100 - parseFloat(h || '0')) })) }} />
-                                <span className="text-xs text-slate-300">/</span>
-                                <input type="number" min="0" max="100"
-                                    className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
-                                    value={draft.joint_split_wife}
-                                    onChange={e => setDraft(p => ({ ...p, joint_split_wife: e.target.value }))} />
+            {/* Title row */}
+            <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                    {editing === 'name' ? (
+                        <div className="flex flex-col gap-1.5">
+                            <input autoFocus className={inputCls} value={draft.name}
+                                onChange={e => setDraft(p => ({ ...p, name: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') save('name'); if (e.key === 'Escape') cancel() }} />
+                            <div className="flex gap-2">
+                                <button onClick={() => save('name')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                                <button onClick={cancel} className={cancelBtn}>Cancel</button>
                             </div>
-                        )}
-                        <div className="flex gap-2">
-                            <button onClick={() => save('owner')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
-                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
                         </div>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-sm text-slate-700 dark:text-slate-300">
-                            {expense.ownership_type === 'joint' ? '🤝 Joint' : expense.ownership_type === 'husband' ? '👨 Husband' : '👩 Wife'}
-                        </span>
-                        {expense.ownership_type === 'joint' && (
-                            <span className="text-xs text-slate-400">{expense.joint_split_husband}%/{expense.joint_split_wife}%</span>
-                        )}
-                    </div>
-                )}
-            </td>
-
-            {/* Account */}
-            <td className={cellCls} onClick={editMode ? () => editing === null && startEdit('account') : undefined}
-                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
-                {editing === 'account' ? (
-                    <div className="flex flex-col gap-1.5">
-                        <select className={`${selectCls} w-full`} value={draft.account_id || 'none'}
-                            onChange={e => setDraft(p => ({ ...p, account_id: e.target.value === 'none' ? '' : e.target.value }))}
-                            onKeyDown={e => e.key === 'Escape' && cancel()}>
-                            <option value="none">— None</option>
-                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                        </select>
-                        <div className="flex gap-2">
-                            <button onClick={() => save('account')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
-                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
-                        </div>
-                    </div>
-                ) : (
-                    sourceAccount ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                            <Wallet className="h-2.5 w-2.5" />{sourceAccount.name}
-                        </span>
                     ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                    )
-                )}
-            </td>
+                        <span
+                            className={`font-semibold text-slate-800 dark:text-slate-200 text-sm ${editMode && !expense.is_deleted ? 'cursor-text' : ''}`}
+                            onClick={editMode && !expense.is_deleted && editing === null ? () => startEdit('name') : undefined}
+                        >
+                            {expense.name}
+                        </span>
+                    )}
+                </div>
 
-            {/* Amount */}
-            <td className={`${cellCls} text-right`} onClick={editMode ? () => editing === null && startEdit('amount') : undefined}
-                style={editMode && editing === null && !expense.is_deleted ? { cursor: 'pointer' } : undefined}>
-                {editing === 'amount' ? (
-                    <div className="flex flex-col gap-1.5 items-end">
-                        <input type="number" autoFocus className="w-24 text-sm text-right bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400"
-                            value={draft.amount}
-                            onChange={e => setDraft(p => ({ ...p, amount: e.target.value }))}
-                            onKeyDown={e => e.key === 'Escape' && cancel()} />
-                        <select className={selectCls} value={draft.frequency}
-                            onChange={e => setDraft(p => ({ ...p, frequency: e.target.value }))}>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="annual">Annual</option>
-                        </select>
-                        <div className="flex gap-2">
-                            <button onClick={() => save('amount')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
-                            <button onClick={cancel} className={cancelBtn}>Cancel</button>
-                        </div>
-                    </div>
-                ) : (
-                    <div>
-                        <p className="font-black text-slate-900 dark:text-white text-sm whitespace-nowrap">{formatKES(expense.monthly_amount)}<span className="text-xs font-normal text-slate-400">/mo</span></p>
-                        {expense.frequency !== 'monthly' && (
-                            <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">{formatKES(expense.amount)} {expense.frequency}</p>
-                        )}
-                    </div>
-                )}
-            </td>
-
-            {/* Actions — only visible in edit mode */}
-            <td className="px-2 py-2 align-top bg-white dark:bg-slate-800">
-                {editMode && (
-                    <div className="flex items-center justify-end gap-0.5">
+                {editMode && editing === null && (
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
                         {expense.is_deleted ? (
                             <button onClick={onRestore}
                                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
@@ -1730,8 +1584,128 @@ function ExpenseTableRow({ expense, accounts, tags, editMode, onInlineUpdate, on
                         )}
                     </div>
                 )}
-            </td>
-        </tr>
+            </div>
+
+            {/* Tag chips */}
+            {expense.tag_assignments.length > 0 && (
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    {expense.tag_assignments.map(ta => (
+                        <span key={ta.id}
+                            className="inline-flex items-center gap-0.5 pl-1.5 pr-0.5 py-0.5 rounded-full text-[10px] font-bold text-white"
+                            style={{ background: ta.tag.color || '#6366f1' }}>
+                            {ta.tag.name}
+                            {editMode && (
+                                <button
+                                    onClick={e => { e.stopPropagation(); onTagToggle(ta.tag.id) }}
+                                    className="hover:bg-white/30 rounded-full p-0.5 transition-all">
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            )}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Caption row / inline edit forms */}
+            {editing === 'amount' ? (
+                <div className="mt-2 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                        <input type="number" autoFocus
+                            className="w-28 text-sm bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-400"
+                            value={draft.amount}
+                            onChange={e => setDraft(p => ({ ...p, amount: e.target.value }))}
+                            onKeyDown={e => e.key === 'Escape' && cancel()} />
+                        <select className={selectCls} value={draft.frequency}
+                            onChange={e => setDraft(p => ({ ...p, frequency: e.target.value }))}>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="annual">Annual</option>
+                        </select>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => save('amount')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                        <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                    </div>
+                </div>
+            ) : editing === 'owner' ? (
+                <div className="mt-2 flex flex-col gap-1.5">
+                    <select className={selectCls} value={draft.ownership_type}
+                        onChange={e => setDraft(p => ({ ...p, ownership_type: e.target.value }))}
+                        onKeyDown={e => e.key === 'Escape' && cancel()}>
+                        <option value="joint">🤝 Joint</option>
+                        <option value="husband">👨 Husband</option>
+                        <option value="wife">👩 Wife</option>
+                    </select>
+                    {draft.ownership_type === 'joint' && (
+                        <div className="flex items-center gap-1.5">
+                            <input type="number" min="0" max="100"
+                                className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
+                                value={draft.joint_split_husband}
+                                onChange={e => { const h = e.target.value; setDraft(p => ({ ...p, joint_split_husband: h, joint_split_wife: String(100 - parseFloat(h || '0')) })) }} />
+                            <span className="text-xs text-slate-300">/</span>
+                            <input type="number" min="0" max="100"
+                                className="w-12 text-xs text-center bg-sky-50 border border-sky-200 rounded-lg px-1.5 py-1 outline-none"
+                                value={draft.joint_split_wife}
+                                onChange={e => setDraft(p => ({ ...p, joint_split_wife: e.target.value }))} />
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <button onClick={() => save('owner')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                        <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                    </div>
+                </div>
+            ) : editing === 'account' ? (
+                <div className="mt-2 flex flex-col gap-1.5">
+                    <select className={`${selectCls} w-full`} value={draft.account_id || 'none'}
+                        onChange={e => setDraft(p => ({ ...p, account_id: e.target.value === 'none' ? '' : e.target.value }))}
+                        onKeyDown={e => e.key === 'Escape' && cancel()}>
+                        <option value="none">— None</option>
+                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                        <button onClick={() => save('account')} disabled={saving} className={saveBtn}>{saving ? '…' : 'Save'}</button>
+                        <button onClick={cancel} className={cancelBtn}>Cancel</button>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-1.5 flex-wrap">
+                    <span
+                        className={`text-xs font-semibold text-slate-600 dark:text-slate-300 ${editMode && !expense.is_deleted ? 'cursor-pointer hover:text-sky-600' : ''}`}
+                        onClick={editMode && !expense.is_deleted ? () => startEdit('amount') : undefined}
+                    >
+                        {formatKES(expense.monthly_amount)}/mo
+                        {expense.frequency !== 'monthly' && <span className="font-normal text-slate-400"> ({formatKES(expense.amount)} {expense.frequency})</span>}
+                    </span>
+                    <span className="text-slate-200 dark:text-slate-600 select-none">·</span>
+                    <span
+                        className={`text-xs text-slate-500 dark:text-slate-400 ${editMode && !expense.is_deleted ? 'cursor-pointer hover:text-sky-600' : ''}`}
+                        onClick={editMode && !expense.is_deleted ? () => startEdit('owner') : undefined}
+                    >
+                        {ownerLabel}
+                        {expense.ownership_type === 'joint' && <span className="text-slate-400"> {expense.joint_split_husband}%/{expense.joint_split_wife}%</span>}
+                    </span>
+                    {(sourceAccount || (editMode && !expense.is_deleted)) && (
+                        <span className="text-slate-200 dark:text-slate-600 select-none">·</span>
+                    )}
+                    {sourceAccount ? (
+                        <span
+                            className={`inline-flex items-center gap-0.5 text-xs text-slate-500 dark:text-slate-400 ${editMode && !expense.is_deleted ? 'cursor-pointer hover:text-sky-600' : ''}`}
+                            onClick={editMode && !expense.is_deleted ? () => startEdit('account') : undefined}
+                        >
+                            <Wallet className="h-2.5 w-2.5" />{sourceAccount.name}
+                        </span>
+                    ) : editMode && !expense.is_deleted ? (
+                        <span
+                            className="text-xs text-slate-300 dark:text-slate-600 cursor-pointer hover:text-sky-500 transition-colors"
+                            onClick={() => startEdit('account')}
+                        >
+                            + account
+                        </span>
+                    ) : null}
+                </div>
+            )}
+        </div>
     )
 }
 
