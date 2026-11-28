@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useHousehold } from '@/context/HouseholdContext'
 import { useTheme } from '@/context/ThemeContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
@@ -2007,7 +2008,7 @@ export default function HouseholdPage() {
             </Dialog>
 
             {/* Income Modal — donut chart vs labels toggle */}
-            {incomeModalOpen && (
+            {incomeModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
                     onClick={() => setIncomeModalOpen(false)}>
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -2122,7 +2123,7 @@ export default function HouseholdPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </div>
     )
 }

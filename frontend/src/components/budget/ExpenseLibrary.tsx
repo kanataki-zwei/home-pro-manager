@@ -1005,75 +1005,76 @@ export default function ExpenseLibrary() {
                                         style={{ background: GRADIENTS[gi % GRADIENTS.length] }}>
                                         {group.name.charAt(0)}
                                     </div>
-                                    <p className="font-bold text-slate-900 dark:text-white text-base flex-1 min-w-0 truncate">{group.name}</p>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                                        {group.is_deleted ? (
-                                            <button onClick={() => restoreGroup(group.id)}
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
-                                                <RotateCcw className="h-3.5 w-3.5" />
-                                            </button>
-                                        ) : (
-                                            <>
-                                                {tags.length > 0 && (
-                                                    <div className="relative" onMouseDown={e => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
-                                                            disabled={applyingTagToGroup === group.id}
-                                                            title="Add or remove a tag across all expenses in this group"
-                                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
-                                                            {applyingTagToGroup === group.id
-                                                                ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
-                                                                : <Tag className="h-3.5 w-3.5" />}
-                                                        </button>
-                                                        {groupTagPickerOpen === group.id && (
-                                                            <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl p-2 min-w-max">
-                                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
-                                                                <div className="space-y-0.5">
-                                                                    {tags.map(tag => {
-                                                                        const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
-                                                                        const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
-                                                                        return (
-                                                                            <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                                                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                                                    style={{ background: tag.color || '#6366f1' }} />
-                                                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 mr-3">{tag.name}</span>
-                                                                                <button
-                                                                                    onClick={() => applyTagToGroup(group.id, tag.id)}
-                                                                                    title="Add to all expenses in group"
-                                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
-                                                                                    <Plus className="h-3.5 w-3.5" />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => removeTagFromGroup(group.id, tag.id)}
-                                                                                    title="Remove from all expenses in group"
-                                                                                    disabled={!hasTag}
-                                                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
-                                                                                    <X className="h-3.5 w-3.5" />
-                                                                                </button>
-                                                                            </div>
-                                                                        )
-                                                                    })}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
-                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
-                                                    <Pencil className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button onClick={() => deleteGroup(group.id)}
-                                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button onClick={() => toggleGroupEdit(group.id)}
-                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${editModeGroups.has(group.id) ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
-                                                    {editModeGroups.has(group.id) ? 'Done' : 'Edit'}
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
+                                    <p className="font-bold text-slate-900 dark:text-white text-base flex-1 min-w-0">{group.name}</p>
                                     {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />}
+                                </div>
+                                {/* Actions row */}
+                                <div className="flex items-center gap-1.5 mt-2 ml-12" onClick={e => e.stopPropagation()}>
+                                    {group.is_deleted ? (
+                                        <button onClick={() => restoreGroup(group.id)}
+                                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all">
+                                            <RotateCcw className="h-3.5 w-3.5" />
+                                        </button>
+                                    ) : (
+                                        <>
+                                            {tags.length > 0 && (
+                                                <div className="relative" onMouseDown={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => setGroupTagPickerOpen(p => p === group.id ? null : group.id)}
+                                                        disabled={applyingTagToGroup === group.id}
+                                                        title="Add or remove a tag across all expenses in this group"
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-all disabled:opacity-40">
+                                                        {applyingTagToGroup === group.id
+                                                            ? <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                                                            : <Tag className="h-3.5 w-3.5" />}
+                                                    </button>
+                                                    {groupTagPickerOpen === group.id && (
+                                                        <div className="absolute left-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl p-2 min-w-max">
+                                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide px-2 pb-1.5">Tag this group</p>
+                                                            <div className="space-y-0.5">
+                                                                {tags.map(tag => {
+                                                                    const groupExps = expenses.filter(e => e.group_id === group.id && !e.is_deleted)
+                                                                    const hasTag = groupExps.some(e => e.tag_assignments.some(ta => ta.tag.id === tag.id))
+                                                                    return (
+                                                                        <div key={tag.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                                                                style={{ background: tag.color || '#6366f1' }} />
+                                                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 mr-3">{tag.name}</span>
+                                                                            <button
+                                                                                onClick={() => applyTagToGroup(group.id, tag.id)}
+                                                                                title="Add to all expenses in group"
+                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                                                                                <Plus className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => removeTagFromGroup(group.id, tag.id)}
+                                                                                title="Remove from all expenses in group"
+                                                                                disabled={!hasTag}
+                                                                                className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-25 disabled:cursor-not-allowed">
+                                                                                <X className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <button onClick={() => { setEditingGroup(group); setGroupName(group.name); setEditGroupDialog(true) }}
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all">
+                                                <Pencil className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button onClick={() => deleteGroup(group.id)}
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button onClick={() => toggleGroupEdit(group.id)}
+                                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${editModeGroups.has(group.id) ? 'bg-sky-100 text-sky-600 border-sky-200' : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 border-transparent'}`}>
+                                                {editModeGroups.has(group.id) ? 'Done' : 'Edit'}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                                 {/* Stats callouts */}
                                 <div className="flex items-center gap-2 mt-3 ml-12 flex-wrap">

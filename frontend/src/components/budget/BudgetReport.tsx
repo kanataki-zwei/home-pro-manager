@@ -141,19 +141,16 @@ function ByGroupChartView({ data, type, height = 220 }: {
 
     if (type === 'labels') {
         return (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
                 {data.map(item => (
                     <div key={item.name}>
-                        <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
-                            </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmt(item.value)}</span>
-                                <span className="text-xs text-slate-400 ml-1.5">{item.pct.toFixed(1)}%</span>
-                            </div>
+                        <div className="flex items-center gap-2 min-w-0 mb-0.5">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{item.name}</span>
                         </div>
+                        <p className="text-xs font-bold text-slate-500 pl-[18px] mb-1">
+                            {fmt(item.value)}<span className="font-normal text-slate-400"> · {item.pct.toFixed(1)}%</span>
+                        </p>
                         <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all"
                                 style={{ width: `${item.pct}%`, background: item.color }} />
@@ -559,10 +556,12 @@ export default function BudgetReport() {
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
                         <Receipt className="h-3 w-3 text-slate-400" />
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses</p>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Items</p>
                     </div>
                     <p className="text-lg font-black text-slate-900 dark:text-white">{scopedRows.length}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">line items</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                        {scopedRows.length - savingsRows.length} expense · {savingsRows.length} savings
+                    </p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
@@ -589,9 +588,9 @@ export default function BudgetReport() {
                 const invPct  = scopedIncome > 0 ? (totalInvestmentsMonthly  / scopedIncome) * 100 : 0
                 const splitTotal = expPct + savPct + invPct
                 return (
-                    <div className="flex gap-4 items-stretch">
-                        {/* By Group card — equal width */}
-                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="space-y-4">
+                        {/* By Group card — full width */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">By Group</p>
                                 <button onClick={() => openModal('byGroup')}
@@ -610,18 +609,18 @@ export default function BudgetReport() {
                             />
                         </div>
 
-                        {/* Budget split card — equal width */}
-                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Split</p>
+                        {/* Budget split card — full width, horizontal numbers */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Budget Split</p>
 
-                            <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px mb-4">
                                 {expPct > 0 && <div style={{ width: `${splitTotal > 0 ? (expPct / splitTotal) * 100 : 0}%`, background: '#0ea5e9' }} />}
                                 {savPct > 0 && <div style={{ width: `${splitTotal > 0 ? (savPct / splitTotal) * 100 : 0}%`, background: '#10b981' }} />}
                                 {invPct > 0 && <div style={{ width: `${splitTotal > 0 ? (invPct / splitTotal) * 100 : 0}%`, background: '#8b5cf6' }} />}
                                 {splitTotal === 0 && <div className="w-full bg-slate-100 dark:bg-slate-700" />}
                             </div>
 
-                            <div className="flex flex-col gap-3 mt-auto">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div>
                                     <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{expPct.toFixed(1)}%</p>
                                     <p className="text-xs text-slate-400 mt-0.5">Expenses</p>
@@ -962,13 +961,11 @@ export default function BudgetReport() {
                                                     <div className="flex items-center gap-3 px-5 py-4">
                                                         <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
-                                                                <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
-                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                                                {fmt(groupTotal)}<span className="font-normal text-slate-400">/mo</span>
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1.5">
                                                                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
                                                                 </div>
@@ -978,16 +975,16 @@ export default function BudgetReport() {
                                                     </div>
                                                     <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                                                         {panel.rows.map(({ expense, amount }) => (
-                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                                            <div key={expense.id} className="px-5 py-3 pl-16">
+                                                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{expense.name}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
                                                                     <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
                                                                         {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
                                                                     </span>
+                                                                    <span className="text-xs font-bold text-slate-500">
+                                                                        {fmt(amount)}<span className="font-normal text-slate-400">/mo</span>
+                                                                    </span>
                                                                 </div>
-                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1001,13 +998,11 @@ export default function BudgetReport() {
                                                             {panel.name.charAt(0)}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
-                                                                <p className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</p>
-                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                                                {fmt(groupTotal)}<span className="font-normal text-slate-400">/mo</span>
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1.5">
                                                                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className="h-full rounded-full transition-all"
                                                                         style={{ width: `${pct}%`, background: GRADIENTS[panel.gradientIndex % GRADIENTS.length] }} />
@@ -1018,23 +1013,21 @@ export default function BudgetReport() {
                                                     </div>
                                                     <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                                                         {panel.rows.map(({ expense, amount }) => (
-                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                                                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                                        <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                                            {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                            <div key={expense.id} className="px-5 py-3 pl-16">
+                                                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{expense.name}</p>
+                                                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                                    <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                                        {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                                    </span>
+                                                                    {expense.ownership_type === 'joint' && scope === 'me' && (
+                                                                        <span className="text-xs text-slate-400">
+                                                                            {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
                                                                         </span>
-                                                                        {expense.ownership_type === 'joint' && scope === 'me' && (
-                                                                            <span className="text-xs text-slate-400">
-                                                                                {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
+                                                                    )}
+                                                                    <span className="text-xs font-bold text-slate-500">
+                                                                        {fmt(amount)}<span className="font-normal text-slate-400">/mo</span>
+                                                                    </span>
                                                                 </div>
-                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
                                                             </div>
                                                         ))}
                                                     </div>
