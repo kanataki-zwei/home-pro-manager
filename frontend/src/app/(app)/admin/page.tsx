@@ -646,10 +646,10 @@ export default function AdminPage() {
 
     const isOwner = household && currentUserId && household.created_by === currentUserId
 
-    const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
-        { id: 'users', label: 'Users', icon: Users },
-        { id: 'budget', label: 'Budget Configs', icon: Banknote },
-        { id: 'system', label: 'System Configs', icon: Settings },
+    const tabs: { id: AdminTab; label: string; mobileLabel: string; icon: React.ElementType }[] = [
+        { id: 'users', label: 'Users', mobileLabel: 'Users', icon: Users },
+        { id: 'budget', label: 'Budget Configs', mobileLabel: 'Budget', icon: Banknote },
+        { id: 'system', label: 'System Configs', mobileLabel: 'System', icon: Settings },
     ]
 
     return (
@@ -678,14 +678,15 @@ export default function AdminPage() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-2 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all ${
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-2 md:px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all ${
                                 isActive
                                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                             }`}
                         >
-                            <Icon className="h-4 w-4" />
-                            {tab.label}
+                            <Icon className="h-4 w-4 shrink-0" />
+                            <span className="sm:hidden">{tab.mobileLabel}</span>
+                            <span className="hidden sm:inline">{tab.label}</span>
                         </button>
                     )
                 })}
@@ -695,11 +696,11 @@ export default function AdminPage() {
             {activeTab === 'users' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex gap-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         {([
                             { id: 'profile', label: 'Profile', icon: User },
                             { id: 'household', label: 'Household', icon: Building2 },
-                            { id: 'member-types', label: 'Member Types', icon: Tags },
+                            { id: 'member-types', label: 'Types', icon: Tags },
                             ...(isOwner ? [{ id: 'accounts' as UsersSubtab, label: 'Accounts', icon: ShieldCheck }] : []),
                         ] as { id: UsersSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
                             <button
@@ -709,7 +710,7 @@ export default function AdminPage() {
                                     if (id === 'accounts' && !accountsLoaded) loadHouseholdAccounts()
                                 }}
                                 className={cn(
-                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap',
                                     usersSubtab === id
                                         ? 'border-sky-500 text-sky-600'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -988,7 +989,7 @@ export default function AdminPage() {
                             ) : (
                                 <div className="space-y-2">
                                     {householdAccounts.map(account => (
-                                        <div key={account.user_id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 p-4">
+                                        <div key={account.user_id} className="rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 p-4 space-y-3">
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="text-sm font-semibold text-slate-800 dark:text-white">{account.member_name}</span>
@@ -1007,10 +1008,10 @@ export default function AdminPage() {
                                                 </div>
                                                 <p className="text-xs text-slate-400 mt-0.5">{account.email}</p>
                                             </div>
-                                            <div className="flex items-center gap-2 shrink-0">
+                                            <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => openEdit(account)}
-                                                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-sky-700 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 transition-colors"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl text-sky-700 bg-sky-50 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/40 transition-colors"
                                                 >
                                                     <Pencil className="h-3.5 w-3.5" />
                                                     Edit
@@ -1022,7 +1023,7 @@ export default function AdminPage() {
                                                         setResetConfirm('')
                                                         setResetError('')
                                                     }}
-                                                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
+                                                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40 transition-colors"
                                                 >
                                                     <ShieldCheck className="h-3.5 w-3.5" />
                                                     Reset pw
@@ -1226,16 +1227,16 @@ export default function AdminPage() {
             {activeTab === 'budget' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex gap-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         {([
                             { id: 'calendar', label: 'Budget Calendar', icon: CalendarDays },
-                            { id: 'currency', label: 'Currency & FX Rates', icon: RefreshCw },
+                            { id: 'currency', label: 'FX Rates', icon: RefreshCw },
                         ] as { id: BudgetSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
                             <button
                                 key={id}
                                 onClick={() => setBudgetSubtab(id)}
                                 className={cn(
-                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap',
                                     budgetSubtab === id
                                         ? 'border-sky-500 text-sky-600'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -1458,10 +1459,10 @@ export default function AdminPage() {
             {activeTab === 'system' && (
                 <div className="space-y-5">
                     {/* Subtab bar */}
-                    <div className="flex gap-6 border-b border-slate-200 dark:border-slate-700">
+                    <div className="flex gap-5 border-b border-slate-200 dark:border-slate-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         {([
                             { id: 'view-mode', label: 'View Mode', icon: Eye },
-                            { id: 'devices', label: 'Trusted Devices', icon: Smartphone },
+                            { id: 'devices', label: 'Devices', icon: Smartphone },
                             { id: 'playground', label: 'Playground', icon: FlaskConical },
                             ...(isOwner ? [{ id: 'danger-zone' as SystemSubtab, label: 'Danger Zone', icon: ShieldAlert }] : []),
                         ] as { id: SystemSubtab; label: string; icon: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
@@ -1475,7 +1476,7 @@ export default function AdminPage() {
                                     }
                                 }}
                                 className={cn(
-                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                                    'flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap',
                                     systemSubtab === id
                                         ? id === 'danger-zone' ? 'border-red-500 text-red-600' : 'border-sky-500 text-sky-600'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'

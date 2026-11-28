@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { TrendingUp, TrendingDown, Shield, ShieldOff, ArrowUpRight, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -106,7 +106,6 @@ export default function NetWorthPage() {
     const [accountsPerPage, setAccountsPerPage] = useState(5)
     const [txnPage, setTxnPage] = useState(0)
     const [txnsPerPage, setTxnsPerPage] = useState(5)
-    const spreadTouchStart = useRef<number>(0)
     const isMeMode = viewMode === 'me'
 
     useEffect(() => {
@@ -444,11 +443,21 @@ export default function NetWorthPage() {
                             <p className="text-sm font-black text-slate-800 dark:text-slate-200 mt-0.5">{fmtCompact(spreadTotal)}</p>
                         </div>
                         <div className="flex flex-col items-end gap-1.5">
-                            <div className="flex items-center gap-1">
-                                {[0, 1, 2].map(i => (
-                                    <button key={i} onClick={() => setSpreadSlide(i)}
-                                        className={`rounded-full transition-all ${i === spreadSlide ? 'w-4 h-2 bg-sky-500' : 'w-2 h-2 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300'}`} />
-                                ))}
+                            <div className="flex items-center gap-1.5">
+                                <button onClick={() => setSpreadSlide(s => Math.max(0, s - 1))} disabled={spreadSlide === 0}
+                                    className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                </button>
+                                <div className="flex items-center gap-1">
+                                    {[0, 1, 2].map(i => (
+                                        <button key={i} onClick={() => setSpreadSlide(i)}
+                                            className={`rounded-full transition-all ${i === spreadSlide ? 'w-4 h-2 bg-sky-500' : 'w-2 h-2 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300'}`} />
+                                    ))}
+                                </div>
+                                <button onClick={() => setSpreadSlide(s => Math.min(2, s + 1))} disabled={spreadSlide === 2}
+                                    className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
                             </div>
                             <p className="text-xs text-slate-400">
                                 {spreadSlide === 0 ? 'By Institution' : spreadSlide === 1 ? 'By Currency' : 'Monthly Growth'}
@@ -456,13 +465,7 @@ export default function NetWorthPage() {
                         </div>
                     </div>
 
-                    {/* Swipeable slide area */}
-                    <div
-                        onTouchStart={e => { spreadTouchStart.current = e.touches[0].clientX }}
-                        onTouchEnd={e => {
-                            const delta = e.changedTouches[0].clientX - spreadTouchStart.current
-                            if (Math.abs(delta) > 40) setSpreadSlide(s => Math.max(0, Math.min(2, s + (delta < 0 ? 1 : -1))))
-                        }}>
+                    <div>
 
                         {/* Slide 0: By Institution Type */}
                         {spreadSlide === 0 && (

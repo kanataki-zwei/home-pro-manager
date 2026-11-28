@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useHousehold } from '@/context/HouseholdContext'
 import { apiGet } from '@/lib/api'
 import { toast } from 'sonner'
-import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp, List } from 'lucide-react'
+import { Layers, Receipt, Maximize2, AlignLeft, BarChart2 as BarChartIcon, Disc, TrendingUp, List, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip as ReTooltip,
     PieChart, Pie, Legend, LineChart, Line, ReferenceLine,
@@ -141,19 +141,16 @@ function ByGroupChartView({ data, type, height = 220 }: {
 
     if (type === 'labels') {
         return (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
                 {data.map(item => (
                     <div key={item.name}>
-                        <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
-                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
-                            </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{fmt(item.value)}</span>
-                                <span className="text-xs text-slate-400 ml-1.5">{item.pct.toFixed(1)}%</span>
-                            </div>
+                        <div className="flex items-center gap-2 min-w-0 mb-0.5">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{item.name}</span>
                         </div>
+                        <p className="text-xs font-bold text-slate-500 pl-[18px] mb-1">
+                            {fmt(item.value)}<span className="font-normal text-slate-400"> · {item.pct.toFixed(1)}%</span>
+                        </p>
                         <div className="h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all"
                                 style={{ width: `${item.pct}%`, background: item.color }} />
@@ -303,24 +300,15 @@ export default function BudgetReport() {
     const [pendingType, setPendingType] = useState<string>('bar-h')
 
     // Savings carousel
-    const savingsSwipeRef = useRef<HTMLDivElement>(null)
     const [savingsPage, setSavingsPage] = useState(0)
-    const touchStartX = useRef(0)
-    const touchStartY = useRef(0)
     const [savingsTrend, setSavingsTrend] = useState<SavingsTrendApiData | null>(null)
     const [savingsTrendLoading, setSavingsTrendLoading] = useState(true)
 
     // Member portraits carousel
-    const membersSwipeRef = useRef<HTMLDivElement>(null)
     const [membersPage, setMembersPage] = useState(0)
-    const membersTouchStartX = useRef(0)
-    const membersTouchStartY = useRef(0)
 
     // Expense groups carousel
-    const expGroupsSwipeRef = useRef<HTMLDivElement>(null)
     const [expGroupsPage, setExpGroupsPage] = useState(0)
-    const expGroupsTouchStartX = useRef(0)
-    const expGroupsTouchStartY = useRef(0)
 
     function openModal(chart: 'byGroup' | 'trend') {
         setPendingType(chart === 'byGroup' ? byGroupChartType : trendChartType)
@@ -518,86 +506,6 @@ export default function BudgetReport() {
             .finally(() => setSavingsTrendLoading(false))
     }, [household?.id])
 
-    // Native touch listeners for savings swipe (passive, avoids blocking WebKit scroll)
-    useEffect(() => {
-        if (loading) return
-        const el = savingsSwipeRef.current
-        if (!el) return
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            touchStartX.current = e.touches[0].clientX
-            touchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - touchStartX.current
-            const dy = e.changedTouches[0].clientY - touchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setSavingsPage(dx < 0 ? 1 : 0)
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
-    // Native touch listeners for member portraits carousel
-    useEffect(() => {
-        if (loading) return
-        const el = membersSwipeRef.current
-        if (!el) return
-        const count = memberRows.length
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            membersTouchStartX.current = e.touches[0].clientX
-            membersTouchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - membersTouchStartX.current
-            const dy = e.changedTouches[0].clientY - membersTouchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setMembersPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
-    // Native touch listeners for expense groups carousel
-    useEffect(() => {
-        if (loading) return
-        const el = expGroupsSwipeRef.current
-        if (!el) return
-        const count = expGroupPanels.length
-        const onStart = (e: TouchEvent) => {
-            e.stopPropagation()
-            expGroupsTouchStartX.current = e.touches[0].clientX
-            expGroupsTouchStartY.current = e.touches[0].clientY
-        }
-        const onEnd = (e: TouchEvent) => {
-            e.stopPropagation()
-            const dx = e.changedTouches[0].clientX - expGroupsTouchStartX.current
-            const dy = e.changedTouches[0].clientY - expGroupsTouchStartY.current
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-                setExpGroupsPage(p => dx < 0 ? Math.min(p + 1, count - 1) : Math.max(p - 1, 0))
-            }
-        }
-        el.addEventListener('touchstart', onStart, { passive: true })
-        el.addEventListener('touchend', onEnd, { passive: true })
-        return () => {
-            el.removeEventListener('touchstart', onStart)
-            el.removeEventListener('touchend', onEnd)
-        }
-    }, [loading])
-
     const savingsTrendChart = useMemo(() => {
         if (!savingsTrend || savingsTrend.months.length === 0) return { data: [], memberNames: [] as string[] }
         const memberNames = savingsTrend.months[0].members.map(m => m.name)
@@ -648,10 +556,12 @@ export default function BudgetReport() {
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
                         <Receipt className="h-3 w-3 text-slate-400" />
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expenses</p>
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Items</p>
                     </div>
                     <p className="text-lg font-black text-slate-900 dark:text-white">{scopedRows.length}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">line items</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                        {scopedRows.length - savingsRows.length} expense · {savingsRows.length} savings
+                    </p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-100 dark:border-slate-700" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                     <div className="flex items-center gap-1.5 mb-1">
@@ -678,9 +588,9 @@ export default function BudgetReport() {
                 const invPct  = scopedIncome > 0 ? (totalInvestmentsMonthly  / scopedIncome) * 100 : 0
                 const splitTotal = expPct + savPct + invPct
                 return (
-                    <div className="flex gap-4 items-stretch">
-                        {/* By Group card — equal width */}
-                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div className="space-y-4">
+                        {/* By Group card — full width */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">By Group</p>
                                 <button onClick={() => openModal('byGroup')}
@@ -699,18 +609,18 @@ export default function BudgetReport() {
                             />
                         </div>
 
-                        {/* Budget split card — equal width */}
-                        <div className="flex-1 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 flex flex-col gap-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Budget Split</p>
+                        {/* Budget split card — full width, horizontal numbers */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Budget Split</p>
 
-                            <div className="flex h-2 rounded-full overflow-hidden gap-px">
+                            <div className="flex h-2 rounded-full overflow-hidden gap-px mb-4">
                                 {expPct > 0 && <div style={{ width: `${splitTotal > 0 ? (expPct / splitTotal) * 100 : 0}%`, background: '#0ea5e9' }} />}
                                 {savPct > 0 && <div style={{ width: `${splitTotal > 0 ? (savPct / splitTotal) * 100 : 0}%`, background: '#10b981' }} />}
                                 {invPct > 0 && <div style={{ width: `${splitTotal > 0 ? (invPct / splitTotal) * 100 : 0}%`, background: '#8b5cf6' }} />}
                                 {splitTotal === 0 && <div className="w-full bg-slate-100 dark:bg-slate-700" />}
                             </div>
 
-                            <div className="flex flex-col gap-3 mt-auto">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div>
                                     <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{expPct.toFixed(1)}%</p>
                                     <p className="text-xs text-slate-400 mt-0.5">Expenses</p>
@@ -732,17 +642,11 @@ export default function BudgetReport() {
             {/* ── Member Financial Portraits carousel ── */}
             {scope === 'all' && memberRows.length > 0 && (
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
-                        {memberRows.length > 1 && (
-                            <span className="text-xs text-slate-400">{membersPage + 1} / {memberRows.length}</span>
-                        )}
-                    </div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Member Portraits</p>
 
-                    <div ref={membersSwipeRef} className="overflow-hidden">
-                        <div className="flex transition-transform duration-300 ease-out"
-                             style={{ transform: `translateX(${membersPage * -100}%)` }}>
-                            {memberRows.map(row => {
+                    <div>
+                        {memberRows.map((row, i) => {
+                            if (i !== membersPage) return null
                                 const { member, income, hhOwned, hhJoint, personal, allocated, remaining, savingsRate, memberSavings, gradient } = row
                                 const isMe = member.user_id === currentUserId
                                 const overspent = remaining < 0
@@ -754,7 +658,7 @@ export default function BudgetReport() {
                                 const assignedPct = income > 0 ? Math.min((allocated / income) * 100, 100) : 0
 
                                 return (
-                                    <div key={member.id} className="w-full flex-shrink-0">
+                                    <div key={member.id}>
                                         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden"
                                             style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                                             <div className="h-1 w-full" style={{ background: gradient }} />
@@ -860,21 +764,30 @@ export default function BudgetReport() {
                                         </div>
                                     </div>
                                 )
-                            })}
-                        </div>
+                        })}
                     </div>
 
                     {memberRows.length > 1 && (
-                        <div className="flex justify-center gap-1.5 pt-1">
-                            {memberRows.map((_, i) => (
-                                <button key={i} onClick={() => setMembersPage(i)}
-                                    className={`rounded-full transition-all duration-200 ${
-                                        membersPage === i
-                                            ? 'w-4 h-1.5 bg-sky-500'
-                                            : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                    }`}
-                                />
-                            ))}
+                        <div className="flex items-center justify-center gap-3 pt-1">
+                            <button onClick={() => setMembersPage(p => Math.max(0, p - 1))} disabled={membersPage === 0}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <div className="flex items-center gap-1.5">
+                                {memberRows.map((_, i) => (
+                                    <button key={i} onClick={() => setMembersPage(i)}
+                                        className={`rounded-full transition-all duration-200 ${
+                                            membersPage === i
+                                                ? 'w-4 h-1.5 bg-sky-500'
+                                                : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+                            <button onClick={() => setMembersPage(p => Math.min(memberRows.length - 1, p + 1))} disabled={membersPage === memberRows.length - 1}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
                         </div>
                     )}
                 </div>
@@ -885,14 +798,9 @@ export default function BudgetReport() {
                 <div className="space-y-3">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Savings</p>
 
-                    {/* Swipeable panels */}
-                    <div ref={savingsSwipeRef} className="overflow-hidden">
-                        <div className="flex transition-transform duration-300 ease-out"
-                             style={{ transform: `translateX(${savingsPage * -100}%)` }}>
-
-                            {/* Panel 1 — savings rate card */}
-                            <div className="w-full flex-shrink-0">
-                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div>
+                        {savingsPage === 0 && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50 dark:border-slate-700">
                                         <div>
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -946,12 +854,10 @@ export default function BudgetReport() {
                                             })}
                                         </div>
                                     )}
-                                </div>
                             </div>
-
-                            {/* Panel 2 — savings rate trend (last 6 months) */}
-                            <div className="w-full flex-shrink-0">
-                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        )}
+                        {savingsPage === 1 && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                     {savingsTrendLoading ? (
                                         <div className="flex items-center justify-center h-48">
                                             <div className="w-5 h-5 rounded-full border-2 border-sky-500 border-t-transparent animate-spin" />
@@ -1004,35 +910,37 @@ export default function BudgetReport() {
                                             </div>
                                         </>
                                     )}
-                                </div>
                             </div>
-
-                        </div>
+                        )}
                     </div>
 
-                    {/* Pagination dots */}
-                    <div className="flex justify-center gap-1.5 pt-1">
-                        {[0, 1].map(i => (
-                            <button key={i} onClick={() => setSavingsPage(i)}
-                                className={`rounded-full transition-all duration-200 ${
-                                    savingsPage === i
-                                        ? 'w-4 h-1.5 bg-sky-500'
-                                        : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                }`}
-                            />
-                        ))}
+                    <div className="flex items-center justify-center gap-3 pt-1">
+                        <button onClick={() => setSavingsPage(0)} disabled={savingsPage === 0}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                            {[0, 1].map(i => (
+                                <button key={i} onClick={() => setSavingsPage(i)}
+                                    className={`rounded-full transition-all duration-200 ${
+                                        savingsPage === i
+                                            ? 'w-4 h-1.5 bg-sky-500'
+                                            : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                    }`}
+                                />
+                            ))}
+                        </div>
+                        <button onClick={() => setSavingsPage(1)} disabled={savingsPage === 1}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
                     </div>
                 </div>
             )}
 
             {/* ── Group breakdown list ── */}
             <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
-                    {expGroupPanels.length > 1 && (
-                        <span className="text-xs text-slate-400">{expGroupsPage + 1} / {expGroupPanels.length}</span>
-                    )}
-                </div>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Expense Detail</p>
 
                 {scopedRows.length === 0 ? (
                     <div className="flex items-center justify-center h-32 rounded-3xl border-2 border-dashed border-slate-200">
@@ -1040,27 +948,24 @@ export default function BudgetReport() {
                     </div>
                 ) : (
                     <>
-                        <div ref={expGroupsSwipeRef} className="overflow-hidden">
-                            <div className="flex transition-transform duration-300 ease-out"
-                                 style={{ transform: `translateX(${expGroupsPage * -100}%)` }}>
-                                {expGroupPanels.map(panel => {
+                        <div>
+                            {expGroupPanels.map((panel, i) => {
+                                if (i !== expGroupsPage) return null
                                     const groupTotal = panel.rows.reduce((s, r) => s + r.amount, 0)
                                     const pct = totalMonthly > 0 ? (groupTotal / totalMonthly) * 100 : 0
                                     return (
-                                        <div key={panel.id} className="w-full flex-shrink-0">
+                                        <div key={panel.id}>
                                             {panel.isUngrouped ? (
                                                 <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-600 overflow-hidden"
                                                     style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                                     <div className="flex items-center gap-3 px-5 py-4">
                                                         <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 text-sm font-black flex-shrink-0">?</div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
-                                                                <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
-                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-slate-500 text-sm">Ungrouped</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                                                {fmt(groupTotal)}<span className="font-normal text-slate-400">/mo</span>
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1.5">
                                                                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className="h-full rounded-full bg-slate-300 transition-all" style={{ width: `${pct}%` }} />
                                                                 </div>
@@ -1070,16 +975,16 @@ export default function BudgetReport() {
                                                     </div>
                                                     <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                                                         {panel.rows.map(({ expense, amount }) => (
-                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
+                                                            <div key={expense.id} className="px-5 py-3 pl-16">
+                                                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{expense.name}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
                                                                     <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
                                                                         {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
                                                                     </span>
+                                                                    <span className="text-xs font-bold text-slate-500">
+                                                                        {fmt(amount)}<span className="font-normal text-slate-400">/mo</span>
+                                                                    </span>
                                                                 </div>
-                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1093,13 +998,11 @@ export default function BudgetReport() {
                                                             {panel.name.charAt(0)}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center justify-between gap-3 mb-1.5">
-                                                                <p className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</p>
-                                                                <p className="font-black text-slate-900 dark:text-white text-sm flex-shrink-0">
-                                                                    {fmt(groupTotal)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-slate-900 dark:text-white text-sm">{panel.name}</p>
+                                                            <p className="text-xs font-bold text-slate-500 mt-0.5">
+                                                                {fmt(groupTotal)}<span className="font-normal text-slate-400">/mo</span>
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1.5">
                                                                 <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className="h-full rounded-full transition-all"
                                                                         style={{ width: `${pct}%`, background: GRADIENTS[panel.gradientIndex % GRADIENTS.length] }} />
@@ -1110,23 +1013,21 @@ export default function BudgetReport() {
                                                     </div>
                                                     <div className="border-t border-slate-50 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-700">
                                                         {panel.rows.map(({ expense, amount }) => (
-                                                            <div key={expense.id} className="flex items-center justify-between px-5 py-3 pl-16">
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{expense.name}</p>
-                                                                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                                        <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
-                                                                            {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                            <div key={expense.id} className="px-5 py-3 pl-16">
+                                                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{expense.name}</p>
+                                                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                                    <span className={`px-1.5 py-0.5 rounded-md text-xs font-bold ${OWNERSHIP_CHIP[expense.ownership_type] ?? 'bg-slate-50 text-slate-500'}`}>
+                                                                        {OWNERSHIP_LABELS[expense.ownership_type] ?? expense.ownership_type}
+                                                                    </span>
+                                                                    {expense.ownership_type === 'joint' && scope === 'me' && (
+                                                                        <span className="text-xs text-slate-400">
+                                                                            {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
                                                                         </span>
-                                                                        {expense.ownership_type === 'joint' && scope === 'me' && (
-                                                                            <span className="text-xs text-slate-400">
-                                                                                {myRole === 'husband' ? expense.joint_split_husband : expense.joint_split_wife}% share
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
+                                                                    )}
+                                                                    <span className="text-xs font-bold text-slate-500">
+                                                                        {fmt(amount)}<span className="font-normal text-slate-400">/mo</span>
+                                                                    </span>
                                                                 </div>
-                                                                <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 ml-3">
-                                                                    {fmt(amount)}<span className="text-xs font-normal text-slate-400">/mo</span>
-                                                                </p>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1134,21 +1035,30 @@ export default function BudgetReport() {
                                             )}
                                         </div>
                                     )
-                                })}
-                            </div>
+                            })}
                         </div>
 
                         {expGroupPanels.length > 1 && (
-                            <div className="flex justify-center gap-1.5 pt-1">
-                                {expGroupPanels.map((_, i) => (
-                                    <button key={i} onClick={() => setExpGroupsPage(i)}
-                                        className={`rounded-full transition-all duration-200 ${
-                                            expGroupsPage === i
-                                                ? 'w-4 h-1.5 bg-sky-500'
-                                                : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
-                                        }`}
-                                    />
-                                ))}
+                            <div className="flex items-center justify-center gap-3 pt-1">
+                                <button onClick={() => setExpGroupsPage(p => Math.max(0, p - 1))} disabled={expGroupsPage === 0}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    {expGroupPanels.map((_, i) => (
+                                        <button key={i} onClick={() => setExpGroupsPage(i)}
+                                            className={`rounded-full transition-all duration-200 ${
+                                                expGroupsPage === i
+                                                    ? 'w-4 h-1.5 bg-sky-500'
+                                                    : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600'
+                                            }`}
+                                        />
+                                    ))}
+                                </div>
+                                <button onClick={() => setExpGroupsPage(p => Math.min(expGroupPanels.length - 1, p + 1))} disabled={expGroupsPage === expGroupPanels.length - 1}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
                             </div>
                         )}
                     </>

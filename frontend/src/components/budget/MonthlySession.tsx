@@ -1602,23 +1602,15 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
 
             {/* ── Payday banner ─────────────────────────────────── */}
             {showPaydayBanner && (
-                <div className="flex items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">💰</span>
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-emerald-800">It's payday — time to plan ahead</p>
-                            <p className="text-xs text-emerald-600 mt-0.5">
-                                You set the {payDay}{payDay === 1 ? 'st' : payDay === 2 ? 'nd' : payDay === 3 ? 'rd' : 'th'} as your pay day.
-                                Set up your <span className="font-semibold">{nextMonthName}</span> budget now.
-                            </p>
-                        </div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-5 space-y-3">
+                    <div>
+                        <p className="text-lg font-black text-emerald-800">💰 It's pay day!</p>
+                        <p className="text-sm font-semibold text-emerald-600 mt-1">Time to plan your {nextMonthName} budget.</p>
                     </div>
                     <button
                         onClick={() => startSession(nextMonthStart)}
                         disabled={startingMonth === nextMonthStart}
-                        className="flex-shrink-0 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 transition-colors disabled:opacity-60">
+                        className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-sm font-bold text-white transition-colors disabled:opacity-60">
                         {startingMonth === nextMonthStart ? 'Starting…' : `Start ${nextMonthName} Budget`}
                     </button>
                 </div>
@@ -1627,7 +1619,7 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
             {/* ── Year label + grid ──────────────────────────────── */}
             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">{currentYear}</p>
 
-            <div className="grid grid-cols-3 gap-2 md:gap-3">
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
                 {MONTH_NAMES.map((name, idx) => {
                     const mStart = monthStart(currentYear, idx)
                     const monthKey = mStart.slice(0, 7)
@@ -1635,10 +1627,6 @@ export default function MonthlySession({ autoFilter = false }: { autoFilter?: bo
                     const isFuture = mStart > currMonthStart
                     const isCurrent = mStart === currMonthStart
 
-                    // Hide months before financial start month
-                    if (financialStartMonth && monthKey < financialStartMonth && !session) {
-                        return null
-                    }
                     const isLoading = loadingSessionId === session?.id
                     const isStarting = startingMonth === mStart
 

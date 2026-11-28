@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useHousehold } from '@/context/HouseholdContext'
 import { useTheme } from '@/context/ThemeContext'
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api'
@@ -185,7 +186,6 @@ export default function HouseholdPage() {
     const [memberCarouselIdx, setMemberCarouselIdx] = useState(0)
     const [filtersOpen, setFiltersOpen] = useState(false)
     const roleTapTimerRef = useRef<number>(0)
-    const carouselTouchStartX = useRef<number>(0)
 
     const [createUserDialog, setCreateUserDialog] = useState(false)
     const [newUser, setNewUser] = useState({ email: '', password: '', name: '' })
@@ -932,13 +932,7 @@ export default function HouseholdPage() {
                     const goTo = (idx: number) => setMemberCarouselIdx(Math.max(0, Math.min(idx, memberOrder.length - 1)))
                     return (
                         <div>
-                            <div
-                                className="relative"
-                                onTouchStart={e => { carouselTouchStartX.current = e.touches[0].clientX }}
-                                onTouchEnd={e => {
-                                    const delta = e.changedTouches[0].clientX - carouselTouchStartX.current
-                                    if (Math.abs(delta) > 40) goTo(clampedIdx + (delta < 0 ? 1 : -1))
-                                }}>
+                            <div className="relative">
                                 {memberCard(currentMember, currentMemberIdx)}
                                 {/* prev / next overlay buttons */}
                                 {clampedIdx > 0 && (
@@ -2014,7 +2008,7 @@ export default function HouseholdPage() {
             </Dialog>
 
             {/* Income Modal — donut chart vs labels toggle */}
-            {incomeModalOpen && (
+            {incomeModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
                     onClick={() => setIncomeModalOpen(false)}>
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -2129,7 +2123,7 @@ export default function HouseholdPage() {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </div>
     )
 }
